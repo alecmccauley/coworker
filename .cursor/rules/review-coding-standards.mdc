@@ -1,0 +1,14 @@
+---
+description: Review coding standards before performing any task
+alwaysApply: true
+---
+
+# Review Coding Standards First
+
+Before performing any task in this workspace:
+
+1. **Read `docs/coding_standards.md`** (or re-read it if the task touches architecture, patterns, or conventions).
+2. Apply the standards and patterns defined there—project structure, atomic composition, type safety, layer separation, SDK-first integration, error handling, and visual consistency.
+3. When adding features, follow the documented flow: shared-services → API → app via IPC.
+
+This ensures work aligns with the project’s production-grade standards and avoids drift.

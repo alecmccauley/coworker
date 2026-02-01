@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "boot": "./scripts/boot.sh",
+    "sync:agents": "./scripts/sync-agents.sh",
     "dev:app": "pnpm --filter coworker-app dev",
     "dev:api": "pnpm --filter coworker-api dev",
     "pm2:status": "pnpm -w exec pm2 status",

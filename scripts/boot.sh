@@ -35,6 +35,9 @@ wait_for_port() {
 cd "$ROOT_DIR"
 
 banner
+
+"$ROOT_DIR/scripts/sync-agents.sh"
+
 section "Preparing your workspace"
 
 require_command docker
