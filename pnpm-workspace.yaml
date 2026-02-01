@@ -1,0 +1,4 @@
+packages:
+  - "coworker-app"
+  - "coworker-api"
+  - "shared-services"

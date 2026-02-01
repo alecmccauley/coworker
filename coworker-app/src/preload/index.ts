@@ -1,8 +1,25 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { CoworkerSdk } from '@coworker/shared-services'
 
 // Custom APIs for renderer
-const api = {}
+const api = {
+  hello: {
+    sayHello: async (name?: string) => ipcRenderer.invoke('api:hello:sayHello', name)
+  },
+  users: {
+    list: async () => ipcRenderer.invoke('api:users:list'),
+    getById: async (id: string) => ipcRenderer.invoke('api:users:getById', id),
+    create: async (data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+      ipcRenderer.invoke('api:users:create', data),
+    update: async (id: string, data: Parameters<CoworkerSdk['users']['update']>[1]) =>
+      ipcRenderer.invoke('api:users:update', id, data),
+    delete: async (id: string) => ipcRenderer.invoke('api:users:delete', id)
+  }
+}
+
+// Export type for use in type declarations
+export type Api = typeof api
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

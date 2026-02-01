@@ -1,0 +1,33 @@
+{
+  "name": "coworker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "boot": "./scripts/boot.sh",
+    "dev:app": "pnpm --filter coworker-app dev",
+    "dev:api": "pnpm --filter coworker-api dev",
+    "pm2:status": "pnpm -w exec pm2 status",
+    "pm2:logs": "pnpm -w exec pm2 logs",
+    "pm2:stop:all": "pnpm -w exec pm2 stop coworker-api coworker-app",
+    "pm2:restart:all": "pnpm -w exec pm2 restart coworker-api coworker-app",
+    "pm2:delete:all": "pnpm -w exec pm2 delete coworker-api coworker-app",
+    "build:shared": "pnpm --filter @coworker/shared-services build",
+    "lint:shared": "pnpm --filter @coworker/shared-services lint"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "electron",
+      "electron-winstaller"
+    ]
+  },
+  "devDependencies": {
+    "pm2": "^6.0.14"
+  }
+}

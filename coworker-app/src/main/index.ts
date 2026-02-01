@@ -2,6 +2,40 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import type { CoworkerSdk } from '@coworker/shared-services'
+
+let sdk: CoworkerSdk | null = null
+
+const getSdk = async () => {
+  if (sdk) return sdk
+  const { createDevSdk } = await import('@coworker/shared-services')
+  sdk = createDevSdk()
+  return sdk
+}
+
+const registerIpcHandlers = () => {
+  ipcMain.handle('api:hello:sayHello', async (_event, name?: string) =>
+    (await getSdk()).hello.sayHello(name ? { name } : undefined)
+  )
+  ipcMain.handle('api:users:list', async () => (await getSdk()).users.list())
+  ipcMain.handle('api:users:getById', async (_event, id: string) =>
+    (await getSdk()).users.getById(id)
+  )
+  ipcMain.handle(
+    'api:users:create',
+    async (_event, data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+      (await getSdk()).users.create(data)
+  )
+  ipcMain.handle(
+    'api:users:update',
+    async (_event, id: string, data: Parameters<CoworkerSdk['users']['update']>[1]) =>
+      (await getSdk()).users.update(id, data)
+  )
+  ipcMain.handle(
+    'api:users:delete',
+    async (_event, id: string) => (await getSdk()).users.delete(id)
+  )
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -52,6 +86,7 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
+  registerIpcHandlers()
   createWindow()
 
   app.on('activate', function () {
