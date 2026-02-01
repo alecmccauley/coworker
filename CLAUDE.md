@@ -164,7 +164,7 @@ Use runes. `$state()` for reactive state. `$derived()` for computed values. `$pr
 
 Follow the visual identity. Use the color system—warm cream backgrounds, warm charcoal text, terracotta accents. Use the type scale—Playfair Display for headlines, Inter for body and UI. Use the spacing scale—8px base unit, generous whitespace. Use semantic Tailwind classes (`bg-background`, `text-foreground`, `text-accent`). The design system exists so every screen feels like it belongs.
 
-ALWAYS review docs/VISUAL_IDENTITY.md before doing ANY UI tasks, and re-use our design system whenever possible.
+ALWAYS review docs/VISUAL_IDENTITY.md AND docs/design_system.md before doing ANY UI tasks, and re-use our design system whenever possible.
 
 ---
 

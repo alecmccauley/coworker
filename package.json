@@ -12,6 +12,7 @@
     "pm2:stop:all": "pnpm -w exec pm2 stop coworker-api coworker-app",
     "pm2:restart:all": "pnpm -w exec pm2 restart coworker-api coworker-app",
     "pm2:delete:all": "pnpm -w exec pm2 delete coworker-api coworker-app",
+    "pm2:kill": "pnpm -w exec pm2 kill",
     "build:shared": "pnpm --filter @coworker/shared-services build",
     "lint:shared": "pnpm --filter @coworker/shared-services lint"
   },

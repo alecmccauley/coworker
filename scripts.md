@@ -7,6 +7,7 @@ We keep all project scripts in the `scripts/` folder. Each script should feel li
 - Source `scripts/common.sh` for consistent styling.
 - Prefer `pnpm` workspace commands over `cd`-heavy scripts.
 - Use `pm2` for long-running dev processes.
+- **PM2 daemon stale after reinstall:** If you see `MODULE_NOT_FOUND` for `pm2/.../ProcessContainerFork.js`, the daemon is using an old path. From repo root run `pnpm pm2:kill`, then start again. If that fails (e.g. node_modules broken), use a global PM2: `pm2 kill` (install with `npm install -g pm2` if needed), then `pnpm install` and re-run boot or dev.
 - Be explicit about dependencies (Docker, pnpm, etc.).
 - Keep output warm and helpful. No shouting. No noise.
 
