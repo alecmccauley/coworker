@@ -20,6 +20,12 @@ $ pnpm install
 $ pnpm dev
 ```
 
+### SDK + IPC Pattern (Required)
+
+- All API/SDK network calls run in the **main process**.
+- The preload exposes a typed IPC facade via `window.api`.
+- The renderer only calls `window.api` (or `$lib/api` wrappers) and uses **type-only imports** from `@coworker/shared-services`.
+
 ### Build
 
 ```bash

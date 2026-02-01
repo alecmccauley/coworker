@@ -101,43 +101,103 @@ export const helloController = {
 };
 ```
 
-## Usage in coworker-app
+## Usage in coworker-app (Electron)
 
-### Preload Script
+**Strict rule:** all network access (SDK calls) happens in the **main process**.
+The renderer only talks to the main process through IPC, and uses shared types
+end-to-end for a clean, typed developer experience.
 
-The SDK is initialized in the preload script and exposed to the renderer:
+### 1) Main process owns the SDK
+
+Create the SDK in the main process and register IPC handlers. This keeps network
+access and secrets out of the renderer.
 
 ```typescript
-import { createDevSdk } from '@coworker/shared-services';
+// src/main/index.ts
+import { ipcMain } from 'electron'
+import type { CoworkerSdk } from '@coworker/shared-services'
 
-const sdk = createDevSdk();
+let sdk: CoworkerSdk | null = null
+
+const getSdk = async () => {
+  if (sdk) return sdk
+  const { createDevSdk } = await import('@coworker/shared-services')
+  sdk = createDevSdk()
+  return sdk
+}
+
+ipcMain.handle('api:hello:sayHello', async (_event, name?: string) =>
+  (await getSdk()).hello.sayHello(name ? { name } : undefined)
+)
+
+ipcMain.handle(
+  'api:users:create',
+  async (_event, data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+    (await getSdk()).users.create(data)
+)
+```
+
+### 2) Preload exposes a typed IPC facade
+
+The preload script maps IPC channels to a typed `window.api` surface.
+
+```typescript
+// src/preload/index.ts
+import { contextBridge, ipcRenderer } from 'electron'
+import type { CoworkerSdk } from '@coworker/shared-services'
 
 const api = {
   hello: {
-    sayHello: (name?: string) => sdk.hello.sayHello(name ? { name } : undefined)
+    sayHello: async (name?: string) => ipcRenderer.invoke('api:hello:sayHello', name)
   },
   users: {
-    list: () => sdk.users.list(),
-    // ... other methods
+    list: async () => ipcRenderer.invoke('api:users:list'),
+    create: async (data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+      ipcRenderer.invoke('api:users:create', data)
   }
-};
+}
 
-contextBridge.exposeInMainWorld('api', api);
+export type Api = typeof api
+
+if (process.contextIsolated) {
+  contextBridge.exposeInMainWorld('api', api)
+}
 ```
 
-### Renderer Usage
+### 3) Preload types wire `window.api`
 
-Use the exposed API in Svelte components:
+```typescript
+// src/preload/index.d.ts
+import type { Api } from './index'
+
+declare global {
+  interface Window {
+    api: Api
+  }
+}
+```
+
+### 4) Renderer uses typed wrappers (no SDK in renderer)
+
+Keep renderer code clean and type-safe by calling `window.api` (or a tiny wrapper).
+Use **type-only imports** from shared-services when you need shared types.
+
+```typescript
+// src/renderer/src/lib/api.ts
+export const helloApi = {
+  sayHello: (name?: string) => window.api.hello.sayHello(name)
+}
+```
 
 ```svelte
 <script lang="ts">
-  import { helloApi } from '$lib/api';
-  import type { HelloData } from '@coworker/shared-services';
+  import { helloApi } from '$lib/api'
+  import type { HelloData } from '@coworker/shared-services'
 
-  let greeting = $state<HelloData | null>(null);
+  let greeting = $state<HelloData | null>(null)
 
   async function sayHello() {
-    greeting = await helloApi.sayHello('Alice');
+    greeting = await helloApi.sayHello('Alice')
   }
 </script>
 
@@ -146,6 +206,13 @@ Use the exposed API in Svelte components:
   <p>{greeting.message}</p>
 {/if}
 ```
+
+### IPC Pattern Rules (enforced)
+
+- **Main owns the SDK** and performs all HTTP calls.
+- **Renderer never calls the API directly** and never imports the SDK at runtime.
+- **IPC channels follow** `api:<domain>:<action>` and use `ipcMain.handle` + `ipcRenderer.invoke`.
+- **Types flow from shared-services** using `CoworkerSdk` method signatures or shared domain types.
 
 ## SDK Reference
 

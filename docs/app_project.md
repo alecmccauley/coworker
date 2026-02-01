@@ -136,99 +136,135 @@ function createWindow(): void {
 - ✅ Control window lifecycle
 - ✅ Handle system tray, notifications
 - ✅ Implement IPC handlers for renderer requests
+- ✅ Own all SDK/API calls (network access stays in main)
 
 **DON'T:**
 - ❌ Import renderer/UI code
 - ❌ Perform heavy computation (blocks the app)
 - ❌ Store sensitive data without encryption
 - ❌ Expose dangerous Node APIs to renderer
+- ❌ Call backend APIs directly from the renderer
 
 ## Preload Script
 
 ### Bridge Pattern (`src/preload/index.ts`)
 
-The preload script safely exposes APIs to the renderer:
+The preload script exposes a **typed IPC facade** to the renderer. It must not
+perform network requests or import runtime SDKs directly.
 
 ```typescript
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { CoworkerSdk } from '@coworker/shared-services'
 
-// Expose electron-toolkit API
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', {
-      // Add custom APIs here
-    })
-  } catch (error) {
-    console.error(error)
+const api = {
+  hello: {
+    sayHello: async (name?: string) => ipcRenderer.invoke('api:hello:sayHello', name)
+  },
+  users: {
+    list: async () => ipcRenderer.invoke('api:users:list'),
+    create: async (data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+      ipcRenderer.invoke('api:users:create', data)
   }
+}
+
+export type Api = typeof api
+
+if (process.contextIsolated) {
+  contextBridge.exposeInMainWorld('electron', electronAPI)
+  contextBridge.exposeInMainWorld('api', api)
 } else {
+  // @ts-ignore (define in dts)
   window.electron = electronAPI
-  window.api = {}
+  // @ts-ignore (define in dts)
+  window.api = api
 }
 ```
 
 ### Type Definitions (`src/preload/index.d.ts`)
 
-Always define types for exposed APIs:
+Always bind the preload `Api` type to `window.api`:
 
 ```typescript
 import { ElectronAPI } from '@electron-toolkit/preload'
+import type { Api } from './index'
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: {
-      // Define your custom API types here
-      // Example:
-      // readFile: (path: string) => Promise<string>
-      // saveFile: (path: string, content: string) => Promise<void>
-    }
+    api: Api
   }
 }
 ```
 
 ### Adding Custom IPC APIs
 
-When adding new IPC functionality:
+When adding new IPC functionality (especially API calls), follow the **main → preload → renderer** chain.
 
-1. **Define the handler in main process:**
+1. **Define the handler in main process (SDK or native work lives here):**
 ```typescript
 // src/main/index.ts
 import { ipcMain } from 'electron'
+import type { CoworkerSdk } from '@coworker/shared-services'
 
-ipcMain.handle('read-file', async (_event, path: string) => {
-  const fs = await import('fs/promises')
-  return fs.readFile(path, 'utf-8')
-})
+ipcMain.handle(
+  'api:users:create',
+  async (_event, data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+    (await getSdk()).users.create(data)
+)
 ```
 
-2. **Expose in preload:**
+2. **Expose in preload via `invoke` (typed IPC facade):**
 ```typescript
 // src/preload/index.ts
 import { ipcRenderer } from 'electron'
+import type { CoworkerSdk } from '@coworker/shared-services'
 
-contextBridge.exposeInMainWorld('api', {
-  readFile: (path: string) => ipcRenderer.invoke('read-file', path),
-})
-```
-
-3. **Add types:**
-```typescript
-// src/preload/index.d.ts
-interface Window {
-  api: {
-    readFile: (path: string) => Promise<string>
+const api = {
+  users: {
+    create: (data: Parameters<CoworkerSdk['users']['create']>[0]) =>
+      ipcRenderer.invoke('api:users:create', data)
   }
 }
 ```
 
-4. **Use in renderer:**
+3. **Bind `Api` to window in preload types:**
 ```typescript
-// In Svelte component
-const content = await window.api.readFile('/path/to/file')
+// src/preload/index.d.ts
+import type { Api } from './index'
+
+declare global {
+  interface Window {
+    api: Api
+  }
+}
 ```
+
+4. **Use via renderer wrapper (no SDK imports in renderer):**
+```typescript
+// src/renderer/src/lib/api.ts
+export const usersApi = {
+  create: (data: Parameters<typeof window.api.users.create>[0]) =>
+    window.api.users.create(data)
+}
+```
+
+## SDK + IPC Pattern (Required)
+
+To keep the app secure, consistent, and strongly typed, all API access follows
+this fixed chain:
+
+1. **Main process** owns the SDK and performs all network calls.
+2. **Preload** exposes a typed IPC facade (`window.api`) using `ipcRenderer.invoke`.
+3. **Renderer** uses `$lib/api` wrappers and **type-only imports** from shared-services.
+
+If you need a new endpoint, add it to shared-services first, then wire main →
+preload → renderer. Never call the API directly from the renderer.
+
+**IPC conventions (required):**
+- Channel names follow `api:<domain>:<action>` (example: `api:users:create`).
+- Use `ipcMain.handle` + `ipcRenderer.invoke` for request/response.
+- Payload types come from `CoworkerSdk` method signatures or shared domain types.
 
 ## Renderer (Svelte Application)
 
@@ -707,7 +743,8 @@ import { Button } from '$lib/components/ui/button'
 
 ### Sharing Types Between Processes
 
-For types needed in both main and renderer:
+For types needed in both main and renderer, prefer shared-services types and use
+**type-only imports** in the renderer to avoid bundling server-only code.
 
 1. **Create shared types file:**
 ```typescript
@@ -734,6 +771,7 @@ import type { FileInfo } from '../shared/types'
 
 // In renderer
 import type { FileInfo } from '../../shared/types'
+import type { User, CreateUserInput } from '@coworker/shared-services'
 ```
 
 ## State Management
@@ -960,10 +998,11 @@ pnpm --filter coworker-app build:linux
 2. **Create IPC handlers** if feature needs main process access
 3. **Update preload** to expose new APIs
 4. **Add type definitions** for preload APIs
-5. **Create UI components** following established patterns
-6. **Add to appropriate module/feature directory**
-7. **Write tests** for critical logic
-8. **Update documentation** if significant
+5. **Use shared-services types** (type-only in renderer, runtime in main)
+6. **Create UI components** following established patterns
+7. **Add to appropriate module/feature directory**
+8. **Write tests** for critical logic
+9. **Update documentation** if significant
 
 ### Example: Adding a File Picker Feature
 
@@ -1023,6 +1062,7 @@ interface Window {
 
 - ✅ Keep main process handlers minimal and focused
 - ✅ Always type your IPC APIs in preload definitions
+- ✅ Route all network calls through main + IPC
 - ✅ Use `$props()` destructuring with TypeScript interfaces
 - ✅ Compose UI from small, reusable components
 - ✅ Use `cn()` for all dynamic class composition
@@ -1033,6 +1073,7 @@ interface Window {
 ### Don't
 
 - ❌ Access Node APIs directly in renderer
+- ❌ Import or call the SDK from the renderer at runtime
 - ❌ Put business logic in UI components
 - ❌ Duplicate styling—use design tokens and variants
 - ❌ Inline complex class strings—use `tv()` variants
