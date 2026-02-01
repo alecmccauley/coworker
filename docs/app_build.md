@@ -37,6 +37,7 @@ pnpm --filter coworker-app build:mac
 Build output location: `coworker-app/dist/`
 
 - `Coworkers-1.0.0-arm64.dmg` — macOS installer (Apple Silicon)
+- `Coworkers-1.0.0-x64.dmg` — macOS installer (Intel)
 
 ---
 
@@ -52,9 +53,9 @@ The build is configured via `coworker-app/electron-builder.yml`.
 | Product Name | `Coworkers` |
 | Electron Version | `39.4.0` |
 | macOS Category | `public.app-category.productivity` |
-| Target Architecture | `arm64` (Apple Silicon only) |
+| Target Architecture | `arm64` (Apple Silicon) + `x64` (Intel) |
 | Target Format | `dmg` |
-| Notarization | Disabled (for testing) |
+| Notarization | Enabled (requires `.env` credentials) |
 
 ### Key Configuration Sections
 
@@ -66,12 +67,18 @@ mac:
   category: public.app-category.productivity
   target:
     - target: dmg
-      arch: arm64
+      arch:
+        - arm64
+        - x64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  notarize: false
+  notarize: true
 
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
+  sign: false
 ```
 
 ### Build Resources
@@ -203,31 +210,61 @@ Instruct testers to:
 
 ---
 
-## Optional: Notarization
+## Notarization
 
-For a seamless install experience (no Gatekeeper warning), enable notarization.
+Notarization is enabled by default and required for macOS 15+ to avoid Gatekeeper blocking. The build script automatically loads credentials from `coworker-app/.env`.
 
-### Setup
+### Setup (One-Time)
 
-1. Generate an app-specific password at [appleid.apple.com](https://appleid.apple.com) > Security > App-Specific Passwords
+1. **Generate an app-specific password** at [appleid.apple.com](https://appleid.apple.com) > Sign-In and Security > App-Specific Passwords
 
-2. Set environment variables:
+2. **Create `.env` file** in `coworker-app/`:
 
-```bash
-export APPLE_ID="your-apple-id@email.com"
-export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-export APPLE_TEAM_ID="YOUR_TEAM_ID"
+```
+APPLE_ID=your-apple-id@email.com
+APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+APPLE_TEAM_ID=84D9A6MA23
 ```
 
-3. Update `electron-builder.yml`:
+3. **Build** — credentials are loaded automatically:
+
+```bash
+pnpm build:shared
+pnpm --filter coworker-app build:mac
+```
+
+### How It Works
+
+- The `build:mac` script uses `dotenv-cli` to load `.env` before running electron-builder
+- Credentials are passed to Apple's notarization service during the build
+- The notarization ticket is "stapled" to the app, so it works offline
+- `.env` is in `.gitignore` and never committed
+
+### Verification
+
+After building, verify notarization:
+
+```bash
+spctl -a -vvv -t install coworker-app/dist/mac-arm64/Coworkers.app
+```
+
+Expected output:
+
+```
+dist/mac-arm64/Coworkers.app: accepted
+source=Notarized Developer ID
+```
+
+### Disabling Notarization
+
+To build without notarization (for local testing only), temporarily set in `electron-builder.yml`:
 
 ```yaml
 mac:
-  notarize:
-    teamId: YOUR_TEAM_ID
+  notarize: false
 ```
 
-**Note**: Notarization adds several minutes to build time. For internal testing, Developer ID signing without notarization is usually sufficient.
+**Note**: Non-notarized apps will be blocked by Gatekeeper on macOS 15+.
 
 ---
 
@@ -278,6 +315,18 @@ electron-builder needs write access to `~/Library/Caches/electron-builder/`. Ens
 - You have write permissions to your home directory
 - No sandbox is blocking access
 
+### "Unable to authenticate" during notarization
+
+- Verify `.env` exists in `coworker-app/` with correct values
+- Check that `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD` are set correctly
+- Regenerate the app-specific password at [appleid.apple.com](https://appleid.apple.com) if needed
+
+### Notarization takes too long
+
+Notarization typically takes 2-5 minutes. If it takes longer than 10 minutes:
+- Check [Apple System Status](https://developer.apple.com/system-status/) for outages
+- Retry the build later
+
 ---
 
 ## Architecture Notes
@@ -287,10 +336,13 @@ electron-builder needs write access to `~/Library/Caches/electron-builder/`. Ens
 ```
 pnpm build:shared          →  Compiles shared-services to dist/
 pnpm --filter coworker-app build:mac
+  └─ dotenv -e .env        →  Loads Apple credentials from .env
   └─ npm run build         →  TypeScript check + electron-vite build
       └─ electron-vite     →  Builds main, preload, renderer to out/
   └─ electron-builder      →  Packages app + creates DMG
-      └─ Code signing      →  Signs with Developer ID (if available)
+      └─ Code signing      →  Signs with Developer ID
+      └─ Notarization      →  Uploads to Apple, receives ticket
+      └─ Stapling          →  Embeds ticket in app
       └─ DMG creation      →  Creates distributable installer
 ```
 
@@ -303,7 +355,10 @@ coworker-app/
 │   ├── preload/
 │   └── renderer/
 └── dist/                   # Distribution artifacts
-    ├── mac-arm64/          # Unpacked app
+    ├── mac-arm64/          # Unpacked app (Apple Silicon)
     │   └── Coworkers.app
-    └── Coworkers-1.0.0-arm64.dmg
+    ├── mac-x64/            # Unpacked app (Intel)
+    │   └── Coworkers.app
+    ├── Coworkers-1.0.0-arm64.dmg
+    └── Coworkers-1.0.0-x64.dmg
 ```

@@ -117,6 +117,17 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+@keyframes download-shine {
+  0% {
+    transform: translateX(-100%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(200%);
+    opacity: 0;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
