@@ -43,6 +43,9 @@ section "Preparing your workspace"
 require_command docker
 require_command pnpm
 
+step "Installing dependencies"
+pnpm install
+
 step "Resetting pm2 processes"
 pnpm -w exec pm2 delete coworker-api coworker-app >/dev/null 2>&1 || true
 

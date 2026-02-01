@@ -5,9 +5,10 @@ It is designed to feel calm, clear, and trustworthy while doing the heavy liftin
 
 ## What it does
 
-1. Starts the PostgreSQL Docker container.
-2. Generates the Prisma client and runs migrations.
-3. Starts the API and App in development mode via pm2.
+1. Installs all workspace dependencies at the root (`pnpm install`).
+2. Starts the PostgreSQL Docker container.
+3. Generates the Prisma client and runs migrations.
+4. Starts the API and App in development mode via pm2.
 
 ## Usage
 
@@ -23,8 +24,8 @@ You can also run the script directly:
 
 ## Prerequisites
 
-- Docker Desktop running
-- `pnpm` installed
+- Docker Desktop (must be running before boot)
+- Node.js ≥22 and pnpm ≥10 (see root `package.json` engines)
 
 ## Behavior
 
