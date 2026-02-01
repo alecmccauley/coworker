@@ -38,13 +38,29 @@ const registerIpcHandlers = () => {
 }
 
 function createWindow(): void {
-  // Create the browser window.
+  // Create the browser window with premium macOS-native styling
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1400,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    // macOS-specific glass effect configuration
+    ...(process.platform === 'darwin'
+      ? {
+          frame: false,
+          transparent: true,
+          titleBarStyle: 'hiddenInset',
+          vibrancy: 'under-window',
+          visualEffectState: 'active',
+          trafficLightPosition: { x: 20, y: 20 }
+        }
+      : {}),
+    // Linux icon
     ...(process.platform === 'linux' ? { icon } : {}),
+    // Windows frameless with custom title bar
+    ...(process.platform === 'win32' ? { frame: false } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
