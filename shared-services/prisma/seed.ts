@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 
-const envPath = path.join(import.meta.dirname, "..", "..", "coworker-api", ".env");
+const envPath = path.join(import.meta.dirname, "..", "..", "coworker-pilot", ".env");
 dotenv.config({ path: envPath });
 
 const { prisma } = (await import("@coworker/shared-services/db")) as {

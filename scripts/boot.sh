@@ -47,7 +47,7 @@ step "Installing dependencies"
 pnpm install
 
 step "Resetting pm2 processes"
-pnpm -w exec pm2 delete coworker-api coworker-app coworker-pilot >/dev/null 2>&1 || true
+pnpm -w exec pm2 delete coworker-app coworker-pilot >/dev/null 2>&1 || true
 
 if ! docker info >/dev/null 2>&1; then
   error "Docker is not running. Start Docker Desktop and try again."
@@ -105,17 +105,16 @@ else
       mv "$tmp_file" "$env_file"
     }
 
-    update_env_file "$ROOT_DIR/coworker-api/.env"
     update_env_file "$ROOT_DIR/coworker-pilot/.env"
-    success "Updated coworker-api/.env and coworker-pilot/.env DATABASE_URL"
+    success "Updated coworker-pilot/.env DATABASE_URL"
   fi
 fi
 
 step "Generating Prisma client"
-pnpm --filter coworker-api db:generate
+pnpm --filter @coworker/shared-services db:generate
 
 step "Running migrations"
-pnpm --filter coworker-api db:migrate
+pnpm --filter @coworker/shared-services db:migrate
 
 section "Launching dev servers"
 
@@ -132,9 +131,8 @@ start_or_restart() {
   fi
 }
 
-start_or_restart "coworker-api" "pnpm --filter coworker-api dev"
-start_or_restart "coworker-app" "pnpm --filter coworker-app dev"
 start_or_restart "coworker-pilot" "pnpm --filter coworker-pilot dev"
+start_or_restart "coworker-app" "pnpm --filter coworker-app dev"
 
 success "Everything is running under pm2."
 info "Use: pnpm pm2:status | pnpm pm2:logs"

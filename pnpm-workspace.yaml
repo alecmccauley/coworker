@@ -1,5 +1,4 @@
 packages:
   - "coworker-app"
-  - "coworker-api"
   - "coworker-pilot"
   - "shared-services"

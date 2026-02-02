@@ -1,8 +1,8 @@
-# Coworker API Documentation
+# Coworker Pilot API Documentation
 
 ## Overview
 
-The Coworker API is a production-grade REST API built with modern TypeScript practices. This document outlines the project structure, frameworks, patterns, and best practices for developers working on this codebase.
+The Coworker Pilot is a Next.js 16 application that serves both the brand guide web interface and the REST API. The API is built using Next.js App Router API routes, providing a modern, serverless-ready architecture. The name "pilot" comes from the concept of piloting—to drive, guide, or navigate.
 
 ## Tech Stack
 
@@ -10,382 +10,120 @@ The Coworker API is a production-grade REST API built with modern TypeScript pra
 |------------|---------|---------|
 | Node.js | ≥22.0.0 | Runtime |
 | TypeScript | 5.x | Type safety |
-| Express | 5.x | HTTP framework |
+| Next.js | 16.x | Framework (App Router) |
 | Prisma | 7.x | Database ORM |
 | PostgreSQL | 17 | Database |
 | Zod | 4.x | Schema validation |
-| Pino | 10.x | Logging |
-| Vitest | 4.x | Testing |
+| React | 19.x | UI framework |
+| Tailwind CSS | 4.x | Styling |
 
 ## Project Structure
 
 ```
-coworker-api/
-├── src/
-│   ├── config/             # Application configuration
-│   │   ├── db.ts           # Prisma client (from shared-services)
-│   │   ├── env.ts          # Environment validation
-│   │   ├── logger.ts       # Pino logger setup
-│   │   └── index.ts        # Re-exports
-│   ├── modules/            # Feature modules
-│   │   └── users/          # User module
-│   │       ├── user.schema.ts      # Re-exports shared Zod schemas
-│   │       ├── user.service.ts     # Business logic
-│   │       ├── user.controller.ts  # HTTP handlers
-│   │       ├── user.routes.ts      # Route definitions
-│   │       ├── user.test.ts        # Tests
-│   │       └── index.ts            # Module exports
-│   ├── shared/             # Shared utilities
-│   │   ├── middlewares/    # Express middlewares
-│   │   │   ├── errorHandler.ts
-│   │   │   ├── validateRequest.ts
-│   │   │   └── index.ts
-│   │   ├── utils/
-│   │   │   └── AppError.ts # Custom error class
-│   │   └── index.ts
-│   ├── test/
-│   │   └── setup.ts        # Test configuration
-│   ├── app.ts              # Express app setup
-│   └── server.ts           # Entry point
-├── eslint.config.mjs       # ESLint flat config
-├── vitest.config.ts        # Test config
-└── tsconfig.json           # TypeScript config
-
-shared-services/
-├── prisma/                 # Prisma schema + migrations
-│   └── schema.prisma
-├── prisma.config.ts        # Prisma 7 configuration
-└── ...
-
-docker-compose.yml          # PostgreSQL container (repo root)
+coworker-pilot/
+├── app/
+│   ├── api/                    # API routes
+│   │   ├── health/             # Health check endpoint
+│   │   │   └── route.ts
+│   │   └── v1/                 # Versioned API endpoints
+│   │       ├── hello/
+│   │       │   └── route.ts    # Hello world endpoint
+│   │       └── users/
+│   │           ├── route.ts    # List/create users
+│   │           └── [id]/
+│   │               └── route.ts # Get/update/delete user
+│   ├── globals.css             # Global styles
+│   ├── layout.tsx              # Root layout
+│   └── page.tsx                # Home page (brand guide)
+├── components/                 # React components
+│   ├── brand-guide/            # Brand guide sections
+│   ├── theme-provider.tsx
+│   └── ui/                     # shadcn/ui components
+├── hooks/                      # Custom React hooks
+├── lib/
+│   ├── api-utils.ts            # API response helpers
+│   └── utils.ts                # General utilities
+├── public/                     # Static assets
+├── styles/
+│   └── globals.css
+├── next.config.mjs             # Next.js configuration
+├── package.json
+└── tsconfig.json               # TypeScript configuration
 ```
 
 ## Architecture
 
-### Feature-Sliced Design
+### Next.js App Router API Routes
 
-The API follows a **feature-sliced architecture** where each feature/domain is contained in its own module under `src/modules/`. Each module is self-contained with its own:
-
-- **Schema** - Zod validation schemas and TypeScript types
-- **Service** - Business logic (database operations, domain rules)
-- **Controller** - HTTP request/response handling
-- **Routes** - Express route definitions
-- **Tests** - Unit and integration tests
-
-### Layer Separation
+API routes are defined in the `app/api/` directory using the App Router convention. Each route file exports HTTP method handlers (`GET`, `POST`, `PATCH`, `DELETE`, etc.).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        HTTP Layer                           │
-│  Routes → Middleware (validation) → Controller              │
+│  Route Handler (route.ts) → Validation → Response           │
 ├─────────────────────────────────────────────────────────────┤
 │                      Business Layer                         │
-│  Service (domain logic, database operations)                │
+│  Prisma operations (inline or via service functions)        │
 ├─────────────────────────────────────────────────────────────┤
 │                       Data Layer                            │
 │  Prisma Client → PostgreSQL                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Route File Structure
+
+Each route file follows this pattern:
+
+```typescript
+import { NextRequest } from "next/server";
+import { prisma } from "@coworker/shared-services/db";
+import { someSchema } from "@coworker/shared-services";
+import { successResponse, validationErrorResponse } from "@/lib/api-utils";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  // Handle GET request
+}
+
+export async function POST(request: NextRequest) {
+  // Handle POST request
+}
+```
+
 ## Validation & Type Safety
 
 ### Zod Schemas
 
-All request validation is done using Zod schemas. For API contracts shared with
-the app, schemas live in `@coworker/shared-services` and are re-exported from
-`*.schema.ts` files in the API for convenience:
+All request validation uses Zod schemas from `@coworker/shared-services`:
 
 ```typescript
-// user.schema.ts
-export {
-  createUserSchema,
-  updateUserSchema,
-  userIdParamSchema,
-} from "@coworker/shared-services";
+import { createUserSchema } from "@coworker/shared-services";
+import type { CreateUserInput } from "@coworker/shared-services";
 
-export type { CreateUserInput } from "@coworker/shared-services";
-```
-
-### Validation Middleware
-
-Use the `validateRequest` middleware to validate incoming requests:
-
-```typescript
-// user.routes.ts
-import { validateRequest } from "../../shared/index.js";
-import { createUserSchema, userIdParamSchema } from "./user.schema.js";
-
-userRouter.post(
-  "/",
-  validateRequest({ body: createUserSchema }),
-  userController.create
-);
-
-userRouter.get(
-  "/:id",
-  validateRequest({ params: userIdParamSchema }),
-  userController.getById
-);
-```
-
-The middleware supports validating:
-- `body` - Request body
-- `query` - Query parameters
-- `params` - URL parameters
-
-### Type Safety Guidelines
-
-1. **Prefer shared schemas** from `@coworker/shared-services` for public API contracts
-2. **Always define Zod schemas first**, then infer TypeScript types from them
-3. **Use `.js` extensions** in all imports (NodeNext module resolution)
-4. **Enable strict TypeScript** - the project uses `strict: true` and `noUncheckedIndexedAccess: true`
-5. **Use type imports** for types-only imports: `import type { ... } from "..."`
-
-## Business Logic vs HTTP Handling
-
-### Controllers (HTTP Layer)
-
-Controllers handle HTTP concerns only:
-- Extract data from requests
-- Call service methods
-- Format and send responses
-- Set HTTP status codes
-
-```typescript
-// user.controller.ts
-export const userController = {
-  create: (async (req, res) => {
-    // Extract validated data from request
-    const user = await userService.create(req.body as CreateUserInput);
-
-    // Send response with appropriate status
-    res.status(StatusCodes.CREATED).json({
-      status: "success",
-      data: user
-    });
-  }) as RequestHandler,
-};
-```
-
-**Controller Rules:**
-- ✅ Extract data from `req.body`, `req.params`, `req.query`
-- ✅ Call service methods
-- ✅ Set HTTP status codes
-- ✅ Format JSON responses
-- ❌ Do NOT contain business logic
-- ❌ Do NOT access the database directly
-- ❌ Do NOT throw domain-specific errors (let services do that)
-
-### Services (Business Layer)
-
-Services contain all business logic:
-- Database operations via Prisma
-- Domain validation rules
-- Business error handling
-
-```typescript
-// user.service.ts
-export const userService = {
-  async create(data: CreateUserInput) {
-    // Business rule: check for duplicate email
-    const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (existingUser) {
-      throw new AppError("Email already exists", StatusCodes.CONFLICT);
-    }
-
-    // Database operation
-    return prisma.user.create({ data });
-  },
-};
-```
-
-**Service Rules:**
-- ✅ Contain all business logic
-- ✅ Perform database operations
-- ✅ Throw `AppError` for business rule violations
-- ✅ Accept typed inputs (from Zod schemas)
-- ❌ Do NOT access `req` or `res` objects
-- ❌ Do NOT set HTTP status codes directly
-- ❌ Do NOT format HTTP responses
-
-## Error Handling
-
-### Custom Error Class
-
-Use `AppError` for all application errors:
-
-```typescript
-import { AppError } from "../../shared/index.js";
-import { StatusCodes } from "http-status-codes";
-
-// In services
-throw new AppError("User not found", StatusCodes.NOT_FOUND);
-throw new AppError("Email already exists", StatusCodes.CONFLICT);
-throw new AppError("Invalid operation", StatusCodes.BAD_REQUEST);
-```
-
-### Error Handler Middleware
-
-The global error handler (`errorHandler.ts`) automatically handles:
-- `ZodError` → 400 Bad Request with validation details
-- `AppError` → Appropriate status code with message
-- Unknown errors → 500 Internal Server Error (logged)
-
-### Express 5 Async Error Handling
-
-Express 5 natively handles async errors - no need for `express-async-errors`:
-
-```typescript
-// This works - errors are automatically caught
-export const userController = {
-  getById: (async (req, res) => {
-    const user = await userService.findById(id); // Throws AppError if not found
-    res.json({ status: "success", data: user });
-  }) as RequestHandler,
-};
-```
-
-## Environment Configuration
-
-### Validation
-
-Environment variables are validated at startup using Zod:
-
-```typescript
-// config/env.ts
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  PORT: z.coerce.number().default(3000),
-  DATABASE_URL: z.url(),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-});
-```
-
-The application will fail to start if required environment variables are missing or invalid.
-
-### Usage
-
-```typescript
-import { env } from "./config/index.js";
-
-console.log(env.PORT);      // number (validated)
-console.log(env.NODE_ENV);  // "development" | "production" | "test"
-```
-
-## Database
-
-### Prisma 7 Configuration
-
-Prisma 7 uses a separate config file in `shared-services/prisma.config.ts`:
-
-```typescript
-// shared-services/prisma.config.ts
-export default defineConfig({
-  earlyAccess: true,
-  schema: path.join(import.meta.dirname, "prisma", "schema.prisma"),
-  migrate: {
-    url() {
-      return process.env.DATABASE_URL ?? "postgresql://...";
-    },
-  },
-});
-```
-
-### Prisma Client with Driver Adapter
-
-The project uses Prisma's pg adapter for direct database connections:
-
-```typescript
-// config/db.ts
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
-
-const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-
-export const prisma = new PrismaClient({ adapter });
-```
-
-### Schema Definition
-
-```prisma
-// shared-services/prisma/schema.prisma
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("users")  // Table name in database
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  
+  const result = createUserSchema.safeParse(body);
+  if (!result.success) {
+    return validationErrorResponse(result.error.issues);
+  }
+  
+  const data = result.data as CreateUserInput;
+  // Use validated data
 }
 ```
 
-**Conventions:**
-- Use `cuid()` for IDs (faster than UUID, shorter)
-- Use `@map` for snake_case column names
-- Use `@@map` for snake_case table names
-- Always include `createdAt` and `updatedAt`
+### Type Safety Guidelines
 
-## Testing
-
-### Test Structure
-
-Tests are colocated with the code they test:
-
-```
-modules/users/
-├── user.service.ts
-├── user.controller.ts
-└── user.test.ts      # Tests for this module
-```
-
-### Mocking Prisma
-
-Mock the Prisma client for isolated tests:
-
-```typescript
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { prisma } from "../../config/index.js";
-
-vi.mock("../../config/db.js", () => ({
-  prisma: {
-    user: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-    },
-  },
-}));
-
-describe("User API", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should return all users", async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([...]);
-    // test implementation
-  });
-});
-```
-
-### Running Tests
-
-```bash
-pnpm --filter coworker-api test        # Run once
-pnpm --filter coworker-api test:watch  # Watch mode
-```
+1. **Use shared schemas** from `@coworker/shared-services` for all API contracts
+2. **Always validate input** using Zod's `safeParse` method
+3. **Use type-only imports** for TypeScript types: `import type { ... }`
+4. **Enable strict TypeScript** - the project uses `strict: true`
 
 ## API Response Format
 
-All API responses follow a consistent format:
+All API responses follow a consistent envelope format:
 
 ### Success Response
 
@@ -411,103 +149,223 @@ All API responses follow a consistent format:
 {
   "status": "error",
   "message": "Validation failed",
-  "errors": { ... }
+  "errors": [
+    { "field": "email", "message": "Invalid email address" }
+  ]
 }
 ```
 
-## Adding a New Module
+## Response Helpers
 
-1. **Create the module directory:**
-   ```
-   src/modules/posts/
-   ```
+Use the helper functions in `lib/api-utils.ts` for consistent responses:
 
-2. **Create the schema file** (`post.schema.ts`):
-   ```typescript
-   import { z } from "zod";
+```typescript
+import {
+  successResponse,
+  errorResponse,
+  validationErrorResponse,
+  notFoundResponse,
+  conflictResponse,
+  noContentResponse,
+} from "@/lib/api-utils";
 
-   export const createPostSchema = z.object({
-     title: z.string().min(1),
-     content: z.string(),
-   });
+// Success with data
+return successResponse(user);
 
-   export type CreatePostInput = z.infer<typeof createPostSchema>;
-   ```
+// Success with custom status
+return successResponse(user, 201);
 
-3. **Create the service** (`post.service.ts`):
-   ```typescript
-   import { prisma } from "../../config/index.js";
-   import type { CreatePostInput } from "./post.schema.js";
+// Error
+return errorResponse("Something went wrong", 500);
 
-   export const postService = {
-     async create(data: CreatePostInput) {
-       return prisma.post.create({ data });
-     },
-   };
-   ```
+// Validation error
+return validationErrorResponse(zodResult.error.issues);
 
-4. **Create the controller** (`post.controller.ts`):
-   ```typescript
-   import type { RequestHandler } from "express";
-   import { StatusCodes } from "http-status-codes";
-   import { postService } from "./post.service.js";
+// Not found
+return notFoundResponse("User not found");
 
-   export const postController = {
-     create: (async (req, res) => {
-       const post = await postService.create(req.body);
-       res.status(StatusCodes.CREATED).json({ status: "success", data: post });
-     }) as RequestHandler,
-   };
-   ```
+// Conflict (e.g., duplicate email)
+return conflictResponse("Email already exists");
 
-5. **Create the routes** (`post.routes.ts`):
-   ```typescript
-   import { Router, type IRouter } from "express";
-   import { postController } from "./post.controller.js";
-   import { validateRequest } from "../../shared/index.js";
-   import { createPostSchema } from "./post.schema.js";
+// No content (204)
+return noContentResponse();
+```
 
-   export const postRouter: IRouter = Router();
+## Database
 
-   postRouter.post(
-     "/",
-     validateRequest({ body: createPostSchema }),
-     postController.create
-   );
-   ```
+### Prisma Client
 
-6. **Create the index** (`index.ts`):
-   ```typescript
-   export { postRouter } from "./post.routes.js";
-   export { postService } from "./post.service.js";
-   export * from "./post.schema.js";
-   ```
+The Prisma client is imported from `@coworker/shared-services`:
 
-7. **Register in app.ts:**
-   ```typescript
-   import { postRouter } from "./modules/posts/index.js";
+```typescript
+import { prisma } from "@coworker/shared-services/db";
+```
 
-   app.use("/api/v1/posts", postRouter);
-   ```
+### Prisma Configuration
 
-8. **Add tests** (`post.test.ts`)
+Prisma is configured in `shared-services/`:
+
+```
+shared-services/
+├── prisma/
+│   ├── schema.prisma     # Schema definition
+│   └── migrations/       # Migration files
+└── prisma.config.ts      # Prisma 7 configuration
+```
+
+### Running Migrations
+
+```bash
+# Generate Prisma client
+pnpm db:generate
+
+# Run migrations
+pnpm db:migrate
+
+# Open Prisma Studio
+pnpm db:studio
+```
+
+## Available Endpoints
+
+### Health Check
+
+```
+GET /api/health
+```
+
+Returns API health status and user count.
+
+### Hello World
+
+```
+GET /api/v1/hello
+GET /api/v1/hello?name=Alice
+```
+
+Returns a greeting message with timestamp.
+
+### Users
+
+```
+GET    /api/v1/users          # List all users
+POST   /api/v1/users          # Create user
+GET    /api/v1/users/:id      # Get user by ID
+PATCH  /api/v1/users/:id      # Update user
+DELETE /api/v1/users/:id      # Delete user
+```
+
+## Adding a New API Endpoint
+
+### 1. Create the route file
+
+Create a new file in `app/api/v1/your-resource/route.ts`:
+
+```typescript
+import { NextRequest } from "next/server";
+import { prisma } from "@coworker/shared-services/db";
+import { yourSchema } from "@coworker/shared-services";
+import { successResponse, validationErrorResponse } from "@/lib/api-utils";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const items = await prisma.yourModel.findMany();
+  return successResponse(items);
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  
+  const result = yourSchema.safeParse(body);
+  if (!result.success) {
+    return validationErrorResponse(result.error.issues);
+  }
+  
+  const item = await prisma.yourModel.create({
+    data: result.data,
+  });
+  
+  return successResponse(item, 201);
+}
+```
+
+### 2. For dynamic routes, create `[id]/route.ts`:
+
+```typescript
+import { NextRequest } from "next/server";
+import { prisma } from "@coworker/shared-services/db";
+import { successResponse, notFoundResponse } from "@/lib/api-utils";
+
+export const dynamic = "force-dynamic";
+
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+  
+  const item = await prisma.yourModel.findUnique({
+    where: { id },
+  });
+  
+  if (!item) {
+    return notFoundResponse("Item not found");
+  }
+  
+  return successResponse(item);
+}
+```
+
+### 3. Add types and schemas to shared-services
+
+If your endpoint needs new types or schemas, add them to `shared-services/src/`:
+
+```typescript
+// shared-services/src/schemas/your-resource.ts
+import { z } from "zod";
+
+export const createYourResourceSchema = z.object({
+  name: z.string().min(1),
+  // ...
+});
+
+export type CreateYourResourceInput = z.infer<typeof createYourResourceSchema>;
+```
+
+## Development
+
+### Starting the Dev Server
+
+```bash
+# Start via pm2 (recommended)
+pnpm dev:pilot
+
+# Or start directly
+pnpm --filter coworker-pilot dev:raw
+```
+
+### Environment Variables
+
+Create a `.env` file in `coworker-pilot/`:
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/coworker?schema=public"
+```
 
 ## Scripts Reference
 
 | Script | Description |
 |--------|-------------|
-| `pnpm dev:api` | Start development server with hot reload |
-| `pnpm --filter coworker-api pm2:logs` | Follow API logs (pm2) |
-| `pnpm --filter coworker-api pm2:restart` | Restart API process (pm2) |
-| `pnpm --filter coworker-api pm2:stop` | Stop API process (pm2) |
-| `pnpm --filter coworker-api pm2:delete` | Delete API process (pm2) |
-| `pnpm --filter coworker-api build` | Compile TypeScript |
-| `pnpm --filter coworker-api start` | Run compiled code |
-| `pnpm --filter coworker-api lint` | Run ESLint |
-| `pnpm --filter coworker-api test` | Run tests |
-| `pnpm --filter coworker-api test:watch` | Run tests in watch mode |
-| `pnpm --filter coworker-api db:generate` | Generate Prisma client |
-| `pnpm --filter coworker-api db:migrate` | Run database migrations |
+| `pnpm dev:pilot` | Start development server via pm2 |
+| `pnpm --filter coworker-pilot dev:raw` | Start dev server directly |
+| `pnpm --filter coworker-pilot build` | Production build |
+| `pnpm --filter coworker-pilot start` | Run production server |
+| `pnpm --filter coworker-pilot lint` | Run ESLint |
+| `pnpm db:generate` | Generate Prisma client |
+| `pnpm db:migrate` | Run database migrations |
+| `pnpm db:studio` | Open Prisma Studio |
 
 ## Quick Start
 
@@ -516,16 +374,17 @@ All API responses follow a consistent format:
 docker compose up -d
 
 # 2. Generate Prisma client
-pnpm --filter coworker-api db:generate
+pnpm db:generate
 
 # 3. Run migrations
-pnpm --filter coworker-api db:migrate
+pnpm db:migrate
 
 # 4. Start development server
-pnpm dev:api
+pnpm dev:pilot
 
 # 5. Test the API
-curl http://localhost:3000/health
+curl http://localhost:3000/api/health
+curl http://localhost:3000/api/v1/hello?name=World
 curl -X POST http://localhost:3000/api/v1/users \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","name":"Test User"}'

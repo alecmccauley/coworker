@@ -1,6 +1,6 @@
 # Working with @coworker/shared-services
 
-This guide explains how to use the shared-services package for type-safe API integration between the coworker-api and coworker-app.
+This guide explains how to use the shared-services package for type-safe API integration between the coworker-pilot and coworker-app.
 
 ## Overview
 
@@ -9,6 +9,7 @@ The `@coworker/shared-services` package provides:
 - **Types**: Shared TypeScript types for API responses and domain entities
 - **Schemas**: Zod validation schemas for request/response validation
 - **SDK**: A type-safe client for making API requests
+- **Database**: Prisma client for database access
 
 ## Package Structure
 
@@ -16,7 +17,9 @@ The `@coworker/shared-services` package provides:
 shared-services/
 ├── src/
 │   ├── index.ts                    # Main entry (re-exports all)
-│   ├── db/                          # Prisma client (server-only)
+│   ├── db/                          # Prisma client
+│   │   ├── client.ts               # Prisma setup with pg adapter
+│   │   └── index.ts
 │   ├── types/
 │   │   ├── index.ts                # Type exports
 │   │   ├── api.ts                  # ApiResponse<T>, ApiError, etc.
@@ -37,12 +40,16 @@ shared-services/
 │           ├── index.ts
 │           ├── hello.ts            # HelloEndpoint
 │           └── users.ts            # UsersEndpoint
+├── prisma/
+│   ├── schema.prisma               # Database schema
+│   └── migrations/                 # Migration files
+├── prisma.config.ts                # Prisma 7 configuration
 └── dist/                           # Compiled output
 ```
 
 ## Prisma (Shared Database Package)
 
-`shared-services` now owns Prisma configuration, schema, and migrations:
+`shared-services` owns Prisma configuration, schema, and migrations:
 
 ```
 shared-services/
@@ -55,7 +62,7 @@ shared-services/
 ### Using Prisma in another package
 
 - Add `@coworker/shared-services` as a dependency.
-- Ensure `DATABASE_URL` is set in the consuming package’s `.env` (or process env).
+- Ensure `DATABASE_URL` is set in the consuming package's `.env` (or process env).
 - Import the shared Prisma client:
 
 ```typescript
@@ -64,11 +71,13 @@ import { prisma } from "@coworker/shared-services/db";
 
 ### Prisma CLI usage
 
-Run Prisma commands via the API package (which points to the shared config):
+Run Prisma commands from the root:
 
 ```bash
-pnpm --filter coworker-api db:generate
-pnpm --filter coworker-api db:migrate
+pnpm db:generate    # Generate Prisma client
+pnpm db:migrate     # Run migrations
+pnpm db:studio      # Open Prisma Studio
+pnpm db:seed        # Seed the database
 ```
 
 ## Installation
@@ -83,7 +92,7 @@ pnpm install
 pnpm build:shared
 ```
 
-## Usage in coworker-api
+## Usage in coworker-pilot (Next.js API)
 
 ### Importing Types
 
@@ -94,43 +103,35 @@ import type { HelloData, HelloQuery, User, CreateUserInput } from '@coworker/sha
 ### Using Schemas for Validation
 
 ```typescript
-import { helloQuerySchema, createUserSchema } from '@coworker/shared-services';
-import { validateRequest } from '../shared/index.js';
+import { NextRequest } from "next/server";
+import { createUserSchema } from "@coworker/shared-services";
+import { successResponse, validationErrorResponse } from "@/lib/api-utils";
 
-// In routes
-router.get('/', validateRequest({ query: helloQuerySchema }), controller.sayHello);
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  
+  const result = createUserSchema.safeParse(body);
+  if (!result.success) {
+    return validationErrorResponse(result.error.issues);
+  }
+  
+  // Use validated data
+  const user = await prisma.user.create({ data: result.data });
+  return successResponse(user, 201);
+}
 ```
 
-The user schemas in shared-services match the API expectations. Prefer them over
-module-local schemas to avoid drift:
+### Using Prisma
 
 ```typescript
-import {
-  createUserSchema,
-  updateUserSchema,
-  userIdParamSchema,
-} from '@coworker/shared-services';
-```
+import { prisma } from "@coworker/shared-services/db";
 
-### Controller Example
-
-```typescript
-import type { RequestHandler } from 'express';
-import type { HelloData, HelloQuery } from '@coworker/shared-services';
-
-export const helloController = {
-  sayHello: ((req, res) => {
-    const query = req.query as HelloQuery;
-    const name = query.name ?? 'World';
-
-    const data: HelloData = {
-      message: `Hello ${name}!`,
-      timestamp: new Date().toISOString(),
-    };
-
-    res.json({ status: 'success', data });
-  }) as RequestHandler,
-};
+export async function GET() {
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+  return successResponse(users);
+}
 ```
 
 ## Usage in coworker-app (Electron)
@@ -427,7 +428,35 @@ export class CoworkerSdk {
 }
 ```
 
-### 5. Update Exports
+### 5. Create API Route (`coworker-pilot/app/api/v1/your-entities/route.ts`)
+
+```typescript
+import { NextRequest } from "next/server";
+import { prisma } from "@coworker/shared-services/db";
+import { createYourEntitySchema } from "@coworker/shared-services";
+import { successResponse, validationErrorResponse } from "@/lib/api-utils";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const items = await prisma.yourEntity.findMany();
+  return successResponse(items);
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  const result = createYourEntitySchema.safeParse(body);
+  
+  if (!result.success) {
+    return validationErrorResponse(result.error.issues);
+  }
+  
+  const item = await prisma.yourEntity.create({ data: result.data });
+  return successResponse(item, 201);
+}
+```
+
+### 6. Update Exports
 
 Add exports to the relevant `index.ts` files.
 
@@ -440,8 +469,8 @@ pnpm build:shared
 # Lint shared-services:
 pnpm lint:shared
 
-# Start the API:
-pnpm dev:api
+# Start the API (pilot):
+pnpm dev:pilot
 
 # Start the app (in another terminal):
 pnpm dev:app

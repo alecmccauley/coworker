@@ -8,7 +8,7 @@ It is designed to feel calm, clear, and trustworthy while doing the heavy liftin
 1. Installs all workspace dependencies at the root (`pnpm install`).
 2. Starts the PostgreSQL Docker container from the repo root `docker-compose.yml`.
 3. Generates the Prisma client and runs migrations.
-4. Starts the API and App in development mode via pm2.
+4. Starts the Pilot (API + brand guide) and App in development mode via pm2.
 
 ## Usage
 
@@ -30,7 +30,7 @@ You can also run the script directly:
 ## Behavior
 
 - Runs from the repo root (regardless of where you call it from).
-- Syncs `DATABASE_URL` into `coworker-api/.env`.
+- Syncs `DATABASE_URL` into `coworker-pilot/.env`.
 - Waits briefly for the database to accept connections.
 - Starts both dev servers under pm2 for easy management.
 

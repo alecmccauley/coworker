@@ -14,13 +14,13 @@
 
 Coworker is a monorepo containing three interconnected packages:
 
-- **`coworker-api`** — Express 5 REST API with Prisma 7, PostgreSQL, and Zod validation
+- **`coworker-pilot`** — Next.js 16 application serving the brand guide and REST API with Prisma 7, PostgreSQL, and Zod validation
 - **`coworker-app`** — Electron desktop application with Svelte 5 and Tailwind CSS 4
-- **`shared-services`** — Shared types, Zod schemas, and a type-safe API SDK
+- **`shared-services`** — Shared types, Zod schemas, Prisma client, and a type-safe API SDK
 
-The architecture enforces strict separation: the API handles business logic and data persistence, the app handles user experience, and shared-services bridges them with contracts that guarantee type safety across the stack. The Electron app follows a three-process model (main → preload → renderer) where all network access happens in the main process via the SDK, never in the renderer.
+The architecture enforces strict separation: the API (running in coworker-pilot) handles business logic and data persistence, the app handles user experience, and shared-services bridges them with contracts that guarantee type safety across the stack. The Electron app follows a three-process model (main → preload → renderer) where all network access happens in the main process via the SDK, never in the renderer.
 
-When adding features, start with shared-services to define types and schemas, implement the API endpoint, then wire the app through IPC. This flow ensures type safety from database to UI.
+When adding features, start with shared-services to define types and schemas, implement the API endpoint in coworker-pilot, then wire the app through IPC. This flow ensures type safety from database to UI.
 
 ---
 
@@ -68,11 +68,30 @@ Types, schemas, and API contracts live in `@coworker/shared-services`. Period. D
 
 ### 4. Layer Separation
 
-Each layer has one job. Controllers handle HTTP concerns—extracting data, calling services, formatting responses. Services contain business logic—validation, database operations, domain rules. Routes define endpoints and apply middleware. Do not access `req` or `res` in services. Do not put business logic in controllers. Do not call the database from routes.
+Each layer has one job. API routes handle HTTP concerns—extracting data, validating input, formatting responses. Business logic belongs in the route handler or extracted service functions. Database operations use Prisma.
 
 ```
-Routes → Middleware → Controller → Service → Database
-         (validation)   (HTTP)      (logic)   (data)
+API Route → Validation (Zod) → Business Logic → Prisma → Database
+```
+
+For Next.js API routes:
+```typescript
+export async function POST(request: NextRequest) {
+  // 1. Parse input
+  const body = await request.json();
+  
+  // 2. Validate with shared schema
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    return validationErrorResponse(result.error.issues);
+  }
+  
+  // 3. Business logic + database
+  const item = await prisma.model.create({ data: result.data });
+  
+  // 4. Return response
+  return successResponse(item, 201);
+}
 ```
 
 ### 5. SDK-First Integration
@@ -118,7 +137,7 @@ UI components are investments. Build them once, use them everywhere. Use shadcn/
 
 ### 7. Prisma Discipline
 
-Prisma is the single interface to the database. Use `cuid()` for IDs. Use `@map` for snake_case columns. Use `@@map` for snake_case tables. Always include `createdAt` and `updatedAt`. Run migrations through `pnpm --filter coworker-api db:migrate`. Generate the client after schema changes with `pnpm --filter coworker-api db:generate`. Never modify the database outside of Prisma migrations.
+Prisma is the single interface to the database. Use `cuid()` for IDs. Use `@map` for snake_case columns. Use `@@map` for snake_case tables. Always include `createdAt` and `updatedAt`. Run migrations through `pnpm db:migrate`. Generate the client after schema changes with `pnpm db:generate`. Never modify the database outside of Prisma migrations.
 
 ```prisma
 model Entity {
@@ -132,11 +151,13 @@ model Entity {
 
 ### 8. Error Handling
 
-Use `AppError` for all application errors in the API. Include appropriate HTTP status codes. Let the global error handler format responses. In the SDK, use typed error classes (`SdkError`, `ValidationSdkError`, `NotFoundSdkError`). Never swallow errors. Never expose stack traces to users. Always provide actionable error messages.
+In API routes, use the response helper functions for consistent error responses. In the SDK, use typed error classes (`SdkError`, `ValidationSdkError`, `NotFoundSdkError`). Never swallow errors. Never expose stack traces to users. Always provide actionable error messages.
 
 ```typescript
-// API: throw typed errors
-throw new AppError("User not found", StatusCodes.NOT_FOUND)
+// API: use response helpers
+return notFoundResponse("User not found");
+return conflictResponse("Email already exists");
+return validationErrorResponse(result.error.issues);
 
 // SDK: catch and handle appropriately  
 if (error instanceof NotFoundSdkError) {
@@ -173,7 +194,9 @@ ALWAYS review docs/VISUAL_IDENTITY.md AND docs/design_system.md before doing ANY
 | Concern | Location | Pattern |
 |---------|----------|---------|
 | Types & Schemas | `shared-services/src/` | Zod schemas, inferred types |
-| API Endpoints | `coworker-api/src/modules/` | Controller → Service → Prisma |
+| Prisma Schema | `shared-services/prisma/` | Schema + migrations |
+| API Endpoints | `coworker-pilot/app/api/v1/` | Next.js API routes |
+| API Utilities | `coworker-pilot/lib/api-utils.ts` | Response helpers |
 | UI Components | `coworker-app/src/renderer/src/lib/components/ui/` | shadcn/bits-ui wrappers |
 | App Components | `coworker-app/src/renderer/src/components/` | Feature-specific |
 | IPC Handlers | `coworker-app/src/main/index.ts` | `ipcMain.handle` |

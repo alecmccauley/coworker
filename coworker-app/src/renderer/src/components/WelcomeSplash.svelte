@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { helloApi } from '$lib/api'
+  import type { HelloData } from '@coworker/shared-services'
+  import { Button } from '$lib/components/ui/button'
 
   // Staggered animation states
   let mounted = $state(false)
@@ -7,6 +10,12 @@
   let showName = $state(false)
   let showMessage = $state(false)
   let showTagline = $state(false)
+
+  // Debug panel state
+  let showDebugPanel = $state(false)
+  let isTestingApi = $state(false)
+  let apiTestResult = $state<HelloData | null>(null)
+  let apiTestError = $state<string | null>(null)
 
   onMount(() => {
     mounted = true
@@ -19,6 +28,30 @@
 
   // Detect if running on macOS for traffic light spacing
   const isMacOS = navigator.platform.toLowerCase().includes('mac')
+
+  async function testApiConnection() {
+    isTestingApi = true
+    apiTestResult = null
+    apiTestError = null
+
+    try {
+      const result = await helloApi.sayHello('Coworker')
+      apiTestResult = result
+    } catch (error) {
+      apiTestError = error instanceof Error ? error.message : 'Connection failed'
+    } finally {
+      isTestingApi = false
+    }
+  }
+
+  function toggleDebugPanel() {
+    showDebugPanel = !showDebugPanel
+    if (!showDebugPanel) {
+      // Reset state when closing
+      apiTestResult = null
+      apiTestError = null
+    }
+  }
 </script>
 
 <!--
@@ -35,6 +68,153 @@
     class="titlebar-drag-region fixed left-0 right-0 top-0 z-50 h-12"
     class:pl-24={isMacOS}
   ></header>
+
+  <!-- Debug button in top-right corner -->
+  <button
+    onclick={toggleDebugPanel}
+    class="titlebar-no-drag fixed right-4 top-4 z-[60] flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-muted-foreground opacity-0 transition-all duration-500 hover:bg-muted hover:text-foreground"
+    class:opacity-100={showTagline}
+    aria-label="Toggle debug panel"
+    style="-webkit-app-region: no-drag;"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />
+      <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+      <path d="M12 2v2" />
+      <path d="M12 22v-2" />
+      <path d="m17 20.66-1-1.73" />
+      <path d="M11 10.27 7 3.34" />
+      <path d="m20.66 17-1.73-1" />
+      <path d="m3.34 7 1.73 1" />
+      <path d="M14 12h8" />
+      <path d="M2 12h2" />
+      <path d="m20.66 7-1.73 1" />
+      <path d="m3.34 17 1.73-1" />
+      <path d="m17 3.34-1 1.73" />
+      <path d="m11 13.73-4 6.93" />
+    </svg>
+  </button>
+
+  <!-- Debug Panel -->
+  {#if showDebugPanel}
+    <div
+      class="fixed right-4 top-14 z-40 w-80 overflow-hidden rounded-xl border border-border bg-card p-6 shadow-lg transition-all duration-300"
+    >
+      <h3 class="mb-4 font-serif text-lg font-medium text-foreground">
+        API Diagnostics
+      </h3>
+
+      <div class="space-y-4">
+        <Button
+          onclick={testApiConnection}
+          disabled={isTestingApi}
+          variant="default"
+          class="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+        >
+          {#if isTestingApi}
+            <svg
+              class="mr-2 h-4 w-4 animate-spin"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Testing...
+          {:else}
+            Test API Connection
+          {/if}
+        </Button>
+
+        {#if apiTestResult}
+          <div class="rounded-lg bg-green-50 p-4 dark:bg-green-950/30">
+            <div class="mb-2 flex items-center gap-2">
+              <svg
+                class="h-4 w-4 text-green-600 dark:text-green-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22,4 12,14.01 9,11.01" />
+              </svg>
+              <span class="text-sm font-medium text-green-700 dark:text-green-300">
+                Connection Successful
+              </span>
+            </div>
+            <p class="font-serif text-lg text-green-800 dark:text-green-200">
+              {apiTestResult.message}
+            </p>
+            <p class="mt-1 text-xs text-green-600 dark:text-green-400">
+              {new Date(apiTestResult.timestamp).toLocaleString()}
+            </p>
+          </div>
+        {/if}
+
+        {#if apiTestError}
+          <div class="rounded-lg bg-red-50 p-4 dark:bg-red-950/30">
+            <div class="mb-2 flex items-center gap-2">
+              <svg
+                class="h-4 w-4 text-red-600 dark:text-red-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span class="text-sm font-medium text-red-700 dark:text-red-300">
+                Connection Failed
+              </span>
+            </div>
+            <p class="text-sm text-red-600 dark:text-red-400">
+              {apiTestError}
+            </p>
+            <p class="mt-2 text-xs text-muted-foreground">
+              Make sure the API is running on localhost:3000
+            </p>
+          </div>
+        {/if}
+
+        {#if !apiTestResult && !apiTestError && !isTestingApi}
+          <p class="text-center text-sm text-muted-foreground">
+            Click the button above to test the API connection.
+          </p>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <!-- Main content - perfectly centered -->
   <main class="flex flex-1 flex-col items-center justify-center px-8">
@@ -132,5 +312,10 @@
 
   :global(.dark) .splash-container {
     background-color: oklch(0.16 0.01 60);
+  }
+
+  /* Ensure buttons in the titlebar area are clickable */
+  .titlebar-no-drag {
+    -webkit-app-region: no-drag;
   }
 </style>
