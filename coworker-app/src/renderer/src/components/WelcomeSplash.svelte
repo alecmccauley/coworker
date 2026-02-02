@@ -261,7 +261,7 @@
         class:translate-y-0={showName}
         class:translate-y-6={!showName}
       >
-        <span class="text-accent">Joie</span>
+        <span class="text-accent">Coworker</span>
       </h1>
 
       <!-- Main message -->
