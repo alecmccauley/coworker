@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "pnpm --filter @coworker/shared-services db:generate && pnpm --filter @coworker/shared-services db:deploy && pnpm --filter @coworker/shared-services build && next build",
     "dev:raw": "PORT=3000 next dev",
     "dev": "PORT=3000 pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
     "pm2:start": "PORT=3000 pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
