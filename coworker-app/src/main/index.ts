@@ -8,8 +8,10 @@ let sdk: CoworkerSdk | null = null
 
 const getSdk = async () => {
   if (sdk) return sdk
-  const { createDevSdk } = await import('@coworker/shared-services')
-  sdk = createDevSdk()
+  const { createSdk } = await import('@coworker/shared-services')
+  sdk = createSdk({
+    baseUrl: process.env.COWORKER_API_URL || 'http://localhost:3000',
+  })
   return sdk
 }
 

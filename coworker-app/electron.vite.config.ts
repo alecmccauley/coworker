@@ -4,7 +4,13 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  main: {},
+  main: {
+    define: {
+      'process.env.COWORKER_API_URL': JSON.stringify(
+        process.env.COWORKER_API_URL || 'http://localhost:3000'
+      ),
+    },
+  },
   preload: {},
   renderer: {
     resolve: {

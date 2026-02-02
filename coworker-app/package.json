@@ -12,7 +12,7 @@
     "svelte-check": "svelte-check --tsconfig ./tsconfig.json",
     "typecheck": "npm run typecheck:node && npm run svelte-check",
     "start": "electron-vite preview",
-    "dev:raw": "electron-vite dev",
+    "dev:raw": "dotenv -e .env -- electron-vite dev",
     "dev": "pnpm -w exec pm2 start pnpm --name coworker-app --cwd ./coworker-app -- dev:raw",
     "pm2:start": "pnpm -w exec pm2 start pnpm --name coworker-app --cwd ./coworker-app -- dev:raw",
     "pm2:restart": "pnpm -w exec pm2 restart coworker-app",
@@ -21,11 +21,14 @@
     "pm2:logs": "pnpm -w exec pm2 logs coworker-app",
     "pm2:status": "pnpm -w exec pm2 status coworker-app",
     "build": "npm run typecheck && electron-vite build",
+    "build:dev": "dotenv -e .env -- npm run build",
+    "build:prod": "dotenv -e .env.production -- npm run build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "dotenv -e .env -- npm run build && dotenv -e .env -- electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:win": "dotenv -e .env.production -- npm run build && electron-builder --win",
+    "build:mac": "dotenv -e .env.production -- npm run build && dotenv -e .env.production -- electron-builder --mac",
+    "build:mac:dev": "dotenv -e .env -- npm run build && dotenv -e .env -- electron-builder --mac",
+    "build:linux": "dotenv -e .env.production -- npm run build && electron-builder --linux"
   },
   "dependencies": {
     "@coworker/shared-services": "workspace:*",
