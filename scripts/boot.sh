@@ -55,7 +55,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 step "Starting PostgreSQL"
-docker compose -f coworker-api/docker-compose.yml up -d
+docker compose -f docker-compose.yml up -d
 
 step "Waiting for the database to be ready"
 if wait_for_port "localhost" 5432 30; then
@@ -65,7 +65,7 @@ else
 fi
 
 step "Syncing database env"
-compose_file="$ROOT_DIR/coworker-api/docker-compose.yml"
+compose_file="$ROOT_DIR/docker-compose.yml"
 postgres_container_id="$(docker compose -f "$compose_file" ps -q postgres)"
 if [[ -z "$postgres_container_id" ]]; then
   warn "Postgres container not found; skipping DATABASE_URL update."
@@ -86,20 +86,28 @@ else
     warn "Could not resolve database settings from Docker; skipping DATABASE_URL update."
   else
     db_url="postgresql://${db_user}:${db_password}@${db_host}:${db_port}/${db_name}?schema=public"
-    env_file="$ROOT_DIR/coworker-api/.env"
-    tmp_file="$(mktemp)"
-    if [[ -f "$env_file" ]]; then
-      awk -v val="$db_url" '
-        BEGIN { updated=0 }
-        /^DATABASE_URL=/ { print "DATABASE_URL=\"" val "\""; updated=1; next }
-        { print }
-        END { if (!updated) print "DATABASE_URL=\"" val "\"" }
-      ' "$env_file" > "$tmp_file"
-    else
-      printf 'DATABASE_URL="%s"\n' "$db_url" > "$tmp_file"
-    fi
-    mv "$tmp_file" "$env_file"
-    success "Updated coworker-api/.env DATABASE_URL"
+    update_env_file() {
+      local env_file="$1"
+      local tmp_file
+      tmp_file="$(mktemp)"
+
+      if [[ -f "$env_file" ]]; then
+        awk -v val="$db_url" '
+          BEGIN { updated=0 }
+          /^DATABASE_URL=/ { print "DATABASE_URL=\"" val "\""; updated=1; next }
+          { print }
+          END { if (!updated) print "DATABASE_URL=\"" val "\"" }
+        ' "$env_file" > "$tmp_file"
+      else
+        printf 'DATABASE_URL="%s"\n' "$db_url" > "$tmp_file"
+      fi
+
+      mv "$tmp_file" "$env_file"
+    }
+
+    update_env_file "$ROOT_DIR/coworker-api/.env"
+    update_env_file "$ROOT_DIR/coworker-pilot/.env"
+    success "Updated coworker-api/.env and coworker-pilot/.env DATABASE_URL"
   fi
 fi
 

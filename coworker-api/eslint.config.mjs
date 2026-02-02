@@ -15,11 +15,7 @@ export default [
       },
       parserOptions: {
         projectService: {
-          allowDefaultProject: [
-            "eslint.config.mjs",
-            "vitest.config.ts",
-            "prisma.config.ts",
-          ],
+          allowDefaultProject: ["eslint.config.mjs", "vitest.config.ts"],
         },
         tsconfigRootDir: import.meta.dirname,
       },

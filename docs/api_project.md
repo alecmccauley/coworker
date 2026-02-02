@@ -21,11 +21,9 @@ The Coworker API is a production-grade REST API built with modern TypeScript pra
 
 ```
 coworker-api/
-├── prisma/
-│   └── schema.prisma       # Database schema
 ├── src/
 │   ├── config/             # Application configuration
-│   │   ├── db.ts           # Prisma client singleton
+│   │   ├── db.ts           # Prisma client (from shared-services)
 │   │   ├── env.ts          # Environment validation
 │   │   ├── logger.ts       # Pino logger setup
 │   │   └── index.ts        # Re-exports
@@ -49,11 +47,17 @@ coworker-api/
 │   │   └── setup.ts        # Test configuration
 │   ├── app.ts              # Express app setup
 │   └── server.ts           # Entry point
-├── docker-compose.yml      # PostgreSQL container
-├── prisma.config.ts        # Prisma 7 configuration
-├── tsconfig.json           # TypeScript config
 ├── eslint.config.mjs       # ESLint flat config
-└── vitest.config.ts        # Test config
+├── vitest.config.ts        # Test config
+└── tsconfig.json           # TypeScript config
+
+shared-services/
+├── prisma/                 # Prisma schema + migrations
+│   └── schema.prisma
+├── prisma.config.ts        # Prisma 7 configuration
+└── ...
+
+docker-compose.yml          # PostgreSQL container (repo root)
 ```
 
 ## Architecture
@@ -275,10 +279,10 @@ console.log(env.NODE_ENV);  // "development" | "production" | "test"
 
 ### Prisma 7 Configuration
 
-Prisma 7 uses a separate config file (`prisma.config.ts`) for the database URL:
+Prisma 7 uses a separate config file in `shared-services/prisma.config.ts`:
 
 ```typescript
-// prisma.config.ts
+// shared-services/prisma.config.ts
 export default defineConfig({
   earlyAccess: true,
   schema: path.join(import.meta.dirname, "prisma", "schema.prisma"),
@@ -309,7 +313,7 @@ export const prisma = new PrismaClient({ adapter });
 ### Schema Definition
 
 ```prisma
-// prisma/schema.prisma
+// shared-services/prisma/schema.prisma
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -509,7 +513,7 @@ All API responses follow a consistent format:
 
 ```bash
 # 1. Start PostgreSQL
-cd coworker-api && docker compose up -d
+docker compose up -d
 
 # 2. Generate Prisma client
 pnpm --filter coworker-api db:generate

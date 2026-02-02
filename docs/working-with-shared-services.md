@@ -16,6 +16,7 @@ The `@coworker/shared-services` package provides:
 shared-services/
 ├── src/
 │   ├── index.ts                    # Main entry (re-exports all)
+│   ├── db/                          # Prisma client (server-only)
 │   ├── types/
 │   │   ├── index.ts                # Type exports
 │   │   ├── api.ts                  # ApiResponse<T>, ApiError, etc.
@@ -37,6 +38,37 @@ shared-services/
 │           ├── hello.ts            # HelloEndpoint
 │           └── users.ts            # UsersEndpoint
 └── dist/                           # Compiled output
+```
+
+## Prisma (Shared Database Package)
+
+`shared-services` now owns Prisma configuration, schema, and migrations:
+
+```
+shared-services/
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/
+└── prisma.config.ts
+```
+
+### Using Prisma in another package
+
+- Add `@coworker/shared-services` as a dependency.
+- Ensure `DATABASE_URL` is set in the consuming package’s `.env` (or process env).
+- Import the shared Prisma client:
+
+```typescript
+import { prisma } from "@coworker/shared-services/db";
+```
+
+### Prisma CLI usage
+
+Run Prisma commands via the API package (which points to the shared config):
+
+```bash
+pnpm --filter coworker-api db:generate
+pnpm --filter coworker-api db:migrate
 ```
 
 ## Installation

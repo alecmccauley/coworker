@@ -4,18 +4,19 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev:raw": "next dev",
-    "dev": "pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
-    "pm2:start": "pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
+    "dev:raw": "PORT=3000 next dev",
+    "dev": "PORT=3000 pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
+    "pm2:start": "PORT=3000 pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
     "pm2:restart": "pnpm -w exec pm2 restart coworker-pilot",
     "pm2:stop": "pnpm -w exec pm2 stop coworker-pilot",
     "pm2:delete": "pnpm -w exec pm2 delete coworker-pilot",
     "pm2:logs": "pnpm -w exec pm2 logs coworker-pilot",
     "pm2:status": "pnpm -w exec pm2 status coworker-pilot",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "PORT=3000 next start"
   },
   "dependencies": {
+    "@coworker/shared-services": "workspace:*",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
