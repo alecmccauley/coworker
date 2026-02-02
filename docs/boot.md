@@ -7,8 +7,9 @@ It is designed to feel calm, clear, and trustworthy while doing the heavy liftin
 
 1. Installs all workspace dependencies at the root (`pnpm install`).
 2. Starts the PostgreSQL Docker container from the repo root `docker-compose.yml`.
-3. Generates the Prisma client and runs migrations.
-4. Starts the Pilot (API + brand guide) and App in development mode via pm2.
+3. Generates the Prisma client and builds shared-services.
+4. Runs migrations.
+5. Starts the Pilot (API + brand guide) and App in development mode via pm2.
 
 ## Usage
 

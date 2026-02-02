@@ -23,6 +23,16 @@ export const userIdParamSchema = z.object({
   id: z.string().min(1, "User ID is required"),
 });
 
+/**
+ * Schema for listing users with pagination and search
+ */
+export const listUsersQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(10),
+  search: z.string().optional(),
+});
+
 export type CreateUserSchemaInput = z.infer<typeof createUserSchema>;
 export type UpdateUserSchemaInput = z.infer<typeof updateUserSchema>;
 export type UserIdParamSchemaInput = z.infer<typeof userIdParamSchema>;
+export type ListUsersQueryInput = z.infer<typeof listUsersQuerySchema>;

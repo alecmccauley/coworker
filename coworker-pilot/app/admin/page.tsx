@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,8 +76,8 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground">
                 View and manage all registered users in the system.
               </p>
-              <Button variant="outline" className="mt-4 w-full" disabled>
-                Coming Soon
+              <Button variant="outline" className="mt-4 w-full" asChild>
+                <Link href="/admin/users">Manage Users</Link>
               </Button>
             </CardContent>
           </Card>

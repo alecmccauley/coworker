@@ -113,6 +113,9 @@ fi
 step "Generating Prisma client"
 pnpm --filter @coworker/shared-services db:generate
 
+step "Building shared-services"
+pnpm --filter @coworker/shared-services build
+
 step "Running migrations"
 pnpm --filter @coworker/shared-services db:migrate
 

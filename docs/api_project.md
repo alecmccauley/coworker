@@ -211,6 +211,77 @@ return conflictResponse("Email already exists");
 return noContentResponse();
 ```
 
+## Forms with React Hook Form
+
+All forms in coworker-pilot use React Hook Form with Zod validation via `@hookform/resolvers`. This ensures type-safe forms that share validation logic with the API.
+
+### Required Packages
+
+Both packages are already installed:
+- `react-hook-form` - Form state management
+- `@hookform/resolvers` - Zod integration
+
+### Form Pattern
+
+```typescript
+"use client";
+
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { createUserSchema, type CreateUserSchemaInput } from "@coworker/shared-services";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+export function UserForm({ onSubmit }: { onSubmit: (data: CreateUserSchemaInput) => Promise<void> }) {
+  const form = useForm<CreateUserSchemaInput>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      email: "",
+      name: "",
+    },
+  });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input placeholder="user@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Saving..." : "Save"}
+        </Button>
+      </form>
+    </Form>
+  );
+}
+```
+
+### Key Principles
+
+1. **Use shared schemas** - Import Zod schemas from `@coworker/shared-services`
+2. **Use zodResolver** - Connect Zod schemas to react-hook-form
+3. **Use Form components** - Use the shadcn/ui Form primitives for consistent styling
+4. **Handle loading states** - Disable submit button during submission
+5. **Reset on success** - Call `form.reset()` after successful submission
+
 ## Database
 
 ### Prisma Client
