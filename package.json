@@ -18,6 +18,7 @@
     "db:seed": "pnpm --filter @coworker/shared-services db:seed",
     "db:studio": "pnpm --filter @coworker/shared-services db:studio",
     "build:shared": "pnpm --filter @coworker/shared-services build",
+    "dist:mac": "pnpm --filter coworker-app build:mac",
     "lint:shared": "pnpm --filter @coworker/shared-services lint"
   },
   "engines": {
