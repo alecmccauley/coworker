@@ -4,6 +4,9 @@ import type { CoworkerSdk } from '@coworker/shared-services'
 
 // Custom APIs for renderer
 const api = {
+  config: {
+    getApiUrl: () => ipcRenderer.invoke('config:getApiUrl') as Promise<string>
+  },
   hello: {
     sayHello: async (name?: string) => ipcRenderer.invoke('api:hello:sayHello', name)
   },

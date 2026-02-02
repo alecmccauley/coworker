@@ -16,8 +16,13 @@
   let isTestingApi = $state(false)
   let apiTestResult = $state<HelloData | null>(null)
   let apiTestError = $state<string | null>(null)
+  let apiUrl = $state<string | null>(null)
 
   onMount(() => {
+    // Fetch API URL for debug panel
+    window.api.config.getApiUrl().then((url) => {
+      apiUrl = url
+    })
     mounted = true
     // Staggered reveal for a delightful entrance
     setTimeout(() => (showGreeting = true), 300)
@@ -115,6 +120,14 @@
       </h3>
 
       <div class="space-y-4">
+        <div class="rounded-lg bg-muted/50 p-3">
+          <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            API URL
+          </p>
+          <p class="break-all font-mono text-sm text-foreground">
+            {apiUrl ?? 'Loading...'}
+          </p>
+        </div>
         <Button
           onclick={testApiConnection}
           disabled={isTestingApi}

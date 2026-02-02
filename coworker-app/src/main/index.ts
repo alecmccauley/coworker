@@ -15,7 +15,10 @@ const getSdk = async () => {
   return sdk
 }
 
+const getApiUrl = () => process.env.COWORKER_API_URL || 'http://localhost:3000'
+
 const registerIpcHandlers = () => {
+  ipcMain.handle('config:getApiUrl', () => getApiUrl())
   ipcMain.handle('api:hello:sayHello', async (_event, name?: string) =>
     (await getSdk()).hello.sayHello(name ? { name } : undefined)
   )
