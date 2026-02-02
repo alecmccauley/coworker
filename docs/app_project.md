@@ -167,6 +167,10 @@ file selection rules.
 - Create dialog defaults to a `.cowork` path (e.g. `My Workspace.cowork`).
 - Open dialog supports `.cowork` packages on macOS by allowing file selection.
 
+### Workspace storage and architecture
+
+For full detail on how workspace data is stored (SQLite, Drizzle, event log, projections), the workspace bundle layout, blobs, and how to work with the setup as a developer, see [Workspace storage and architecture](workspaces.md).
+
 ## Post-auth layout (AppShell)
 
 Screens shown after authentication (e.g. Dashboard) use the shared **AppShell** component, which provides the draggable title bar (“Coworker”), macOS traffic-light spacing, and the main content area. Screen-specific actions (e.g. Close workspace, Sign out) are passed via AppShell’s optional `headerActions` snippet so they appear in the title bar.
