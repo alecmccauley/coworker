@@ -14,6 +14,8 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+  - "**/node_modules/better-sqlite3/**"
+  - "**/*.node"
 win:
   executableName: coworkers
 nsis:

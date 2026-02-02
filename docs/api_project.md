@@ -39,6 +39,8 @@ coworker-pilot/
 │   │       │   │   └── route.ts
 │   │       │   └── admin-check/
 │   │       │       └── route.ts   # Admin status check (protected)
+│   │       ├── promote/
+│   │       │   └── route.ts    # Machine-key protected bootstrap endpoint
 │   │       ├── hello/
 │   │       │   └── route.ts    # Hello world endpoint
 │   │       └── users/
@@ -57,6 +59,7 @@ coworker-pilot/
 │   ├── api-utils.ts            # API response helpers
 │   ├── auth-middleware.ts      # withAuth() wrapper
 │   ├── admin-middleware.ts     # withAdmin() wrapper (ADMIN_USERS)
+│   ├── machine-key-middleware.ts # withMachineKey() wrapper (MACHINE_KEY)
 │   ├── auth-context.tsx        # AuthProvider, useAuth (web admin)
 │   ├── sdk.ts                  # Browser SDK (token storage)
 │   ├── jwt.ts                  # JWT signing/verification
@@ -209,6 +212,35 @@ return conflictResponse("Email already exists");
 
 // No content (204)
 return noContentResponse();
+```
+
+## Machine-Key Authorization
+
+Some endpoints are designed for server-to-server automation and must be protected by a machine key instead of user auth. This pattern is enforced by `withMachineKey()` in `lib/machine-key-middleware.ts`.
+
+### Environment Variables
+
+- `MACHINE_KEY` — shared secret required for machine-key protected routes
+- `PROMOTE_USER` — email address used by `/api/v1/promote` to bootstrap the first admin user
+
+### Header Contract
+
+All machine-key routes require the `X-Machine-Key` header with an exact match to `MACHINE_KEY`.
+
+### Example Route
+
+```typescript
+import { NextResponse } from "next/server";
+import { withMachineKey } from "@/lib/machine-key-middleware";
+import { successResponse } from "@/lib/api-utils";
+
+export const dynamic = "force-dynamic";
+
+async function handlePost(): Promise<NextResponse> {
+  return successResponse({ ok: true });
+}
+
+export const POST = withMachineKey(handlePost);
 ```
 
 ## Forms with React Hook Form

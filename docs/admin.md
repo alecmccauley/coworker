@@ -196,6 +196,17 @@ Use `isAdminEmail()` when you need to check admin status inside a handler that i
 - **Client:** The `isAdmin` flag from `/auth/admin-check` is used only for UX (redirects, showing “Access Denied”, showing/hiding admin UI). It is not used for access control.
 - **ADMIN_USERS:** Kept in server environment only; never sent to the client.
 
+### Bootstrap First Admin User
+
+When the database is empty, use the machine-key protected `/api/v1/promote` endpoint to create the initial admin user record. This endpoint:
+
+- Reads the email from `PROMOTE_USER`
+- Requires the `X-Machine-Key` header to match `MACHINE_KEY`
+- Creates the user if missing (idempotent)
+- Returns `{ created, user }` so automation can detect if it was a new insert
+
+**Important:** Admin privileges still come from `ADMIN_USERS`. Ensure the same email listed in `PROMOTE_USER` is also present in `ADMIN_USERS` so the user can access `/admin` and admin-protected endpoints.
+
 ### Adding and Removing Admins
 
 1. **Add admin:** Add the user’s email to `ADMIN_USERS` in `coworker-pilot/.env`, then restart the app (or rely on your deployment’s env reload).

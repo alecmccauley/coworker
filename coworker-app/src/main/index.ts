@@ -4,6 +4,9 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import type { CoworkerSdk } from '@coworker/shared-services'
 import { authStorage } from './auth-storage'
+import { registerWorkspaceIpcHandlers } from './workspace'
+import { registerCoworkerIpcHandlers } from './coworker'
+import { buildApplicationMenu } from './menu'
 
 let sdk: CoworkerSdk | null = null
 
@@ -135,7 +138,6 @@ function createWindow(): void {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    autoHideMenuBar: true,
     // macOS-specific glass effect configuration
     ...(process.platform === 'darwin'
       ? {
@@ -192,7 +194,14 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
+  // Register IPC handlers
   registerIpcHandlers()
+  registerWorkspaceIpcHandlers()
+  registerCoworkerIpcHandlers()
+
+  // Build application menu
+  buildApplicationMenu()
+
   createWindow()
 
   app.on('activate', function () {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { AuthUser } from '@coworker/shared-services'
-  import Icon from '@iconify/svelte'
+  import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import WelcomeSplash from './components/WelcomeSplash.svelte'
   import AuthFlow from './components/AuthFlow.svelte'
   import Dashboard from './components/Dashboard.svelte'
@@ -49,7 +49,7 @@
   <!-- Loading state -->
   <div class="flex min-h-screen items-center justify-center" style="background-color: oklch(0.975 0.005 85);">
     <div class="flex flex-col items-center gap-4">
-      <Icon icon="lucide:loader-2" class="h-8 w-8 animate-spin text-accent" />
+      <Loader2Icon class="h-8 w-8 animate-spin text-accent" />
       <p class="text-sm text-muted-foreground">Loading...</p>
     </div>
   </div>

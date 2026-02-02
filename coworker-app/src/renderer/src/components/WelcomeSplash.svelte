@@ -3,7 +3,10 @@
   import { helloApi } from '$lib/api'
   import type { HelloData } from '@coworker/shared-services'
   import { Button } from '$lib/components/ui/button'
-  import Icon from '@iconify/svelte'
+  import SettingsIcon from '@lucide/svelte/icons/settings'
+  import Loader2Icon from '@lucide/svelte/icons/loader-2'
+  import CheckCircleIcon from '@lucide/svelte/icons/check-circle'
+  import AlertCircleIcon from '@lucide/svelte/icons/alert-circle'
 
   interface Props {
     onSignIn: () => void
@@ -91,7 +94,7 @@
     aria-label="Toggle debug panel"
     style="-webkit-app-region: no-drag;"
   >
-    <Icon icon="lucide:settings" class="h-4 w-4" />
+    <SettingsIcon class="h-4 w-4" />
   </button>
 
   <!-- Debug Panel -->
@@ -119,7 +122,7 @@
           class="w-full bg-accent text-accent-foreground hover:bg-accent/90"
         >
           {#if isTestingApi}
-            <Icon icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
+            <Loader2Icon class="mr-2 h-4 w-4 animate-spin" />
             Testing...
           {:else}
             Test API Connection
@@ -129,7 +132,7 @@
         {#if apiTestResult}
           <div class="rounded-lg bg-green-50 p-4 dark:bg-green-950/30">
             <div class="mb-2 flex items-center gap-2">
-              <Icon icon="lucide:check-circle" class="h-4 w-4 text-green-600 dark:text-green-400" />
+              <CheckCircleIcon class="h-4 w-4 text-green-600 dark:text-green-400" />
               <span class="text-sm font-medium text-green-700 dark:text-green-300">
                 Connection Successful
               </span>
@@ -146,7 +149,7 @@
         {#if apiTestError}
           <div class="rounded-lg bg-red-50 p-4 dark:bg-red-950/30">
             <div class="mb-2 flex items-center gap-2">
-              <Icon icon="lucide:alert-circle" class="h-4 w-4 text-red-600 dark:text-red-400" />
+              <AlertCircleIcon class="h-4 w-4 text-red-600 dark:text-red-400" />
               <span class="text-sm font-medium text-red-700 dark:text-red-300">
                 Connection Failed
               </span>

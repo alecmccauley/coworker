@@ -36,6 +36,7 @@ coworker-app/
 │           ├── App.svelte       # Root component + navigation
 │           ├── env.d.ts         # Vite type definitions
 │           ├── components/      # Application components
+│           │   ├── AppShell.svelte    # Post-auth shell (title bar + main area)
 │           │   ├── AuthFlow.svelte    # Sign-in UI
 │           │   ├── Dashboard.svelte   # Post-auth landing
 │           │   └── WelcomeSplash.svelte
@@ -156,6 +157,24 @@ function createWindow(): void {
 - ❌ Expose dangerous Node APIs to renderer
 - ❌ Call backend APIs directly from the renderer
 - ❌ Expose raw tokens to the renderer process
+
+## Workspace Management
+
+Coworker workspaces are stored as `.cowork` directories containing `manifest.json`
+and `workspace.db`. The main process owns create/open dialogs and enforces the
+file selection rules.
+
+- Create dialog defaults to a `.cowork` path (e.g. `My Workspace.cowork`).
+- Open dialog supports `.cowork` packages on macOS by allowing file selection.
+
+## Post-auth layout (AppShell)
+
+Screens shown after authentication (e.g. Dashboard) use the shared **AppShell** component, which provides the draggable title bar (“Coworker”), macOS traffic-light spacing, and the main content area. Screen-specific actions (e.g. Close workspace, Sign out) are passed via AppShell’s optional `headerActions` snippet so they appear in the title bar.
+
+## UI Error Surface
+
+The dashboard renders a dismissible error banner for workspace and coworker
+actions so failures are visible to users instead of only appearing in logs.
 
 ## Preload Script
 

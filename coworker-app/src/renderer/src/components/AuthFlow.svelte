@@ -6,7 +6,8 @@
   import { Input } from '$lib/components/ui/input'
   import { Label } from '$lib/components/ui/label'
   import * as InputOTP from '$lib/components/ui/input-otp'
-  import Icon from '@iconify/svelte'
+  import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left'
+  import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import type { AuthUser } from '@coworker/shared-services'
 
   interface Props {
@@ -154,7 +155,7 @@
     style="-webkit-app-region: no-drag;"
     aria-label="Go back"
   >
-    <Icon icon="lucide:chevron-left" class="h-5 w-5" />
+    <ChevronLeftIcon class="h-5 w-5" />
   </button>
 
   <!-- Main content -->
@@ -227,7 +228,7 @@
             class="h-12 w-full text-base font-medium"
           >
             {#if isLoading}
-              <Icon icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
+              <Loader2Icon class="mr-2 h-4 w-4 animate-spin" />
               Sending code...
             {:else}
               Continue
@@ -272,7 +273,7 @@
             class="h-12 w-full text-base font-medium"
           >
             {#if isLoading}
-              <Icon icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
+              <Loader2Icon class="mr-2 h-4 w-4 animate-spin" />
               Verifying...
             {:else}
               Verify code

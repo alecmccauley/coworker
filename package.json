@@ -31,7 +31,8 @@
       "prisma",
       "esbuild",
       "electron",
-      "electron-winstaller"
+      "electron-winstaller",
+      "better-sqlite3"
     ]
   },
   "devDependencies": {

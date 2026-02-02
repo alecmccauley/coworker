@@ -170,6 +170,24 @@ sequenceDiagram
 | `PATCH` | `/api/v1/users/:id` | Update user |
 | `DELETE` | `/api/v1/users/:id` | Delete user |
 
+### Machine-Key Protected Endpoints
+
+Some endpoints are protected by a server-to-server machine key instead of user auth. These routes are **never** called by the client app directly and should only be invoked by trusted automation or ops tooling.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/promote` | Create the `PROMOTE_USER` if missing (machine key required) |
+
+#### Machine Key Requirements
+
+- **Header:** `X-Machine-Key`
+- **Env:** `MACHINE_KEY`
+- **Bootstrap Env:** `PROMOTE_USER` (used by `/api/v1/promote`)
+- **Validation:** exact match using constant-time comparison
+- **Failure:** `401 Unauthorized` if missing/invalid, `500` if not configured
+
+Use the reusable middleware in `coworker-pilot/lib/machine-key-middleware.ts` to protect machine-key routes. This is the standard pattern for non-user, server-to-server operations.
+
 ### Web Admin Authentication
 
 The Next.js app (coworker-pilot) uses the same auth endpoints for the admin dashboard. Users sign in at `/login` (email + 6-digit code); tokens are stored in localStorage and the SDK is configured with token callbacks. Only users listed in `ADMIN_USERS` can access `/admin` and admin-protected API endpoints. See [Admin Dashboard and Authorization](./admin.md) for full documentation.

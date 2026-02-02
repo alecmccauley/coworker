@@ -3,9 +3,10 @@
 
   interface Props {
     children: Snippet
+    headerActions?: Snippet
   }
 
-  let { children }: Props = $props()
+  let { children, headerActions }: Props = $props()
 
   // Detect if running on macOS for traffic light spacing
   const isMacOS = navigator.platform.toLowerCase().includes('mac')
@@ -23,13 +24,18 @@
 <div class="app-shell flex h-screen flex-col overflow-hidden">
   <!-- Draggable Title Bar Region -->
   <header
-    class="titlebar-drag-region flex h-12 shrink-0 items-center border-b border-border/50 px-4"
+    class="titlebar-drag-region flex h-12 shrink-0 items-center gap-3 border-b border-border/50 px-4"
     class:pl-24={isMacOS}
   >
     <h1 class="font-serif text-lg font-medium tracking-tight text-foreground">
       Coworker
     </h1>
-    <!-- Future: Add navigation or window controls here (wrap interactive elements in titlebar-no-drag) -->
+    <span class="flex-1" />
+    {#if headerActions}
+      <div class="titlebar-no-drag flex items-center gap-2">
+        {@render headerActions()}
+      </div>
+    {/if}
   </header>
 
   <!-- Main Content Area -->

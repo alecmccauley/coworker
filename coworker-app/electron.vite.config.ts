@@ -10,6 +10,11 @@ export default defineConfig({
         process.env.COWORKER_API_URL || 'http://localhost:3000'
       ),
     },
+    build: {
+      rollupOptions: {
+        external: ['better-sqlite3'],
+      },
+    },
   },
   preload: {},
   renderer: {
