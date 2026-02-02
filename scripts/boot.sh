@@ -47,7 +47,7 @@ step "Installing dependencies"
 pnpm install
 
 step "Resetting pm2 processes"
-pnpm -w exec pm2 delete coworker-api coworker-app >/dev/null 2>&1 || true
+pnpm -w exec pm2 delete coworker-api coworker-app coworker-pilot >/dev/null 2>&1 || true
 
 if ! docker info >/dev/null 2>&1; then
   error "Docker is not running. Start Docker Desktop and try again."
@@ -126,6 +126,7 @@ start_or_restart() {
 
 start_or_restart "coworker-api" "pnpm --filter coworker-api dev"
 start_or_restart "coworker-app" "pnpm --filter coworker-app dev"
+start_or_restart "coworker-pilot" "pnpm --filter coworker-pilot dev"
 
 success "Everything is running under pm2."
 info "Use: pnpm pm2:status | pnpm pm2:logs"

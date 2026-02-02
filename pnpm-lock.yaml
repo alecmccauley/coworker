@@ -209,7 +209,7 @@ importers:
         specifier: ^7.2.6
         version: 7.3.1(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
 
-  coworker-brand-identity:
+  coworker-pilot:
     dependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0

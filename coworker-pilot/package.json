@@ -1,10 +1,17 @@
 {
-  "name": "my-v0-project",
+  "name": "coworker-pilot",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev:raw": "next dev",
+    "dev": "pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
+    "pm2:start": "pnpm -w exec pm2 start pnpm --name coworker-pilot --cwd ./coworker-pilot -- dev:raw",
+    "pm2:restart": "pnpm -w exec pm2 restart coworker-pilot",
+    "pm2:stop": "pnpm -w exec pm2 stop coworker-pilot",
+    "pm2:delete": "pnpm -w exec pm2 delete coworker-pilot",
+    "pm2:logs": "pnpm -w exec pm2 logs coworker-pilot",
+    "pm2:status": "pnpm -w exec pm2 status coworker-pilot",
     "lint": "eslint .",
     "start": "next start"
   },
