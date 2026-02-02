@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@coworker/shared-services/db";
 import { updateUserSchema, userIdParamSchema } from "@coworker/shared-services";
 import type { UpdateUserInput } from "@coworker/shared-services";
@@ -9,19 +9,23 @@ import {
   conflictResponse,
   noContentResponse,
 } from "@/lib/api-utils";
+import { withAuth, AuthenticatedRequest } from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
 
 interface RouteContext {
-  params: Promise<{ id: string }>;
+  params?: Promise<{ id: string }>;
 }
 
 /**
  * GET /api/v1/users/[id]
- * Get a user by ID
+ * Get a user by ID (requires authentication)
  */
-export async function GET(_request: NextRequest, context: RouteContext) {
-  const { id } = await context.params;
+async function handleGet(
+  _request: AuthenticatedRequest,
+  context: RouteContext
+): Promise<NextResponse> {
+  const { id } = await context.params!;
 
   // Validate ID
   const idResult = userIdParamSchema.safeParse({ id });
@@ -42,10 +46,13 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
 /**
  * PATCH /api/v1/users/[id]
- * Update a user
+ * Update a user (requires authentication)
  */
-export async function PATCH(request: NextRequest, context: RouteContext) {
-  const { id } = await context.params;
+async function handlePatch(
+  request: AuthenticatedRequest,
+  context: RouteContext
+): Promise<NextResponse> {
+  const { id } = await context.params!;
 
   // Validate ID
   const idResult = userIdParamSchema.safeParse({ id });
@@ -100,10 +107,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 /**
  * DELETE /api/v1/users/[id]
- * Delete a user
+ * Delete a user (requires authentication)
  */
-export async function DELETE(_request: NextRequest, context: RouteContext) {
-  const { id } = await context.params;
+async function handleDelete(
+  _request: AuthenticatedRequest,
+  context: RouteContext
+): Promise<NextResponse> {
+  const { id } = await context.params!;
 
   // Validate ID
   const idResult = userIdParamSchema.safeParse({ id });
@@ -126,3 +136,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
   return noContentResponse();
 }
+
+export const GET = withAuth(handleGet);
+export const PATCH = withAuth(handlePatch);
+export const DELETE = withAuth(handleDelete);

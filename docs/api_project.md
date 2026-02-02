@@ -26,12 +26,25 @@ coworker-pilot/
 │   │   ├── health/             # Health check endpoint
 │   │   │   └── route.ts
 │   │   └── v1/                 # Versioned API endpoints
+│   │       ├── auth/           # Authentication endpoints
+│   │       │   ├── request-code/
+│   │       │   │   └── route.ts
+│   │       │   ├── verify-code/
+│   │       │   │   └── route.ts
+│   │       │   ├── refresh/
+│   │       │   │   └── route.ts
+│   │       │   ├── logout/
+│   │       │   │   └── route.ts
+│   │       │   ├── me/
+│   │       │   │   └── route.ts
+│   │       │   └── admin-check/
+│   │       │       └── route.ts   # Admin status check (protected)
 │   │       ├── hello/
 │   │       │   └── route.ts    # Hello world endpoint
 │   │       └── users/
-│   │           ├── route.ts    # List/create users
+│   │           ├── route.ts    # List/create users (protected)
 │   │           └── [id]/
-│   │               └── route.ts # Get/update/delete user
+│   │               └── route.ts # Get/update/delete user (protected)
 │   ├── globals.css             # Global styles
 │   ├── layout.tsx              # Root layout
 │   └── page.tsx                # Home page (brand guide)
@@ -42,10 +55,17 @@ coworker-pilot/
 ├── hooks/                      # Custom React hooks
 ├── lib/
 │   ├── api-utils.ts            # API response helpers
+│   ├── auth-middleware.ts      # withAuth() wrapper
+│   ├── admin-middleware.ts     # withAdmin() wrapper (ADMIN_USERS)
+│   ├── auth-context.tsx        # AuthProvider, useAuth (web admin)
+│   ├── sdk.ts                  # Browser SDK (token storage)
+│   ├── jwt.ts                  # JWT signing/verification
+│   ├── rate-limiter.ts         # Rate limiting
 │   └── utils.ts                # General utilities
 ├── public/                     # Static assets
 ├── styles/
 │   └── globals.css
+├── .env.example                # Environment template
 ├── next.config.mjs             # Next.js configuration
 ├── package.json
 └── tsconfig.json               # TypeScript configuration
@@ -245,7 +265,26 @@ GET /api/v1/hello?name=Alice
 
 Returns a greeting message with timestamp.
 
-### Users
+### Authentication
+
+See [Authentication Documentation](./authentication.md) for complete details.
+
+```
+POST   /api/v1/auth/request-code   # Request verification code (public)
+POST   /api/v1/auth/verify-code    # Verify code and get tokens (public)
+POST   /api/v1/auth/refresh        # Refresh access token (public)
+POST   /api/v1/auth/logout         # Revoke refresh token (public)
+GET    /api/v1/auth/me             # Get current user (protected)
+GET    /api/v1/auth/admin-check    # Check if user is admin (protected)
+```
+
+### Admin Dashboard and Authorization
+
+See [Admin Dashboard and Authorization](./admin.md) for configuration and creating admin-only endpoints. Admin access is controlled by the `ADMIN_USERS` environment variable (comma-separated emails). Use `withAdmin()` from `lib/admin-middleware.ts` for admin-only API routes.
+
+### Users (Protected)
+
+All user endpoints require authentication via Bearer token.
 
 ```
 GET    /api/v1/users          # List all users
@@ -257,9 +296,71 @@ DELETE /api/v1/users/:id      # Delete user
 
 ## Adding a New API Endpoint
 
-### 1. Create the route file
+### 1. Create the route file (Protected)
 
-Create a new file in `app/api/v1/your-resource/route.ts`:
+For protected endpoints that require authentication, use `withAuth()`:
+
+```typescript
+import { NextResponse } from "next/server";
+import { prisma } from "@coworker/shared-services/db";
+import { yourSchema } from "@coworker/shared-services";
+import { successResponse, validationErrorResponse } from "@/lib/api-utils";
+import { withAuth, AuthenticatedRequest } from "@/lib/auth-middleware";
+
+export const dynamic = "force-dynamic";
+
+async function handleGet(request: AuthenticatedRequest): Promise<NextResponse> {
+  const { userId } = request.auth; // Access authenticated user
+  const items = await prisma.yourModel.findMany({
+    where: { userId }, // Scope to user
+  });
+  return successResponse(items);
+}
+
+async function handlePost(request: AuthenticatedRequest): Promise<NextResponse> {
+  const { userId } = request.auth;
+  const body = await request.json();
+  
+  const result = yourSchema.safeParse(body);
+  if (!result.success) {
+    return validationErrorResponse(result.error.issues);
+  }
+  
+  const item = await prisma.yourModel.create({
+    data: { ...result.data, userId },
+  });
+  
+  return successResponse(item, 201);
+}
+
+// Export wrapped handlers
+export const GET = withAuth(handleGet);
+export const POST = withAuth(handlePost);
+```
+
+### 1a-2. Create the route file (Admin-only)
+
+For endpoints that require the caller to be in `ADMIN_USERS`, use `withAdmin()` from `lib/admin-middleware.ts`. See [Admin Dashboard and Authorization](./admin.md) for full details.
+
+```typescript
+import { NextResponse } from "next/server";
+import { withAdmin, AuthenticatedRequest } from "@/lib/admin-middleware";
+import { successResponse } from "@/lib/api-utils";
+
+export const dynamic = "force-dynamic";
+
+async function handleGet(request: AuthenticatedRequest): Promise<NextResponse> {
+  const { userId, email } = request.auth; // User is authenticated and in ADMIN_USERS
+  // Admin-only logic
+  return successResponse({ ok: true });
+}
+
+export const GET = withAdmin(handleGet);
+```
+
+### 1b. Create the route file (Public)
+
+For public endpoints that don't require authentication:
 
 ```typescript
 import { NextRequest } from "next/server";
@@ -348,11 +449,23 @@ pnpm --filter coworker-pilot dev:raw
 
 ### Environment Variables
 
-Create a `.env` file in `coworker-pilot/`:
+Create a `.env` file in `coworker-pilot/` (see `.env.example`):
 
 ```env
+# Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/coworker?schema=public"
+
+# JWT Configuration (required for authentication)
+# Generate secrets with: openssl rand -base64 32
+JWT_SECRET=your-256-bit-secret-key-here
+JWT_REFRESH_SECRET=your-separate-refresh-secret-here
+
+# Admin Users (comma-separated email addresses)
+# Only these users can access /admin and admin-protected API endpoints
+ADMIN_USERS=admin@example.com
 ```
+
+**Security Note:** Both JWT secrets must be cryptographically random, at least 32 characters, and different from each other. See [Admin Dashboard and Authorization](./admin.md) for `ADMIN_USERS` usage.
 
 ## Scripts Reference
 

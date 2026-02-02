@@ -23,20 +23,25 @@ The Coworker App is a desktop application built with Electron and Svelte 5. This
 coworker-app/
 ├── src/
 │   ├── main/                    # Electron main process
-│   │   └── index.ts             # Main entry point
+│   │   ├── index.ts             # Main entry point + IPC handlers
+│   │   └── auth-storage.ts      # Secure token storage (safeStorage)
 │   ├── preload/                 # Preload scripts (bridge)
-│   │   ├── index.ts             # API exposure
+│   │   ├── index.ts             # API exposure (incl. auth)
 │   │   └── index.d.ts           # Type definitions
 │   └── renderer/                # Svelte application
 │       ├── index.html           # Entry HTML
 │       └── src/
 │           ├── main.ts          # Svelte mount
 │           ├── app.css          # Global styles + Tailwind
-│           ├── App.svelte       # Root component
+│           ├── App.svelte       # Root component + navigation
 │           ├── env.d.ts         # Vite type definitions
 │           ├── components/      # Application components
+│           │   ├── AuthFlow.svelte    # Sign-in UI
+│           │   ├── Dashboard.svelte   # Post-auth landing
+│           │   └── WelcomeSplash.svelte
 │           └── lib/
 │               ├── utils.ts     # Shared utilities
+│               ├── api.ts       # API wrappers
 │               ├── components/  # UI component library
 │               │   └── ui/      # shadcn/bits-ui components
 │               └── hooks/       # Custom Svelte hooks
@@ -90,6 +95,10 @@ The app uses Electron's context isolation for security:
 1. **Context Isolation**: Renderer cannot directly access Node.js APIs
 2. **Preload Bridge**: Safe APIs exposed via `contextBridge`
 3. **Sandbox**: Disabled to allow preload functionality (use carefully)
+4. **Secure Token Storage**: Uses Electron's `safeStorage` API (OS keychain)
+5. **JWT Authentication**: All API calls authenticated via Bearer tokens
+
+See [Authentication Documentation](./authentication.md) for complete auth details.
 
 ## Main Process
 
@@ -137,6 +146,8 @@ function createWindow(): void {
 - ✅ Handle system tray, notifications
 - ✅ Implement IPC handlers for renderer requests
 - ✅ Own all SDK/API calls (network access stays in main)
+- ✅ Store tokens securely using `safeStorage` API
+- ✅ Handle token refresh automatically via SDK callbacks
 
 **DON'T:**
 - ❌ Import renderer/UI code
@@ -144,6 +155,7 @@ function createWindow(): void {
 - ❌ Store sensitive data without encryption
 - ❌ Expose dangerous Node APIs to renderer
 - ❌ Call backend APIs directly from the renderer
+- ❌ Expose raw tokens to the renderer process
 
 ## Preload Script
 
@@ -155,9 +167,18 @@ perform network requests or import runtime SDKs directly.
 ```typescript
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { CoworkerSdk } from '@coworker/shared-services'
+import type { CoworkerSdk, AuthUser, AuthStatusResponse } from '@coworker/shared-services'
 
 const api = {
+  auth: {
+    requestCode: (email: string) =>
+      ipcRenderer.invoke('auth:requestCode', email),
+    verifyCode: (email: string, code: string) =>
+      ipcRenderer.invoke('auth:verifyCode', email, code),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+    me: () => ipcRenderer.invoke('auth:me'),
+    isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
+  },
   hello: {
     sayHello: async (name?: string) => ipcRenderer.invoke('api:hello:sayHello', name)
   },
@@ -180,6 +201,9 @@ if (process.contextIsolated) {
   window.api = api
 }
 ```
+
+**Note:** Auth handlers return user data only—tokens are never exposed to the renderer.
+They are stored securely in the main process using `safeStorage`.
 
 ### Type Definitions (`src/preload/index.d.ts`)
 

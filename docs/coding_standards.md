@@ -10,6 +10,12 @@
 
 ---
 
+## Documentation
+
+**Update documentation in the `docs/` folder after every task.** As part of the coding standards, any change that affects architecture, APIs, app behavior, shared services, or workflows must be reflected in the relevant docs. Update existing files (e.g. `api_project.md`, `app_project.md`, `authentication.md`) when you add or change features; add new docs when you introduce new concepts. Documentation that drifts from the codebase is a bug—treat doc updates as a required step before considering a task complete.
+
+---
+
 ## Project Structure
 
 Coworker is a monorepo containing three interconnected packages:
@@ -193,6 +199,7 @@ ALWAYS review docs/VISUAL_IDENTITY.md AND docs/design_system.md before doing ANY
 
 | Concern | Location | Pattern |
 |---------|----------|---------|
+| Documentation | `docs/` | Read before changes; update after every task |
 | Types & Schemas | `shared-services/src/` | Zod schemas, inferred types |
 | Prisma Schema | `shared-services/prisma/` | Schema + migrations |
 | API Endpoints | `coworker-pilot/app/api/v1/` | Next.js API routes |

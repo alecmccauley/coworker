@@ -5,11 +5,21 @@ import {
   NotFoundSdkError,
   NetworkSdkError,
   ServerSdkError,
+  AuthenticationSdkError,
+  RateLimitSdkError,
 } from "./errors.js";
 
 export interface ApiClientConfig {
   baseUrl: string;
   headers?: Record<string, string>;
+  /**
+   * Function to get the current access token
+   */
+  getAccessToken?: () => Promise<string | null>;
+  /**
+   * Function called when a 401 is received, should refresh and return new token
+   */
+  onTokenExpired?: () => Promise<string | null>;
 }
 
 /**
@@ -18,6 +28,9 @@ export interface ApiClientConfig {
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly headers: Record<string, string>;
+  private readonly getAccessToken?: () => Promise<string | null>;
+  private readonly onTokenExpired?: () => Promise<string | null>;
+  private isRefreshing = false;
 
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
@@ -25,6 +38,8 @@ export class ApiClient {
       "Content-Type": "application/json",
       ...config.headers,
     };
+    this.getAccessToken = config.getAccessToken;
+    this.onTokenExpired = config.onTokenExpired;
   }
 
   /**
@@ -63,7 +78,31 @@ export class ApiClient {
    * Handle API response and throw appropriate errors
    */
   private async handleResponse<T>(response: Response): Promise<T> {
-    const data = (await response.json()) as ApiResponse<T>;
+    const text = await response.text();
+
+    // Empty body (e.g. server error before writing, or 204)
+    if (!text || text.trim() === "") {
+      const status = response.status;
+      if (status === 204) {
+        return undefined as T;
+      }
+      throw new ServerSdkError(
+        status >= 500
+          ? "Server returned an invalid or empty response. Please try again."
+          : `Request failed with status ${status} and no response body.`,
+        status
+      );
+    }
+
+    let data: ApiResponse<T> & { retryAfter?: number };
+    try {
+      data = JSON.parse(text) as ApiResponse<T> & { retryAfter?: number };
+    } catch {
+      throw new ServerSdkError(
+        "Server returned invalid JSON. Please try again.",
+        response.status
+      );
+    }
 
     if (data.status === "success") {
       return data.data;
@@ -71,14 +110,26 @@ export class ApiClient {
 
     // Handle error responses
     const { status } = response;
-    const message = data.message;
+    const message = data.message ?? "Request failed";
 
     if (status === 400) {
       throw new ValidationSdkError(message, data.errors);
     }
 
+    if (status === 401) {
+      throw new AuthenticationSdkError(message);
+    }
+
     if (status === 404) {
       throw new NotFoundSdkError(message);
+    }
+
+    if (status === 429) {
+      const retryAfter = data.retryAfter ??
+        (response.headers.get("Retry-After")
+          ? parseInt(response.headers.get("Retry-After")!, 10)
+          : undefined);
+      throw new RateLimitSdkError(message, retryAfter);
     }
 
     if (status >= 500) {
@@ -86,6 +137,20 @@ export class ApiClient {
     }
 
     throw new SdkError(message, status);
+  }
+
+  /**
+   * Get headers with optional auth token
+   */
+  private async getHeaders(overrideToken?: string): Promise<Record<string, string>> {
+    const headers = { ...this.headers };
+
+    const token = overrideToken ?? (this.getAccessToken ? await this.getAccessToken() : null);
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    return headers;
   }
 
   /**
@@ -97,16 +162,43 @@ export class ApiClient {
     options: {
       query?: Record<string, unknown>;
       body?: unknown;
+      skipAuth?: boolean;
     } = {}
   ): Promise<T> {
     const url = this.buildUrl(path, options.query);
 
     try {
+      const headers = options.skipAuth 
+        ? this.headers 
+        : await this.getHeaders();
+
       const response = await fetch(url, {
         method,
-        headers: this.headers,
+        headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
       });
+
+      // Handle 401 with token refresh (only once to prevent loops)
+      if (response.status === 401 && this.onTokenExpired && !this.isRefreshing) {
+        this.isRefreshing = true;
+        try {
+          const newToken = await this.onTokenExpired();
+          if (newToken) {
+            // Retry request with new token
+            const retryHeaders = await this.getHeaders(newToken);
+            const retryResponse = await fetch(url, {
+              method,
+              headers: retryHeaders,
+              body: options.body ? JSON.stringify(options.body) : undefined,
+            });
+            this.isRefreshing = false;
+            return await this.handleResponse<T>(retryResponse);
+          }
+        } catch {
+          // Refresh failed, continue with original 401 response
+        }
+        this.isRefreshing = false;
+      }
 
       return await this.handleResponse<T>(response);
     } catch (error) {
@@ -136,6 +228,13 @@ export class ApiClient {
    */
   async post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>("POST", path, { body });
+  }
+
+  /**
+   * POST request without authentication (for auth endpoints)
+   */
+  async postPublic<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>("POST", path, { body, skipAuth: true });
   }
 
   /**

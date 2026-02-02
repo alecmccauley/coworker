@@ -3,6 +3,13 @@
   import { helloApi } from '$lib/api'
   import type { HelloData } from '@coworker/shared-services'
   import { Button } from '$lib/components/ui/button'
+  import Icon from '@iconify/svelte'
+
+  interface Props {
+    onSignIn: () => void
+  }
+
+  let { onSignIn }: Props = $props()
 
   // Staggered animation states
   let mounted = $state(false)
@@ -10,6 +17,7 @@
   let showName = $state(false)
   let showMessage = $state(false)
   let showTagline = $state(false)
+  let showSignIn = $state(false)
 
   // Debug panel state
   let showDebugPanel = $state(false)
@@ -29,10 +37,11 @@
     setTimeout(() => (showName = true), 800)
     setTimeout(() => (showMessage = true), 1400)
     setTimeout(() => (showTagline = true), 2200)
+    setTimeout(() => (showSignIn = true), 2800)
   })
 
   // Detect if running on macOS for traffic light spacing
-  const isMacOS = navigator.platform.toLowerCase().includes('mac')
+  const isMacOS = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
 
   async function testApiConnection() {
     isTestingApi = true
@@ -82,32 +91,7 @@
     aria-label="Toggle debug panel"
     style="-webkit-app-region: no-drag;"
   >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />
-      <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-      <path d="M12 2v2" />
-      <path d="M12 22v-2" />
-      <path d="m17 20.66-1-1.73" />
-      <path d="M11 10.27 7 3.34" />
-      <path d="m20.66 17-1.73-1" />
-      <path d="m3.34 7 1.73 1" />
-      <path d="M14 12h8" />
-      <path d="M2 12h2" />
-      <path d="m20.66 7-1.73 1" />
-      <path d="m3.34 17 1.73-1" />
-      <path d="m17 3.34-1 1.73" />
-      <path d="m11 13.73-4 6.93" />
-    </svg>
+    <Icon icon="lucide:settings" class="h-4 w-4" />
   </button>
 
   <!-- Debug Panel -->
@@ -135,26 +119,7 @@
           class="w-full bg-accent text-accent-foreground hover:bg-accent/90"
         >
           {#if isTestingApi}
-            <svg
-              class="mr-2 h-4 w-4 animate-spin"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
+            <Icon icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
             Testing...
           {:else}
             Test API Connection
@@ -164,19 +129,7 @@
         {#if apiTestResult}
           <div class="rounded-lg bg-green-50 p-4 dark:bg-green-950/30">
             <div class="mb-2 flex items-center gap-2">
-              <svg
-                class="h-4 w-4 text-green-600 dark:text-green-400"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22,4 12,14.01 9,11.01" />
-              </svg>
+              <Icon icon="lucide:check-circle" class="h-4 w-4 text-green-600 dark:text-green-400" />
               <span class="text-sm font-medium text-green-700 dark:text-green-300">
                 Connection Successful
               </span>
@@ -193,20 +146,7 @@
         {#if apiTestError}
           <div class="rounded-lg bg-red-50 p-4 dark:bg-red-950/30">
             <div class="mb-2 flex items-center gap-2">
-              <svg
-                class="h-4 w-4 text-red-600 dark:text-red-400"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
+              <Icon icon="lucide:alert-circle" class="h-4 w-4 text-red-600 dark:text-red-400" />
               <span class="text-sm font-medium text-red-700 dark:text-red-300">
                 Connection Failed
               </span>
@@ -295,6 +235,23 @@
       >
         Where AI feels like a team you already know how to work with.
       </p>
+
+      <!-- Sign In Button -->
+      <div
+        class="mt-12 transition-all duration-1000 ease-out"
+        class:opacity-100={showSignIn}
+        class:opacity-0={!showSignIn}
+        class:translate-y-0={showSignIn}
+        class:translate-y-4={!showSignIn}
+      >
+        <Button
+          onclick={onSignIn}
+          size="lg"
+          class="h-12 px-8 text-base font-medium"
+        >
+          Sign in to get started
+        </Button>
+      </div>
 
     </div>
   </main>

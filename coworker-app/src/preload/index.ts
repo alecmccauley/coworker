@@ -1,11 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { CoworkerSdk } from '@coworker/shared-services'
+import type { CoworkerSdk, AuthUser, AuthStatusResponse } from '@coworker/shared-services'
 
 // Custom APIs for renderer
 const api = {
   config: {
     getApiUrl: () => ipcRenderer.invoke('config:getApiUrl') as Promise<string>
+  },
+  auth: {
+    requestCode: (email: string) =>
+      ipcRenderer.invoke('auth:requestCode', email) as Promise<{ success: boolean; message: string }>,
+    verifyCode: (email: string, code: string) =>
+      ipcRenderer.invoke('auth:verifyCode', email, code) as Promise<{ user: AuthUser }>,
+    logout: () => ipcRenderer.invoke('auth:logout') as Promise<{ success: boolean }>,
+    me: () => ipcRenderer.invoke('auth:me') as Promise<AuthUser>,
+    isAuthenticated: () =>
+      ipcRenderer.invoke('auth:isAuthenticated') as Promise<AuthStatusResponse>,
+    isStorageAvailable: () => ipcRenderer.invoke('auth:isStorageAvailable') as Promise<boolean>
   },
   hello: {
     sayHello: async (name?: string) => ipcRenderer.invoke('api:hello:sayHello', name)

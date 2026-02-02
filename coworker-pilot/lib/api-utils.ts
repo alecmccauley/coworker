@@ -52,3 +52,39 @@ export function conflictResponse(message: string) {
 export function noContentResponse() {
   return new NextResponse(null, { status: 204 });
 }
+
+/**
+ * Create an unauthorized error response (401)
+ */
+export function unauthorizedResponse(message = "Authentication required") {
+  return errorResponse(message, 401);
+}
+
+/**
+ * Create a rate limit error response (429)
+ */
+export function rateLimitErrorResponse(
+  message = "Too many requests",
+  retryAfter?: number
+) {
+  const headers: HeadersInit = {};
+  if (retryAfter) {
+    headers["Retry-After"] = String(Math.ceil(retryAfter));
+  }
+
+  return NextResponse.json(
+    {
+      status: "error",
+      message,
+      retryAfter: retryAfter ? Math.ceil(retryAfter) : undefined,
+    },
+    { status: 429, headers }
+  );
+}
+
+/**
+ * Create a forbidden error response (403)
+ */
+export function forbiddenResponse(message = "Access denied") {
+  return errorResponse(message, 403);
+}

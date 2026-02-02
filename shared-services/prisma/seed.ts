@@ -13,6 +13,7 @@ const users = [
   { email: "hello@coworker.ai", name: "Coworker" },
   { email: "welcome@coworker.ai", name: "Welcome" },
   { email: "team@coworker.ai", name: "Team" },
+  { email: "alec.mccauley@me.com", name: "Alec McCauley" },
 ];
 
 async function seedUsers(): Promise<void> {

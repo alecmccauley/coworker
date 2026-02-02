@@ -55,3 +55,59 @@ export class ServerSdkError extends SdkError {
     this.name = "ServerSdkError";
   }
 }
+
+/**
+ * Error thrown when authentication is required or token is invalid (401)
+ */
+export class AuthenticationSdkError extends SdkError {
+  constructor(message = "Authentication required") {
+    super(message, 401);
+    this.name = "AuthenticationSdkError";
+  }
+}
+
+/**
+ * Error thrown when rate limit is exceeded (429)
+ */
+export class RateLimitSdkError extends SdkError {
+  public readonly retryAfter?: number;
+
+  constructor(message = "Too many requests", retryAfter?: number) {
+    super(message, 429);
+    this.name = "RateLimitSdkError";
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Error thrown when user is not found during auth
+ */
+export class UserNotFoundSdkError extends SdkError {
+  constructor(message = "User not found for this email") {
+    super(message, 404);
+    this.name = "UserNotFoundSdkError";
+  }
+}
+
+/**
+ * Error thrown when verification code has expired
+ */
+export class CodeExpiredSdkError extends SdkError {
+  constructor(message = "Verification code has expired") {
+    super(message, 400);
+    this.name = "CodeExpiredSdkError";
+  }
+}
+
+/**
+ * Error thrown when verification code is invalid
+ */
+export class CodeInvalidSdkError extends SdkError {
+  public readonly attemptsRemaining?: number;
+
+  constructor(message = "Invalid verification code", attemptsRemaining?: number) {
+    super(message, 400);
+    this.name = "CodeInvalidSdkError";
+    this.attemptsRemaining = attemptsRemaining;
+  }
+}

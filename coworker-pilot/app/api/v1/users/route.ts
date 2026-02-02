@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@coworker/shared-services/db";
 import { createUserSchema } from "@coworker/shared-services";
 import type { CreateUserInput } from "@coworker/shared-services";
@@ -7,14 +7,15 @@ import {
   validationErrorResponse,
   conflictResponse,
 } from "@/lib/api-utils";
+import { withAuth, AuthenticatedRequest } from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/v1/users
- * List all users
+ * List all users (requires authentication)
  */
-export async function GET() {
+async function handleGet(): Promise<NextResponse> {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
   });
@@ -24,9 +25,9 @@ export async function GET() {
 
 /**
  * POST /api/v1/users
- * Create a new user
+ * Create a new user (requires authentication)
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: AuthenticatedRequest): Promise<NextResponse> {
   let body: unknown;
   try {
     body = await request.json();
@@ -60,3 +61,6 @@ export async function POST(request: NextRequest) {
 
   return successResponse(user, 201);
 }
+
+export const GET = withAuth(handleGet);
+export const POST = withAuth(handlePost);

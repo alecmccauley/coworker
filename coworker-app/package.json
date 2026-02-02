@@ -34,6 +34,7 @@
     "@coworker/shared-services": "workspace:*",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@iconify/svelte": "^5.2.1",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
