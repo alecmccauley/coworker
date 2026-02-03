@@ -46,7 +46,7 @@
   // Detect if running on macOS for traffic light spacing
   const isMacOS = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
 
-  async function testApiConnection() {
+  async function testApiConnection(): Promise<void> {
     isTestingApi = true
     apiTestResult = null
     apiTestError = null
@@ -61,7 +61,7 @@
     }
   }
 
-  function toggleDebugPanel() {
+  function toggleDebugPanel(): void {
     showDebugPanel = !showDebugPanel
     if (!showDebugPanel) {
       // Reset state when closing

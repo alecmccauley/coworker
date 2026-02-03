@@ -73,11 +73,7 @@
       {#each templates as template (template.id)}
         <button
           onclick={() => handleSelect(template)}
-          class="relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-all"
-          class:border-accent={selectedTemplate?.id === template.id}
-          class:bg-accent/5={selectedTemplate?.id === template.id}
-          class:border-border={selectedTemplate?.id !== template.id}
-          class:hover:border-accent/50={selectedTemplate?.id !== template.id}
+          class="relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-all {selectedTemplate?.id === template.id ? 'border-accent bg-accent/5' : 'border-border hover:border-accent/50'}"
         >
           {#if selectedTemplate?.id === template.id}
             <div class="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-accent-foreground">

@@ -4,6 +4,7 @@
   import MessageSquareIcon from '@lucide/svelte/icons/message-square'
   import { Button } from '$lib/components/ui/button'
   import type { Channel, Thread, Coworker } from '$lib/types'
+  import ThreadView from '../thread/ThreadView.svelte'
 
   interface Props {
     channel: Channel
@@ -20,6 +21,7 @@
   $effect(() => {
     // Reload threads when channel changes
     if (channel) {
+      selectedThread = null
       loadThreads()
     }
   })
@@ -125,23 +127,12 @@
     <!-- Conversation View -->
     <div class="flex flex-1 flex-col">
       {#if selectedThread}
-        <!-- Thread view placeholder -->
-        <div class="flex flex-1 flex-col items-center justify-center p-8 text-center">
-          <div class="max-w-md">
-            <h3 class="font-serif text-xl font-medium text-foreground">
-              {selectedThread.title || 'Untitled conversation'}
-            </h3>
-            <p class="mt-2 text-muted-foreground">
-              Conversation view with messages coming soon. You'll be able to chat with your co-workers here.
-            </p>
-            {#if coworkers.length === 0}
-              <Button onclick={onCreateCoworker} class="mt-4 gap-2" size="sm">
-                <PlusIcon class="h-4 w-4" />
-                Add a Co-worker first
-              </Button>
-            {/if}
-          </div>
-        </div>
+        <ThreadView
+          thread={selectedThread}
+          {channel}
+          {coworkers}
+          {onCreateCoworker}
+        />
       {:else}
         <div class="flex flex-1 flex-col items-center justify-center p-8 text-center">
           <div class="max-w-md">

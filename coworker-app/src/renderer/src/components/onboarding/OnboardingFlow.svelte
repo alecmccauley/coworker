@@ -77,7 +77,7 @@
 <div class="mx-auto w-full max-w-2xl px-4 py-8">
   <!-- Progress indicator -->
   <div class="mb-8 flex justify-center gap-2">
-    {#each ['workspace-basics', 'first-coworker', 'coworker-details', 'complete'] as step, i}
+    {#each ['workspace-basics', 'first-coworker', 'coworker-details', 'complete'] as step, i (step)}
       <div
         class="h-2 w-8 rounded-full transition-colors"
         class:bg-accent={currentStep === step || (['workspace-basics', 'first-coworker', 'coworker-details', 'complete'].indexOf(currentStep) >= i)}

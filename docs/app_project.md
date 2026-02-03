@@ -180,6 +180,35 @@ Screens shown after authentication (e.g. Dashboard) use the shared **AppShell** 
 The dashboard renders a dismissible error banner for workspace and coworker
 actions so failures are visible to users instead of only appearing in logs.
 
+## Conversation UI
+
+Channel views now provide a full conversation experience:
+
+- Thread list on the left and conversation view on the right
+- Message list with user/co-worker styling
+- Composer with "send as" co-worker selector
+- Context panel for workspace notes and attached knowledge sources
+
+Primary components:
+
+- `src/renderer/src/components/thread/ThreadView.svelte`
+- `src/renderer/src/components/message/MessageList.svelte`
+- `src/renderer/src/components/message/MessageInput.svelte`
+- `src/renderer/src/components/knowledge/ContextPanel.svelte`
+
+## Co-worker Profile Tabs
+
+Co-worker profiles include structured tabs for richer context:
+
+- **About** — role prompt and defaults
+- **Knowledge** — co-worker scoped notes
+- **Tools** — tools policy placeholder copy
+- **History** — threads where the co-worker participated
+
+Primary component:
+
+- `src/renderer/src/components/coworker/CoworkerProfile.svelte`
+
 ## Preload Script
 
 ### Bridge Pattern (`src/preload/index.ts`)

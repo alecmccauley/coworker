@@ -1,7 +1,6 @@
 import type { ApiClient } from "../client.js";
 import type {
   AuthResponse,
-  AuthUser,
   RequestCodeResponse,
 } from "../../types/domain/auth.js";
 import type { User } from "../../types/domain/user.js";

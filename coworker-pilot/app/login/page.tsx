@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin: _isAdmin, isLoading } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {

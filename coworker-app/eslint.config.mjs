@@ -4,17 +4,18 @@ import eslintConfigPrettier from "@electron-toolkit/eslint-config-prettier";
 import eslintPluginSvelte from "eslint-plugin-svelte";
 
 export default defineConfig(
-  { ignores: ["**/node_modules", "**/dist", "**/out"] },
+  {
+    ignores: [
+      "**/node_modules",
+      "**/dist",
+      "**/out",
+      // Skip .svelte until eslint-plugin-svelte / svelte-eslint-parser support Svelte 5 runes and generics.
+      // Type safety is covered by svelte-check (run via pnpm typecheck).
+      "**/*.svelte",
+    ],
+  },
   tseslint.configs.recommended,
   eslintPluginSvelte.configs["flat/recommended"],
-  {
-    files: ["**/*.svelte"],
-    languageOptions: {
-      parserOptions: {
-        parser: tseslint.parser,
-      },
-    },
-  },
   {
     files: ["**/*.{tsx,svelte}"],
     rules: {

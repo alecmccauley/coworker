@@ -8,7 +8,7 @@ import {
   validationErrorResponse,
   errorResponse,
 } from "@/lib/api-utils";
-import { signAccessToken, signRefreshToken } from "@/lib/jwt";
+import { signAccessToken } from "@/lib/jwt";
 import { verifyCodeLimiter, checkRateLimit } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";

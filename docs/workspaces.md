@@ -325,7 +325,7 @@ Status of the architecture briefing items (V1 workspace + storage). AI/streaming
 | Blobs table + service | Done | SHA256 deduplication, add/read/delete APIs |
 | Template sync (cloud) | Done | template-cache.ts and template-sync.ts |
 | Sidebar navigation UI | Done | Channels and coworkers in left rail |
-| Channel/Thread UI | Done | Thread list, conversation view placeholders |
+| Channel/Thread UI | Done | Thread list, message view, input composer, context panel |
 | IPC for all entities | Done | workspace.*, coworker.*, channel.*, thread.*, message.*, knowledge.*, blob.*, templates.* |
 | Repair / integrity_check / rebuild projections | Not done | — |
 

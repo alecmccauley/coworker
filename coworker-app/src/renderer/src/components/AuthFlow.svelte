@@ -67,7 +67,7 @@
     return true
   }
 
-  async function handleRequestCode() {
+  async function handleRequestCode(): Promise<void> {
     if (!validateEmail()) return
 
     isLoading = true
@@ -94,7 +94,7 @@
     }
   }
 
-  async function handleVerifyCode() {
+  async function handleVerifyCode(): Promise<void> {
     if (!validateCode()) return
 
     isLoading = true
@@ -125,14 +125,14 @@
     }
   }
 
-  function handleBackToEmail() {
+  function handleBackToEmail(): void {
     currentStep = 'email'
     code = ''
     error = null
     codeError = null
   }
 
-  function handleCodeComplete(value: string) {
+  function handleCodeComplete(value: string): void {
     code = value
     if (value.length === 6) {
       handleVerifyCode()
@@ -253,7 +253,7 @@
             >
               {#snippet children({ cells })}
                 <InputOTP.Group class="flex gap-2">
-                  {#each cells as cell}
+                  {#each cells as cell, i (i)}
                     <InputOTP.Slot
                       {cell}
                       class="h-14 w-12 rounded-lg border-2 border-input bg-background text-center text-2xl font-medium transition-all duration-200 focus:border-accent focus:ring-2 focus:ring-accent/20"

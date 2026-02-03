@@ -8,7 +8,7 @@
   let error = $state<string | null>(null)
   let loading = $state(false)
 
-  async function sayHello() {
+  async function sayHello(): Promise<void> {
     loading = true
     error = null
     greeting = null

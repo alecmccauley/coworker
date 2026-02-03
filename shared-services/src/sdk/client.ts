@@ -110,7 +110,7 @@ export class ApiClient {
 
     // Handle error responses
     const { status } = response;
-    const message = data.message ?? "Request failed";
+    const message = data.message;
 
     if (status === 400) {
       throw new ValidationSdkError(message, data.errors);
@@ -125,10 +125,10 @@ export class ApiClient {
     }
 
     if (status === 429) {
-      const retryAfter = data.retryAfter ??
-        (response.headers.get("Retry-After")
-          ? parseInt(response.headers.get("Retry-After")!, 10)
-          : undefined);
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter =
+        data.retryAfter ??
+        (retryHeader ? parseInt(retryHeader, 10) : undefined);
       throw new RateLimitSdkError(message, retryAfter);
     }
 
@@ -147,7 +147,7 @@ export class ApiClient {
 
     const token = overrideToken ?? (this.getAccessToken ? await this.getAccessToken() : null);
     if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
     return headers;

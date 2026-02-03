@@ -1,8 +1,12 @@
 <script lang="ts">
   import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
   import XIcon from '@lucide/svelte/icons/x'
+  import PlusIcon from '@lucide/svelte/icons/plus'
+  import { Button } from '$lib/components/ui/button'
   import WorkspaceNotes from './WorkspaceNotes.svelte'
-  import type { Channel, Thread } from '$lib/types'
+  import KnowledgeSourceList from './KnowledgeSourceList.svelte'
+  import AddKnowledgeDialog from './AddKnowledgeDialog.svelte'
+  import type { Channel, Thread, KnowledgeSource } from '$lib/types'
 
   interface Props {
     open: boolean
@@ -12,6 +16,31 @@
   }
 
   let { open = $bindable(), onClose, channel, thread }: Props = $props()
+
+  let sources = $state<KnowledgeSource[]>([])
+  let isLoadingSources = $state(false)
+  let showAddDialog = $state(false)
+
+  $effect(() => {
+    if (open) {
+      void loadSources()
+    }
+  })
+
+  async function loadSources(): Promise<void> {
+    isLoadingSources = true
+    try {
+      sources = await window.api.knowledge.listSources()
+    } catch (error) {
+      console.error('Failed to load knowledge sources:', error)
+    } finally {
+      isLoadingSources = false
+    }
+  }
+
+  async function handleSourceAdded(): Promise<void> {
+    await loadSources()
+  }
 </script>
 
 {#if open}
@@ -60,16 +89,26 @@
         </div>
       {/if}
 
-      <!-- Attached Sources (placeholder) -->
-      <div class="space-y-2">
-        <div class="flex items-center gap-2">
-          <ChevronRightIcon class="h-4 w-4 text-muted-foreground" />
-          <h3 class="font-medium text-foreground">Attached Sources</h3>
+      <!-- Attached Sources -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <ChevronRightIcon class="h-4 w-4 text-muted-foreground" />
+            <h3 class="font-medium text-foreground">Attached Sources</h3>
+          </div>
+          <Button size="sm" variant="outline" class="gap-2" onclick={() => (showAddDialog = true)}>
+            <PlusIcon class="h-4 w-4" />
+            Add
+          </Button>
         </div>
-        <p class="text-sm text-muted-foreground">
-          Sources attached to this context will appear here.
-        </p>
+        <KnowledgeSourceList sources={sources} isLoading={isLoadingSources} />
       </div>
     </div>
   </aside>
 {/if}
+
+<AddKnowledgeDialog
+  bind:open={showAddDialog}
+  onClose={() => (showAddDialog = false)}
+  onAdded={handleSourceAdded}
+/>

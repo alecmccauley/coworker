@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { Button } from '$lib/components/ui/button'
   import FolderXIcon from '@lucide/svelte/icons/folder-x'
   import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import LogOutIcon from '@lucide/svelte/icons/log-out'
@@ -14,6 +13,7 @@
   // Coworker components
   import CoworkerForm from './coworker/CoworkerForm.svelte'
   import DeleteCoworkerDialog from './coworker/DeleteCoworkerDialog.svelte'
+  import CoworkerProfile from './coworker/CoworkerProfile.svelte'
 
   // Sidebar
   import { Sidebar } from './sidebar'
@@ -417,37 +417,13 @@
                 onCreateCoworker={handleCreateCoworker}
               />
             {:else if currentView === 'coworker-profile' && selectedCoworkerId}
-              <!-- Coworker Profile View (placeholder) -->
               {#each coworkers.filter((c) => c.id === selectedCoworkerId) as coworker (coworker.id)}
-                <div class="flex flex-1 flex-col px-8 py-6">
-                  <div class="mb-8 flex items-center justify-between">
-                    <div>
-                      <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Co-worker
-                      </p>
-                      <h1 class="font-serif text-3xl font-medium text-foreground">
-                        {coworker.name}
-                      </h1>
-                      {#if coworker.description}
-                        <p class="mt-2 text-muted-foreground">{coworker.description}</p>
-                      {/if}
-                    </div>
-                    <div class="flex gap-2">
-                      <Button variant="outline" onclick={() => handleEditCoworker(coworker)}>
-                        Edit
-                      </Button>
-                      <Button variant="destructive" onclick={() => handleDeleteCoworker(coworker)}>
-                        Archive
-                      </Button>
-                    </div>
-                  </div>
-                  <!-- Tabs placeholder -->
-                  <div class="rounded-lg border border-border bg-card p-6">
-                    <p class="text-muted-foreground">
-                      Co-worker profile with About, Knowledge, Tools, and History tabs coming soon.
-                    </p>
-                  </div>
-                </div>
+                <CoworkerProfile
+                  {coworker}
+                  {channels}
+                  onEdit={handleEditCoworker}
+                  onArchive={handleDeleteCoworker}
+                />
               {/each}
             {:else}
               <!-- Default empty state -->

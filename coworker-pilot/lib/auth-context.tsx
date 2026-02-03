@@ -48,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const checkAdminStatus = useCallback(async (): Promise<boolean> => {
     try {
-      const sdk = getSdk();
+      const _sdk = getSdk();
       // Call the admin-check endpoint
       const response = await fetch("/api/v1/auth/admin-check", {
         headers: {

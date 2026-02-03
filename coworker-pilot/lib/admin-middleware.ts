@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth, AuthenticatedRequest, AuthContext } from "./auth-middleware";
+import { withAuth, AuthenticatedRequest } from "./auth-middleware";
 import { forbiddenResponse } from "./api-utils";
 
 /**

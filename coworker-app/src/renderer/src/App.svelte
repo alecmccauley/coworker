@@ -26,20 +26,20 @@
     }
   })
 
-  function handleSignIn() {
+  function handleSignIn(): void {
     currentState = 'auth'
   }
 
-  function handleAuthSuccess(user: AuthUser) {
+  function handleAuthSuccess(user: AuthUser): void {
     currentUser = user
     currentState = 'dashboard'
   }
 
-  function handleAuthBack() {
+  function handleAuthBack(): void {
     currentState = 'splash'
   }
 
-  function handleLogout() {
+  function handleLogout(): void {
     currentUser = null
     currentState = 'splash'
   }

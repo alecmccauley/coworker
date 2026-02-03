@@ -37,7 +37,7 @@ export const logoutSchema = z.object({
  */
 export const authUserSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.email("Invalid email address"),
   name: z.string().nullable(),
 });
 
