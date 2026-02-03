@@ -38,8 +38,22 @@ coworker-app/
 │           ├── components/      # Application components
 │           │   ├── AppShell.svelte    # Post-auth shell (title bar + main area)
 │           │   ├── AuthFlow.svelte    # Sign-in UI
-│           │   ├── Dashboard.svelte   # Post-auth landing
-│           │   └── WelcomeSplash.svelte
+│           │   ├── Dashboard.svelte   # Post-auth landing (channel/coworker/settings views)
+│           │   ├── WelcomeSplash.svelte
+│           │   ├── workspace/         # Workspace components
+│           │   │   ├── WelcomeView.svelte
+│           │   │   └── WorkspaceSettings.svelte
+│           │   ├── channel/           # Channel components
+│           │   │   ├── ChannelView.svelte
+│           │   │   └── ChannelSettingsPanel.svelte
+│           │   ├── thread/            # Thread components
+│           │   │   ├── ThreadView.svelte
+│           │   │   └── ThreadSourcesPanel.svelte
+│           │   └── knowledge/         # Knowledge components
+│           │       ├── ScopedNotes.svelte
+│           │       ├── ScopedSources.svelte
+│           │       ├── KnowledgeSourceList.svelte
+│           │       └── AddKnowledgeDialog.svelte
 │           └── lib/
 │               ├── utils.ts     # Shared utilities
 │               ├── api.ts       # API wrappers
@@ -186,15 +200,39 @@ Channel views now provide a full conversation experience:
 
 - Thread list on the left and conversation view on the right
 - Message list with user/co-worker styling
-- Composer with "send as" co-worker selector
-- Context panel for workspace notes and attached knowledge sources
+- Composer for sending messages as the user
+- Sources panel for thread-specific attachments
 
 Primary components:
 
 - `src/renderer/src/components/thread/ThreadView.svelte`
 - `src/renderer/src/components/message/MessageList.svelte`
 - `src/renderer/src/components/message/MessageInput.svelte`
-- `src/renderer/src/components/knowledge/ContextPanel.svelte`
+- `src/renderer/src/components/thread/ThreadSourcesPanel.svelte`
+
+## Knowledge Management
+
+Knowledge is managed at different levels with dedicated locations:
+
+| Level | Where to Manage | Content |
+|-------|-----------------|---------|
+| **Workspace** | Workspace Settings page | Global truths, goals, preferences, constraints |
+| **Channel** | Channel Settings panel | Project-specific context, definitions |
+| **Coworker** | CoworkerProfile (existing) | Role-specific tone, standards, workflow |
+| **Thread** | Sources panel only | Attached files/links for this conversation |
+
+### Knowledge Components
+
+- `src/renderer/src/components/knowledge/ScopedNotes.svelte` — Reusable pinned notes component for any scope
+- `src/renderer/src/components/knowledge/ScopedSources.svelte` — Reusable sources list component for any scope
+- `src/renderer/src/components/knowledge/KnowledgeSourceList.svelte` — Display component for source items
+- `src/renderer/src/components/knowledge/AddKnowledgeDialog.svelte` — Dialog for adding sources (supports scope parameters)
+
+### Knowledge Views
+
+- **Workspace Settings** (`components/workspace/WorkspaceSettings.svelte`): Access via settings icon in sidebar header. Manages workspace-level knowledge and sources.
+- **Channel Settings Panel** (`components/channel/ChannelSettingsPanel.svelte`): Right panel in ChannelView (can be opened even while a thread is selected). Manages channel-specific knowledge.
+- **Thread Sources Panel** (`components/thread/ThreadSourcesPanel.svelte`): Right panel in ThreadView. Shows only attached sources for the conversation.
 
 ## Co-worker Profile Tabs
 

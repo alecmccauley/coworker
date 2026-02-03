@@ -2,24 +2,23 @@
   import PanelRightOpenIcon from '@lucide/svelte/icons/panel-right-open'
   import PanelRightCloseIcon from '@lucide/svelte/icons/panel-right-close'
   import { Button } from '$lib/components/ui/button'
-  import type { Channel, Coworker, Message, Thread } from '$lib/types'
+  import type { Coworker, Message, Thread } from '$lib/types'
   import MessageList from '../message/MessageList.svelte'
   import MessageInput from '../message/MessageInput.svelte'
-  import ContextPanel from '../knowledge/ContextPanel.svelte'
+  import ThreadSourcesPanel from './ThreadSourcesPanel.svelte'
 
   interface Props {
     thread: Thread
-    channel: Channel
     coworkers: Coworker[]
     onCreateCoworker: () => void
   }
 
-  let { thread, channel, coworkers, onCreateCoworker }: Props = $props()
+  let { thread, coworkers, onCreateCoworker }: Props = $props()
 
   let messages = $state<Message[]>([])
   let isLoading = $state(false)
   let error = $state<string | null>(null)
-  let isContextOpen = $state(true)
+  let isSourcesOpen = $state(false)
 
   $effect(() => {
     void loadMessages()
@@ -40,16 +39,11 @@
     }
   }
 
-  async function handleSend(input: {
-    content: string
-    authorType: 'user' | 'coworker' | 'system'
-    authorId?: string
-  }): Promise<void> {
+  async function handleSend(input: { content: string }): Promise<void> {
     try {
       const message = await window.api.message.create({
         threadId: thread.id,
-        authorType: input.authorType,
-        authorId: input.authorId,
+        authorType: 'user',
         contentShort: input.content,
         status: 'complete'
       })
@@ -77,14 +71,14 @@
           variant="outline"
           size="sm"
           class="gap-2"
-          onclick={() => (isContextOpen = !isContextOpen)}
+          onclick={() => (isSourcesOpen = !isSourcesOpen)}
         >
-          {#if isContextOpen}
+          {#if isSourcesOpen}
             <PanelRightCloseIcon class="h-4 w-4" />
-            Hide context
+            Hide sources
           {:else}
             <PanelRightOpenIcon class="h-4 w-4" />
-            Show context
+            Show sources
           {/if}
         </Button>
         {#if coworkers.length === 0}
@@ -102,13 +96,12 @@
     {/if}
 
     <MessageList {messages} {coworkers} isLoading={isLoading} />
-    <MessageInput {coworkers} onSend={handleSend} disabled={coworkers.length === 0} />
+    <MessageInput onSend={handleSend} />
   </div>
 
-  <ContextPanel
-    open={isContextOpen}
-    onClose={() => (isContextOpen = false)}
-    {channel}
+  <ThreadSourcesPanel
+    open={isSourcesOpen}
+    onClose={() => (isSourcesOpen = false)}
     {thread}
   />
 </div>

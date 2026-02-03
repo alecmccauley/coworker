@@ -4,15 +4,17 @@
   import { Input } from '$lib/components/ui/input'
   import { Textarea } from '$lib/components/ui/textarea'
   import { Label } from '$lib/components/ui/label'
-  import type { KnowledgeSourceKind } from '$lib/types'
+  import type { KnowledgeSourceKind, ScopeType } from '$lib/types'
 
   interface Props {
     open: boolean
     onClose: () => void
     onAdded: () => Promise<void>
+    scopeType?: ScopeType | 'thread'
+    scopeId?: string
   }
 
-  let { open = $bindable(), onClose, onAdded }: Props = $props()
+  let { open = $bindable(), onClose, onAdded, scopeType, scopeId }: Props = $props()
 
   let kind = $state<KnowledgeSourceKind>('text')
   let name = $state('')

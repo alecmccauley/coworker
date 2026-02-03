@@ -9,6 +9,7 @@
 
   // Workspace components
   import WelcomeView from './workspace/WelcomeView.svelte'
+  import WorkspaceSettings from './workspace/WorkspaceSettings.svelte'
 
   // Coworker components
   import CoworkerForm from './coworker/CoworkerForm.svelte'
@@ -51,7 +52,7 @@
   let isLoadingChannels = $state(false)
 
   // Navigation state
-  type ViewType = 'channel' | 'coworker-profile'
+  type ViewType = 'channel' | 'coworker-profile' | 'workspace-settings'
   let currentView = $state<ViewType>('channel')
   let selectedCoworkerId = $state<string | null>(null)
 
@@ -246,7 +247,17 @@
 
   function handleSelectCoworker(coworker: Coworker): void {
     selectedCoworkerId = coworker.id
+    selectedChannel = null
     currentView = 'coworker-profile'
+  }
+
+  function handleOpenWorkspaceSettings(): void {
+    currentView = 'workspace-settings'
+    selectedCoworkerId = null
+  }
+
+  function handleBackFromSettings(): void {
+    currentView = 'channel'
   }
 
   function handleOpenCreateChannel(): void {
@@ -398,10 +409,12 @@
             {coworkers}
             selectedChannelId={selectedChannel?.id ?? null}
             {selectedCoworkerId}
+            isWorkspaceSettingsActive={currentView === 'workspace-settings'}
             onSelectChannel={handleSelectChannel}
             onSelectCoworker={handleSelectCoworker}
             onCreateChannel={handleOpenCreateChannel}
             onCreateCoworker={handleCreateCoworker}
+            onOpenSettings={handleOpenWorkspaceSettings}
           />
 
           <!-- Main Content Area -->
@@ -410,6 +423,11 @@
               <div class="flex flex-1 items-center justify-center">
                 <Loader2Icon class="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
+            {:else if currentView === 'workspace-settings' && currentWorkspace}
+              <WorkspaceSettings
+                workspace={currentWorkspace}
+                onBack={handleBackFromSettings}
+              />
             {:else if currentView === 'channel' && selectedChannel}
               <ChannelView
                 channel={selectedChannel}

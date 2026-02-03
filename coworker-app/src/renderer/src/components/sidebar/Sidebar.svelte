@@ -3,6 +3,7 @@
   import PlusIcon from '@lucide/svelte/icons/plus'
   import UserIcon from '@lucide/svelte/icons/user'
   import ChevronDownIcon from '@lucide/svelte/icons/chevron-down'
+  import SettingsIcon from '@lucide/svelte/icons/settings'
   import type { Channel, Coworker } from '$lib/types'
 
   interface Props {
@@ -11,10 +12,12 @@
     coworkers: Coworker[]
     selectedChannelId: string | null
     selectedCoworkerId: string | null
+    isWorkspaceSettingsActive?: boolean
     onSelectChannel: (channel: Channel) => void
     onSelectCoworker: (coworker: Coworker) => void
     onCreateChannel: () => void
     onCreateCoworker: () => void
+    onOpenSettings: () => void
   }
 
   let {
@@ -23,10 +26,12 @@
     coworkers,
     selectedChannelId,
     selectedCoworkerId,
+    isWorkspaceSettingsActive = false,
     onSelectChannel,
     onSelectCoworker,
     onCreateChannel,
-    onCreateCoworker
+    onCreateCoworker,
+    onOpenSettings
   }: Props = $props()
 
   let channelsExpanded = $state(true)
@@ -36,14 +41,25 @@
 <aside class="flex h-full w-64 flex-shrink-0 flex-col border-r border-border bg-card/50">
   <!-- Workspace Header -->
   <div class="flex h-14 items-center border-b border-border px-4">
-    <button
-      class="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted"
-    >
-      <span class="truncate font-serif text-sm font-medium text-foreground">
-        {workspaceName}
-      </span>
-      <ChevronDownIcon class="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-    </button>
+    <div class="flex w-full items-center justify-between">
+      <button
+        class="flex flex-1 items-center justify-between rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted"
+      >
+        <span class="truncate font-serif text-sm font-medium text-foreground">
+          {workspaceName}
+        </span>
+        <ChevronDownIcon class="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+      </button>
+      <button
+        onclick={onOpenSettings}
+        class="ml-1 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        class:bg-accent={isWorkspaceSettingsActive}
+        class:text-accent-foreground={isWorkspaceSettingsActive}
+        title="Workspace settings"
+      >
+        <SettingsIcon class="h-4 w-4" />
+      </button>
+    </div>
   </div>
 
   <!-- Scrollable Content -->

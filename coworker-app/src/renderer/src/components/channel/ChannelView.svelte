@@ -2,9 +2,11 @@
   import PlusIcon from '@lucide/svelte/icons/plus'
   import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import MessageSquareIcon from '@lucide/svelte/icons/message-square'
+  import SettingsIcon from '@lucide/svelte/icons/settings'
   import { Button } from '$lib/components/ui/button'
   import type { Channel, Thread, Coworker } from '$lib/types'
   import ThreadView from '../thread/ThreadView.svelte'
+  import ChannelSettingsPanel from './ChannelSettingsPanel.svelte'
 
   interface Props {
     channel: Channel
@@ -17,6 +19,7 @@
   let threads = $state<Thread[]>([])
   let isLoading = $state(false)
   let selectedThread = $state<Thread | null>(null)
+  let isSettingsPanelOpen = $state(false)
 
   $effect(() => {
     // Reload threads when channel changes
@@ -75,10 +78,21 @@
         <p class="text-sm text-muted-foreground">{channel.purpose}</p>
       {/if}
     </div>
-    <Button onclick={handleCreateThread} class="gap-2">
-      <PlusIcon class="h-4 w-4" />
-      New Thread
-    </Button>
+    <div class="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        class="gap-2"
+        onclick={() => (isSettingsPanelOpen = !isSettingsPanelOpen)}
+      >
+        <SettingsIcon class="h-4 w-4" />
+        {isSettingsPanelOpen ? 'Hide settings' : 'Settings'}
+      </Button>
+      <Button onclick={handleCreateThread} class="gap-2">
+        <PlusIcon class="h-4 w-4" />
+        New Thread
+      </Button>
+    </div>
   </div>
 
   <!-- Content -->
@@ -129,7 +143,6 @@
       {#if selectedThread}
         <ThreadView
           thread={selectedThread}
-          {channel}
           {coworkers}
           {onCreateCoworker}
         />
@@ -145,5 +158,12 @@
         </div>
       {/if}
     </div>
+
+    <!-- Channel Settings Panel -->
+    <ChannelSettingsPanel
+      open={isSettingsPanelOpen}
+      onClose={() => (isSettingsPanelOpen = false)}
+      {channel}
+    />
   </div>
 </div>
