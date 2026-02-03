@@ -165,6 +165,7 @@
   html {
     /* Prevent rubber-banding scroll on macOS */
     overscroll-behavior: none;
+    height: 100%;
   }
 
   body {
@@ -176,6 +177,16 @@
     -webkit-user-select: none;
     user-select: none;
     cursor: default;
+    /* Fill full viewport */
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  #app {
+    height: 100%;
+    width: 100%;
   }
 
   /* Allow text selection in inputs and textareas */

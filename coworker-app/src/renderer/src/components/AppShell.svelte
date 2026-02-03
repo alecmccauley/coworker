@@ -4,9 +4,10 @@
   interface Props {
     children: Snippet
     headerActions?: Snippet
+    fullWidth?: boolean
   }
 
-  let { children, headerActions }: Props = $props()
+  let { children, headerActions, fullWidth = false }: Props = $props()
 
   // Detect if running on macOS for traffic light spacing
   const isMacOS = navigator.platform.toLowerCase().includes('mac')
@@ -39,10 +40,14 @@
   </header>
 
   <!-- Main Content Area -->
-  <main class="flex-1 overflow-auto">
-    <div class="mx-auto max-w-6xl px-6 py-8">
+  <main class="flex min-h-0 flex-1 overflow-hidden">
+    {#if fullWidth}
       {@render children()}
-    </div>
+    {:else}
+      <div class="mx-auto max-w-6xl flex-1 overflow-auto px-6 py-8">
+        {@render children()}
+      </div>
+    {/if}
   </main>
 </div>
 

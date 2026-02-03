@@ -1,5 +1,11 @@
 import { safeStorage, app } from "electron";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from "fs";
 import { join } from "path";
 
 interface StoredTokens {
@@ -45,14 +51,9 @@ export function getStorageBackend(): string {
 /**
  * Save tokens securely using OS-level encryption
  */
-export function saveTokens(
-  accessToken: string,
-  refreshToken: string
-): boolean {
+export function saveTokens(accessToken: string, refreshToken: string): boolean {
   if (!isSecureStorageAvailable()) {
-    console.warn(
-      "[AUTH] Secure storage unavailable. Tokens will not persist."
-    );
+    console.warn("[AUTH] Secure storage unavailable. Tokens will not persist.");
     return false;
   }
 
@@ -88,7 +89,9 @@ export function getTokens(): StoredTokens | null {
       return null;
     }
 
-    const data = JSON.parse(readFileSync(tokensPath, "utf-8")) as EncryptedTokens;
+    const data = JSON.parse(
+      readFileSync(tokensPath, "utf-8"),
+    ) as EncryptedTokens;
 
     const accessBuffer = Buffer.from(data.accessToken, "base64");
     const refreshBuffer = Buffer.from(data.refreshToken, "base64");

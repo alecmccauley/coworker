@@ -4,13 +4,14 @@ export {
   closeWorkspace,
   getCurrentWorkspace,
   getCurrentDatabase,
+  getCurrentSqlite,
   showCreateWorkspaceDialog,
   showOpenWorkspaceDialog,
   getWorkspaceDisplayName,
   getWorkspaceParentDir,
   type WorkspaceManifest,
-  type WorkspaceInfo
-} from './workspace-manager'
+  type WorkspaceInfo,
+} from "./workspace-manager";
 
 export {
   loadRecentWorkspaces,
@@ -18,11 +19,11 @@ export {
   removeRecentWorkspace,
   clearRecentWorkspaces,
   listRecentWorkspaces,
-  type RecentWorkspace
-} from './recent-workspaces'
+  type RecentWorkspace,
+} from "./recent-workspaces";
 
 export {
   registerWorkspaceIpcHandlers,
   notifyWorkspaceOpened,
-  notifyWorkspaceClosed
-} from './ipc-handlers'
+  notifyWorkspaceClosed,
+} from "./ipc-handlers";

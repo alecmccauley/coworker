@@ -1,1 +1,4 @@
-export { buildApplicationMenu, refreshApplicationMenu } from './application-menu'
+export {
+  buildApplicationMenu,
+  refreshApplicationMenu,
+} from "./application-menu";

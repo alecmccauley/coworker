@@ -5,7 +5,7 @@
   import FolderOpenIcon from '@lucide/svelte/icons/folder-open'
   import FolderIcon from '@lucide/svelte/icons/folder'
   import RecentWorkspacesList from './RecentWorkspacesList.svelte'
-  import type { WorkspaceInfo, RecentWorkspace } from '$lib/types'
+  import type { RecentWorkspace } from '$lib/types'
 
   interface Props {
     recentWorkspaces: RecentWorkspace[]
@@ -110,7 +110,7 @@
 
     <!-- Keyboard shortcut hint -->
     <p class="mt-8 text-xs text-muted-foreground/60">
-      Or use <kbd class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘N</kbd> to create or{' '}
+      Or use <kbd class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘N</kbd> to create or
       <kbd class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘O</kbd> to open
     </p>
   </div>

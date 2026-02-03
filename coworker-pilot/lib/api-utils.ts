@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import type { ZodIssue } from "zod";
+
+/**
+ * Generic issue type compatible with Zod 3 and Zod 4
+ * Uses PropertyKey for path to support symbols in Zod 4
+ */
+interface ZodIssueCompat {
+  path: PropertyKey[];
+  message: string;
+  code?: string;
+}
 
 /**
  * Create a success response matching the API envelope format
@@ -17,14 +26,15 @@ export function errorResponse(message: string, status = 500) {
 
 /**
  * Create a validation error response with field-level details
+ * Compatible with both Zod 3 and Zod 4 issue types
  */
-export function validationErrorResponse(errors: ZodIssue[]) {
+export function validationErrorResponse(errors: ZodIssueCompat[]) {
   return NextResponse.json(
     {
       status: "error",
       message: "Validation failed",
       errors: errors.map((issue) => ({
-        field: issue.path.join(".") || "root",
+        field: issue.path.map(String).join(".") || "root",
         message: issue.message,
       })),
     },

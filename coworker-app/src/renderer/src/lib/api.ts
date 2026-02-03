@@ -11,8 +11,8 @@ export const helloApi = {
    * Say hello to the API
    * @param name Optional name to greet
    */
-  sayHello: (name?: string) => window.api.hello.sayHello(name)
-}
+  sayHello: (name?: string) => window.api.hello.sayHello(name),
+};
 
 /**
  * Users API methods
@@ -43,13 +43,13 @@ export const usersApi = {
   /**
    * Delete a user
    */
-  delete: (id: string) => window.api.users.delete(id)
-}
+  delete: (id: string) => window.api.users.delete(id),
+};
 
 /**
  * Combined API object for convenience
  */
 export const api = {
   hello: helloApi,
-  users: usersApi
-}
+  users: usersApi,
+};

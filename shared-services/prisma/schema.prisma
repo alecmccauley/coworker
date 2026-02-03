@@ -49,3 +49,22 @@ model RefreshToken {
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
+
+model CoworkerTemplate {
+  id                     String   @id @default(cuid())
+  slug                   String   @unique
+  name                   String
+  description            String?
+  rolePrompt             String   @map("role_prompt") @db.Text
+  defaultBehaviorsJson   String?  @map("default_behaviors_json") @db.Text
+  defaultToolsPolicyJson String?  @map("default_tools_policy_json") @db.Text
+  modelRoutingPolicyJson String?  @map("model_routing_policy_json") @db.Text
+  version                Int      @default(1)
+  isPublished            Boolean  @default(false) @map("is_published")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@index([isPublished])
+  @@index([slug])
+  @@map("coworker_templates")
+}

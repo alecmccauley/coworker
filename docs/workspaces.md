@@ -315,10 +315,18 @@ Status of the architecture briefing items (V1 workspace + storage). AI/streaming
 | manifest.schemaVersion | Done | Validated on open; migrations run |
 | manifest.appVersionCreatedWith | Not done | — |
 | SQLite WAL, transactions | Done | WAL + checkpoint on close; single writer (one open workspace) |
-| Event append + projection | Done | Coworker only; event + projection not in single transaction yet |
-| threads, messages, tool_runs, blobs tables | Not done | — |
-| Blob metadata table + add/read APIs | Not done | blobs/ folder only |
+| Event append + projection | Done | All entities use atomic transactions now |
+| Coworker extended fields | Done | rolePrompt, defaultsJson, templateId, templateVersion |
+| Channels table + service | Done | channel-service.ts with create, update, archive, list, createDefaults |
+| Threads table + service | Done | thread-service.ts with create, update, archive, list by channel |
+| Messages table + service | Done | message-service.ts with create, update, list by thread |
+| Knowledge items table + service | Done | Scoped to workspace/channel/coworker, pinning support |
+| Knowledge sources table + service | Done | text/file/url sources with metadata |
+| Blobs table + service | Done | SHA256 deduplication, add/read/delete APIs |
+| Template sync (cloud) | Done | template-cache.ts and template-sync.ts |
+| Sidebar navigation UI | Done | Channels and coworkers in left rail |
+| Channel/Thread UI | Done | Thread list, conversation view placeholders |
+| IPC for all entities | Done | workspace.*, coworker.*, channel.*, thread.*, message.*, knowledge.*, blob.*, templates.* |
 | Repair / integrity_check / rebuild projections | Not done | — |
-| IPC workspace.* / coworker.* | Done | No thread/message/blob/ai APIs yet |
 
-Summary: Workspace bundle (manifest, DB, blobs/), SQLite + Drizzle, event log + coworkers projection, and IPC for workspace and coworker are in place. Pending: additional entities (threads, messages, tool_runs, blobs table), atomic event+projection transaction, manifest `appVersionCreatedWith`, optional folders (exports/, logs/, tmp/), and repair/rebuild flows.
+Summary: All core entity tables and services are in place. Event sourcing uses atomic transactions for crash safety. Cloud template system with admin UI and local caching is implemented. UI includes sidebar navigation, channel views, and placeholders for conversation UI. Pending: manifest `appVersionCreatedWith`, optional folders (exports/, logs/, tmp/), and repair/rebuild flows.

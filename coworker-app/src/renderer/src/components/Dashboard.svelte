@@ -5,17 +5,22 @@
   import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import LogOutIcon from '@lucide/svelte/icons/log-out'
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
-  import PlusIcon from '@lucide/svelte/icons/plus'
   import type { AuthUser } from '@coworker/shared-services'
-  import type { WorkspaceInfo, RecentWorkspace, Coworker } from '$lib/types'
+  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel } from '$lib/types'
 
   // Workspace components
   import WelcomeView from './workspace/WelcomeView.svelte'
 
   // Coworker components
-  import CoworkerList from './coworker/CoworkerList.svelte'
   import CoworkerForm from './coworker/CoworkerForm.svelte'
   import DeleteCoworkerDialog from './coworker/DeleteCoworkerDialog.svelte'
+
+  // Sidebar
+  import { Sidebar } from './sidebar'
+
+  // Channel components
+  import ChannelView from './channel/ChannelView.svelte'
+  import CreateChannelDialog from './channel/CreateChannelDialog.svelte'
 
   import AppShell from './AppShell.svelte'
 
@@ -40,16 +45,28 @@
   let coworkers = $state<Coworker[]>([])
   let isLoadingCoworkers = $state(false)
 
+  // Channel state
+  let channels = $state<Channel[]>([])
+  let selectedChannel = $state<Channel | null>(null)
+  let isLoadingChannels = $state(false)
+
+  // Navigation state
+  type ViewType = 'channel' | 'coworker-profile'
+  let currentView = $state<ViewType>('channel')
+  let selectedCoworkerId = $state<string | null>(null)
+
   // Dialog state
   let showCoworkerForm = $state(false)
   let editingCoworker = $state<Coworker | null>(null)
   let showDeleteDialog = $state(false)
   let deletingCoworker = $state<Coworker | null>(null)
+  let showChannelDialog = $state(false)
 
   // Error state
   let errorMessage = $state<string | null>(null)
 
-  // Display name
+  // User display name - currently unused but available for UI
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const displayName = $derived(user.name || user.email.split('@')[0] || 'there')
 
   // Cleanup functions for menu listeners
@@ -69,6 +86,9 @@
     cleanupMenuNew = window.api.workspace.onMenuNew(handleWorkspaceOpened)
     cleanupMenuOpen = window.api.workspace.onMenuOpen(handleWorkspaceOpened)
     cleanupMenuClose = window.api.workspace.onMenuClose(handleWorkspaceClosed)
+
+    // Sync templates in background
+    window.api.templates.syncIfNeeded().catch(console.error)
   })
 
   onDestroy(() => {
@@ -81,11 +101,35 @@
     try {
       currentWorkspace = await window.api.workspace.getCurrent()
       if (currentWorkspace) {
-        await loadCoworkers()
+        await Promise.all([loadCoworkers(), loadChannels()])
       }
     } catch (error) {
       console.error('Failed to load current workspace:', error)
       errorMessage = formatError(error, 'Failed to load current workspace.')
+    }
+  }
+
+  async function loadChannels(): Promise<void> {
+    if (!currentWorkspace) return
+
+    isLoadingChannels = true
+    try {
+      channels = await window.api.channel.list()
+      
+      // Create default channels if none exist
+      if (channels.length === 0) {
+        channels = await window.api.channel.createDefaults()
+      }
+      
+      // Select first channel by default if none selected
+      if (!selectedChannel && channels.length > 0) {
+        selectedChannel = channels[0]
+      }
+    } catch (error) {
+      console.error('Failed to load channels:', error)
+      errorMessage = formatError(error, 'Failed to load channels.')
+    } finally {
+      isLoadingChannels = false
     }
   }
 
@@ -172,7 +216,10 @@
 
   function handleWorkspaceOpened(workspace: WorkspaceInfo): void {
     currentWorkspace = workspace
+    selectedChannel = null
+    channels = []
     loadCoworkers()
+    loadChannels()
     loadRecentWorkspaces()
   }
 
@@ -181,11 +228,36 @@
       await window.api.workspace.close()
       currentWorkspace = null
       coworkers = []
+      channels = []
+      selectedChannel = null
       await loadRecentWorkspaces()
     } catch (error) {
       console.error('Failed to close workspace:', error)
       errorMessage = formatError(error, 'Failed to close workspace.')
     }
+  }
+
+  // Channel handlers
+  function handleSelectChannel(channel: Channel): void {
+    selectedChannel = channel
+    currentView = 'channel'
+    selectedCoworkerId = null
+  }
+
+  function handleSelectCoworker(coworker: Coworker): void {
+    selectedCoworkerId = coworker.id
+    currentView = 'coworker-profile'
+  }
+
+  function handleOpenCreateChannel(): void {
+    showChannelDialog = true
+  }
+
+  async function handleCreateChannel(input: { name: string; purpose?: string }): Promise<void> {
+    const channel = await window.api.channel.create(input)
+    await loadChannels()
+    selectedChannel = channel
+    currentView = 'channel'
   }
 
   async function handleLogout(): Promise<void> {
@@ -272,8 +344,8 @@
   </button>
 {/snippet}
 
-<AppShell headerActions={dashboardHeaderActions}>
-  <div class="relative flex flex-1 flex-col">
+<AppShell headerActions={dashboardHeaderActions} fullWidth={true}>
+  <div class="relative flex h-full w-full flex-1 flex-col">
     <!-- Subtle ambient decoration -->
     <div class="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
       <div
@@ -289,7 +361,7 @@
     </div>
 
     <!-- Main content -->
-    <div class="flex flex-1 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col">
       {#if errorMessage}
         <div class="px-8 pt-6">
           <div class="flex items-start justify-between gap-3 rounded-2xl border border-muted bg-card px-4 py-3 text-sm text-foreground shadow-sm">
@@ -315,36 +387,75 @@
         </div>
       {:else if currentWorkspace}
         <div
-          class="flex flex-1 flex-col px-8 py-6 transition-all duration-500"
+          class="flex min-h-0 flex-1 transition-all duration-500"
           class:opacity-100={showContent}
           class:opacity-0={!showContent}
         >
-          <div class="mb-8 flex items-center justify-between">
-            <div>
-              <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Workspace
-              </p>
-              <h1 class="font-serif text-3xl font-medium text-foreground">
-                {currentWorkspace.manifest.name}
-              </h1>
-            </div>
-            <Button onclick={handleCreateCoworker} class="gap-2">
-              <PlusIcon class="h-4 w-4" />
-              Add Co-worker
-            </Button>
-          </div>
-          <div class="flex-1">
-            {#if isLoadingCoworkers}
-              <div class="flex items-center justify-center py-16">
+          <!-- Sidebar -->
+          <Sidebar
+            workspaceName={currentWorkspace.manifest.name}
+            {channels}
+            {coworkers}
+            selectedChannelId={selectedChannel?.id ?? null}
+            {selectedCoworkerId}
+            onSelectChannel={handleSelectChannel}
+            onSelectCoworker={handleSelectCoworker}
+            onCreateChannel={handleOpenCreateChannel}
+            onCreateCoworker={handleCreateCoworker}
+          />
+
+          <!-- Main Content Area -->
+          <div class="flex flex-1 flex-col">
+            {#if isLoadingChannels || isLoadingCoworkers}
+              <div class="flex flex-1 items-center justify-center">
                 <Loader2Icon class="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            {:else}
-              <CoworkerList
+            {:else if currentView === 'channel' && selectedChannel}
+              <ChannelView
+                channel={selectedChannel}
                 {coworkers}
-                onEdit={handleEditCoworker}
-                onDelete={handleDeleteCoworker}
                 onCreateCoworker={handleCreateCoworker}
               />
+            {:else if currentView === 'coworker-profile' && selectedCoworkerId}
+              <!-- Coworker Profile View (placeholder) -->
+              {#each coworkers.filter((c) => c.id === selectedCoworkerId) as coworker (coworker.id)}
+                <div class="flex flex-1 flex-col px-8 py-6">
+                  <div class="mb-8 flex items-center justify-between">
+                    <div>
+                      <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Co-worker
+                      </p>
+                      <h1 class="font-serif text-3xl font-medium text-foreground">
+                        {coworker.name}
+                      </h1>
+                      {#if coworker.description}
+                        <p class="mt-2 text-muted-foreground">{coworker.description}</p>
+                      {/if}
+                    </div>
+                    <div class="flex gap-2">
+                      <Button variant="outline" onclick={() => handleEditCoworker(coworker)}>
+                        Edit
+                      </Button>
+                      <Button variant="destructive" onclick={() => handleDeleteCoworker(coworker)}>
+                        Archive
+                      </Button>
+                    </div>
+                  </div>
+                  <!-- Tabs placeholder -->
+                  <div class="rounded-lg border border-border bg-card p-6">
+                    <p class="text-muted-foreground">
+                      Co-worker profile with About, Knowledge, Tools, and History tabs coming soon.
+                    </p>
+                  </div>
+                </div>
+              {/each}
+            {:else}
+              <!-- Default empty state -->
+              <div class="flex flex-1 items-center justify-center">
+                <div class="text-center">
+                  <p class="text-muted-foreground">Select a channel or co-worker to get started</p>
+                </div>
+              </div>
             {/if}
           </div>
         </div>
@@ -383,3 +494,8 @@
   onConfirm={handleConfirmDeleteCoworker}
 />
 
+<CreateChannelDialog
+  bind:open={showChannelDialog}
+  onClose={() => (showChannelDialog = false)}
+  onSave={handleCreateChannel}
+/>

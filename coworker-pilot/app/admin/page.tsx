@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { LogOut, User, Settings, Database, Users } from "lucide-react";
+import { LogOut, User, Settings, Database, Users, UserCog } from "lucide-react";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -78,6 +78,29 @@ export default function AdminDashboard() {
               </p>
               <Button variant="outline" className="mt-4 w-full" asChild>
                 <Link href="/admin/users">Manage Users</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Templates Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+                  <UserCog className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Templates</CardTitle>
+                  <CardDescription>Manage co-worker templates</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Create and manage role-based co-worker templates.
+              </p>
+              <Button variant="outline" className="mt-4 w-full" asChild>
+                <Link href="/admin/templates">Manage Templates</Link>
               </Button>
             </CardContent>
           </Card>

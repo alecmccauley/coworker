@@ -1,23 +1,23 @@
-import { app } from 'electron'
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
-import { join, dirname } from 'path'
+import { app } from "electron";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 /**
  * Recent workspace entry
  */
 export interface RecentWorkspace {
-  path: string
-  name: string
-  lastOpened: string // ISO timestamp
+  path: string;
+  name: string;
+  lastOpened: string; // ISO timestamp
 }
 
-const MAX_RECENT_WORKSPACES = 10
+const MAX_RECENT_WORKSPACES = 10;
 
 /**
  * Get the path to the recent workspaces file
  */
 function getRecentWorkspacesPath(): string {
-  return join(app.getPath('userData'), 'recent-workspaces.json')
+  return join(app.getPath("userData"), "recent-workspaces.json");
 }
 
 /**
@@ -25,15 +25,15 @@ function getRecentWorkspacesPath(): string {
  */
 export function loadRecentWorkspaces(): RecentWorkspace[] {
   try {
-    const filePath = getRecentWorkspacesPath()
+    const filePath = getRecentWorkspacesPath();
     if (!existsSync(filePath)) {
-      return []
+      return [];
     }
-    const data = readFileSync(filePath, 'utf-8')
-    return JSON.parse(data) as RecentWorkspace[]
+    const data = readFileSync(filePath, "utf-8");
+    return JSON.parse(data) as RecentWorkspace[];
   } catch (error) {
-    console.error('[RecentWorkspaces] Failed to load:', error)
-    return []
+    console.error("[RecentWorkspaces] Failed to load:", error);
+    return [];
   }
 }
 
@@ -42,14 +42,14 @@ export function loadRecentWorkspaces(): RecentWorkspace[] {
  */
 function saveRecentWorkspaces(workspaces: RecentWorkspace[]): void {
   try {
-    const filePath = getRecentWorkspacesPath()
-    const dir = dirname(filePath)
+    const filePath = getRecentWorkspacesPath();
+    const dir = dirname(filePath);
     if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true })
+      mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(filePath, JSON.stringify(workspaces, null, 2), 'utf-8')
+    writeFileSync(filePath, JSON.stringify(workspaces, null, 2), "utf-8");
   } catch (error) {
-    console.error('[RecentWorkspaces] Failed to save:', error)
+    console.error("[RecentWorkspaces] Failed to save:", error);
   }
 }
 
@@ -58,51 +58,51 @@ function saveRecentWorkspaces(workspaces: RecentWorkspace[]): void {
  * Moves it to the top if it already exists
  */
 export function addRecentWorkspace(path: string, name: string): void {
-  const workspaces = loadRecentWorkspaces()
+  const workspaces = loadRecentWorkspaces();
 
   // Remove existing entry if present
-  const filtered = workspaces.filter((w) => w.path !== path)
+  const filtered = workspaces.filter((w) => w.path !== path);
 
   // Add to the beginning
   const newEntry: RecentWorkspace = {
     path,
     name,
-    lastOpened: new Date().toISOString()
-  }
+    lastOpened: new Date().toISOString(),
+  };
 
-  const updated = [newEntry, ...filtered].slice(0, MAX_RECENT_WORKSPACES)
-  saveRecentWorkspaces(updated)
+  const updated = [newEntry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+  saveRecentWorkspaces(updated);
 }
 
 /**
  * Remove a workspace from the recent list
  */
 export function removeRecentWorkspace(path: string): void {
-  const workspaces = loadRecentWorkspaces()
-  const filtered = workspaces.filter((w) => w.path !== path)
-  saveRecentWorkspaces(filtered)
+  const workspaces = loadRecentWorkspaces();
+  const filtered = workspaces.filter((w) => w.path !== path);
+  saveRecentWorkspaces(filtered);
 }
 
 /**
  * Clear all recent workspaces
  */
 export function clearRecentWorkspaces(): void {
-  saveRecentWorkspaces([])
+  saveRecentWorkspaces([]);
 }
 
 /**
  * List recent workspaces, filtering out any that no longer exist
  */
 export function listRecentWorkspaces(): RecentWorkspace[] {
-  const workspaces = loadRecentWorkspaces()
+  const workspaces = loadRecentWorkspaces();
 
   // Filter out workspaces that no longer exist
-  const valid = workspaces.filter((w) => existsSync(w.path))
+  const valid = workspaces.filter((w) => existsSync(w.path));
 
   // Save the filtered list if any were removed
   if (valid.length !== workspaces.length) {
-    saveRecentWorkspaces(valid)
+    saveRecentWorkspaces(valid);
   }
 
-  return valid
+  return valid;
 }

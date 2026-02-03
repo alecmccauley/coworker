@@ -13,19 +13,16 @@ import { withAuth, AuthenticatedRequest } from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
 
-interface RouteContext {
-  params?: Promise<{ id: string }>;
-}
-
 /**
  * GET /api/v1/users/[id]
  * Get a user by ID (requires authentication)
  */
 async function handleGet(
   _request: AuthenticatedRequest,
-  context: RouteContext
+  context?: { params?: Promise<Record<string, string>> }
 ): Promise<NextResponse> {
-  const { id } = await context.params!;
+  const params = await context?.params;
+  const id = params?.id;
 
   // Validate ID
   const idResult = userIdParamSchema.safeParse({ id });
@@ -50,9 +47,10 @@ async function handleGet(
  */
 async function handlePatch(
   request: AuthenticatedRequest,
-  context: RouteContext
+  context?: { params?: Promise<Record<string, string>> }
 ): Promise<NextResponse> {
-  const { id } = await context.params!;
+  const params = await context?.params;
+  const id = params?.id;
 
   // Validate ID
   const idResult = userIdParamSchema.safeParse({ id });
@@ -111,9 +109,10 @@ async function handlePatch(
  */
 async function handleDelete(
   _request: AuthenticatedRequest,
-  context: RouteContext
+  context?: { params?: Promise<Record<string, string>> }
 ): Promise<NextResponse> {
-  const { id } = await context.params!;
+  const params = await context?.params;
+  const id = params?.id;
 
   // Validate ID
   const idResult = userIdParamSchema.safeParse({ id });

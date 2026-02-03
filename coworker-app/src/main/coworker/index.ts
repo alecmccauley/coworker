@@ -5,7 +5,7 @@ export {
   listCoworkers,
   getCoworkerById,
   type CreateCoworkerInput,
-  type UpdateCoworkerInput
-} from './coworker-service'
+  type UpdateCoworkerInput,
+} from "./coworker-service";
 
-export { registerCoworkerIpcHandlers } from './ipc-handlers'
+export { registerCoworkerIpcHandlers } from "./ipc-handlers";

@@ -1,6 +1,7 @@
 import { ApiClient, type ApiClientConfig } from "./client.js";
 import { AuthEndpoint } from "./endpoints/auth.js";
 import { HelloEndpoint } from "./endpoints/hello.js";
+import { TemplatesEndpoint } from "./endpoints/templates.js";
 import { UsersEndpoint } from "./endpoints/users.js";
 
 export * from "./errors.js";
@@ -17,12 +18,14 @@ export class CoworkerSdk {
 
   public readonly auth: AuthEndpoint;
   public readonly hello: HelloEndpoint;
+  public readonly templates: TemplatesEndpoint;
   public readonly users: UsersEndpoint;
 
   constructor(config: CoworkerSdkConfig) {
     this.client = new ApiClient(config);
     this.auth = new AuthEndpoint(this.client);
     this.hello = new HelloEndpoint(this.client);
+    this.templates = new TemplatesEndpoint(this.client);
     this.users = new UsersEndpoint(this.client);
   }
 }
