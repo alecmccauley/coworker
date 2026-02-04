@@ -105,12 +105,17 @@ export const knowledgeItems = sqliteTable("knowledge_items", {
 export const knowledgeSources = sqliteTable("knowledge_sources", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id").notNull(),
+  scopeType: text("scope_type"),
+  scopeId: text("scope_id"),
   kind: text("kind").notNull(), // 'text' | 'file' | 'url'
   name: text("name"), // Display name
   blobId: text("blob_id"), // Reference to blobs table
   extractedTextRef: text("extracted_text_ref"), // Blob ref for extracted/processed text
   metadata: text("metadata"), // JSON metadata (URL, file info, etc.)
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+  notes: text("notes"),
+  archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
 });
 
 /**
@@ -170,6 +175,7 @@ export type EntityType =
 
 // Scope type for knowledge items
 export type ScopeType = "workspace" | "channel" | "coworker";
+export type SourceScopeType = "workspace" | "channel" | "coworker" | "thread";
 
 // Author type for messages
 export type AuthorType = "user" | "coworker" | "system";

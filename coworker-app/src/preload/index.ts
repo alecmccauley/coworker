@@ -141,6 +141,7 @@ export interface UpdateMessageInput {
 
 // Knowledge types
 export type ScopeType = "workspace" | "channel" | "coworker";
+export type SourceScopeType = "workspace" | "channel" | "coworker" | "thread";
 export type KnowledgeSourceKind = "text" | "file" | "url";
 
 export interface KnowledgeItem {
@@ -179,20 +180,55 @@ export interface UpdateKnowledgeItemInput {
 export interface KnowledgeSource {
   id: string;
   workspaceId: string;
-  kind: string;
+  scopeType: SourceScopeType | null;
+  scopeId: string | null;
+  kind: KnowledgeSourceKind;
   name: string | null;
   blobId: string | null;
   extractedTextRef: string | null;
   metadata: string | null;
+  notes: string | null;
   createdAt: Date;
+  updatedAt: Date | null;
+  archivedAt: Date | null;
 }
 
 export interface AddKnowledgeSourceInput {
+  scopeType: SourceScopeType;
+  scopeId?: string;
   kind: KnowledgeSourceKind;
   name?: string;
   blobId?: string;
   extractedTextRef?: string;
   metadata?: string;
+  notes?: string;
+}
+
+export interface UpdateKnowledgeSourceInput {
+  name?: string;
+  notes?: string | null;
+}
+
+export interface ImportProgressPayload {
+  batchId: string;
+  filePath: string;
+  filename: string;
+  status: "queued" | "processing" | "success" | "error";
+  sourceId?: string;
+  error?: string;
+}
+
+export interface ImportFailure {
+  filePath: string;
+  filename: string;
+  error: string;
+}
+
+export interface ImportSourcesResult {
+  batchId: string;
+  createdSources: KnowledgeSource[];
+  failures: ImportFailure[];
+  canceled: boolean;
 }
 
 // Blob types
@@ -425,13 +461,51 @@ const api = {
         "knowledge:addSource",
         input,
       ) as Promise<KnowledgeSource>,
-    listSources: () =>
-      ipcRenderer.invoke("knowledge:listSources") as Promise<KnowledgeSource[]>,
+    updateSource: (id: string, input: UpdateKnowledgeSourceInput) =>
+      ipcRenderer.invoke(
+        "knowledge:updateSource",
+        id,
+        input,
+      ) as Promise<KnowledgeSource>,
+    removeSource: (id: string) =>
+      ipcRenderer.invoke("knowledge:removeSource", id) as Promise<void>,
+    listSources: (scopeType?: SourceScopeType, scopeId?: string) =>
+      ipcRenderer.invoke(
+        "knowledge:listSources",
+        scopeType,
+        scopeId,
+      ) as Promise<KnowledgeSource[]>,
     getSourceById: (id: string) =>
       ipcRenderer.invoke(
         "knowledge:getSourceById",
         id,
       ) as Promise<KnowledgeSource | null>,
+    importFiles: (scopeType: SourceScopeType, scopeId?: string) =>
+      ipcRenderer.invoke(
+        "knowledge:importFiles",
+        scopeType,
+        scopeId,
+      ) as Promise<ImportSourcesResult>,
+    importFilesByPath: (
+      filePaths: string[],
+      scopeType: SourceScopeType,
+      scopeId?: string,
+    ) =>
+      ipcRenderer.invoke(
+        "knowledge:importFilesByPath",
+        filePaths,
+        scopeType,
+        scopeId,
+      ) as Promise<ImportSourcesResult>,
+    onImportProgress: (handler: (payload: ImportProgressPayload) => void) => {
+      const listener = (_event: unknown, payload: unknown) => {
+        handler(payload as ImportProgressPayload);
+      };
+      ipcRenderer.on("knowledge:importProgress", listener);
+      return () => {
+        ipcRenderer.removeListener("knowledge:importProgress", listener);
+      };
+    },
   },
   blob: {
     add: (input: AddBlobInput) =>

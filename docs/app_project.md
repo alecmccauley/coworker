@@ -216,7 +216,7 @@ Channel views now provide a full conversation experience:
 - Thread list on the left and conversation view on the right
 - Message list with user/co-worker styling
 - Composer for sending messages as the user
-- Sources panel for thread-specific attachments
+- Sources panel for thread-specific attachments (files, links, notes)
 
 Primary components:
 
@@ -234,20 +234,24 @@ Knowledge is managed at different levels with dedicated locations:
 | **Workspace** | Workspace Settings page | Global truths, goals, preferences, constraints |
 | **Channel** | Channel Settings panel | Project-specific context, definitions |
 | **Coworker** | CoworkerProfile (existing) | Role-specific tone, standards, workflow |
-| **Thread** | Sources panel only | Attached files/links for this conversation |
+| **Thread** | Sources panel only | Attached files/links/notes for this conversation |
+
+Sources can be text notes, links, or file attachments (PDF, DOCX, Markdown). Each source supports a display label, optional notes, and delete/rename actions.
+Sources panels also accept drag-and-drop for supported files; dropping files imports them directly into the current scope with inline progress feedback.
 
 ### Knowledge Components
 
 - `src/renderer/src/components/knowledge/ScopedNotes.svelte` — Reusable pinned notes component for any scope
 - `src/renderer/src/components/knowledge/ScopedSources.svelte` — Reusable sources list component for any scope
-- `src/renderer/src/components/knowledge/KnowledgeSourceList.svelte` — Display component for source items
-- `src/renderer/src/components/knowledge/AddKnowledgeDialog.svelte` — Dialog for adding sources (supports scope parameters)
+- `src/renderer/src/components/knowledge/KnowledgeSourceList.svelte` — Display component for source items with rename/notes/delete actions
+- `src/renderer/src/components/knowledge/AddKnowledgeDialog.svelte` — Dialog for adding sources (supports scope parameters and file imports)
 
 ### Knowledge Views
 
 - **Workspace Settings** (`components/workspace/WorkspaceSettings.svelte`): Access via settings icon in sidebar header. Manages workspace-level knowledge and sources.
 - **Channel Settings Panel** (`components/channel/ChannelSettingsPanel.svelte`): Right panel in ChannelView (can be opened even while a thread is selected). Manages channel-specific knowledge.
 - **Thread Sources Panel** (`components/thread/ThreadSourcesPanel.svelte`): Right panel in ThreadView. Shows only attached sources for the conversation.
+- **Co-worker Profile** (`components/coworker/CoworkerProfile.svelte`): Knowledge tab includes co-worker specific sources and notes.
 
 ## Co-worker Profile Tabs
 

@@ -65,8 +65,9 @@ sequenceDiagram
     API->>DB: Check user exists
     API->>DB: Invalidate old codes
     API->>DB: Create AuthCode (hashed)
+    API->>API: Send email via Resend
     API-->>Main: { success: true }
-    Note over API: Console logs 6-digit code
+    Note over API: Email with 6-digit code sent
     Main-->>Renderer: Show code input
 
     User->>Renderer: Enter 6-digit code
@@ -475,12 +476,58 @@ DATABASE_URL=postgresql://user:password@localhost:5432/coworker
 # JWT Configuration (generate with: openssl rand -base64 32)
 JWT_SECRET=your-256-bit-secret-key-here
 JWT_REFRESH_SECRET=your-separate-refresh-secret-here
+
+# Email Configuration (Resend)
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+EMAIL_FROM_ADDRESS=Coworker <auth@yourdomain.com>
+SKIP_EMAIL_IN_DEV=false
 ```
 
-Both secrets must be:
+### JWT Secrets
+
+Both JWT secrets must be:
 - Cryptographically random (use `openssl rand -base64 32`)
 - At least 32 characters
 - Different from each other (defense in depth)
+
+### Email Configuration (Resend)
+
+Coworker uses [Resend](https://resend.com) to send verification code emails.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `RESEND_API_KEY` | Yes | Your Resend API key (starts with `re_`) |
+| `EMAIL_FROM_ADDRESS` | Yes | Verified sender address (e.g., `Coworker <auth@yourdomain.com>`) |
+| `SKIP_EMAIL_IN_DEV` | No | Set to `true` to skip email sending in development (codes logged to console) |
+
+#### Getting a Resend API Key
+
+1. Sign up at [resend.com](https://resend.com)
+2. Go to [API Keys](https://resend.com/api-keys) in the dashboard
+3. Create a new API key with "Sending access" permission
+4. Copy the key (starts with `re_`) to your `.env` file
+
+#### Domain Verification
+
+For production, you must verify your sending domain:
+
+1. Go to [Domains](https://resend.com/domains) in the Resend dashboard
+2. Add your domain (e.g., `yourdomain.com`)
+3. Add the DNS records Resend provides (SPF, DKIM, DMARC)
+4. Wait for verification (usually a few minutes)
+5. Update `EMAIL_FROM_ADDRESS` to use an address on your verified domain
+
+For development/testing, you can use Resend's test address: `onboarding@resend.dev`
+
+#### Development Mode
+
+Set `SKIP_EMAIL_IN_DEV=true` to skip actual email sending during development. The verification code will be logged to the console instead:
+
+```
+[EMAIL] Skipped (dev mode) - Verification code for user@example.com: 123456
+```
+
+This allows testing the auth flow without needing a Resend account or verified domain
 
 ## File Reference
 
@@ -489,6 +536,8 @@ Both secrets must be:
 | File | Purpose |
 |------|---------|
 | `lib/jwt.ts` | JWT signing/verification with jose |
+| `lib/email.ts` | Email sending with Resend |
+| `lib/email-templates.ts` | HTML/text email templates |
 | `lib/auth-middleware.ts` | `withAuth()` and `withOptionalAuth()` wrappers |
 | `lib/rate-limiter.ts` | Rate limiting configuration |
 | `lib/api-utils.ts` | Response helpers including `unauthorizedResponse()` |

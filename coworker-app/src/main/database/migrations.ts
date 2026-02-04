@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 /**
  * Run all migrations on a workspace database
@@ -38,6 +38,10 @@ export function runMigrations(sqlite: Database.Database): void {
 
     if (currentVersion < 3) {
       runMigrationV3(sqlite);
+    }
+
+    if (currentVersion < 4) {
+      runMigrationV4(sqlite);
     }
 
     // Update schema version
@@ -303,5 +307,44 @@ function runMigrationV3(sqlite: Database.Database): void {
   console.log("[DB] Running migration V3: Add template_description to coworkers");
   sqlite.exec(`
     ALTER TABLE coworkers ADD COLUMN template_description TEXT
+  `);
+}
+
+/**
+ * Migration V4: Add scope + notes to knowledge sources
+ */
+function runMigrationV4(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V4: Add scope + notes to knowledge sources");
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN scope_type TEXT
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN scope_id TEXT
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN notes TEXT
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN updated_at INTEGER
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN archived_at INTEGER
+  `);
+
+  sqlite.exec(`
+    UPDATE knowledge_sources
+    SET scope_type = 'workspace'
+    WHERE scope_type IS NULL
+  `);
+
+  sqlite.exec(`
+    UPDATE knowledge_sources
+    SET updated_at = created_at
+    WHERE updated_at IS NULL
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_knowledge_sources_scope
+    ON knowledge_sources (scope_type, scope_id, archived_at)
   `);
 }

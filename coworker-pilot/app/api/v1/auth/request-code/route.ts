@@ -10,6 +10,11 @@ import {
   errorResponse,
 } from "@/lib/api-utils";
 import {
+  sendVerificationEmail,
+  EmailConfigError,
+  EmailSendError,
+} from "@/lib/email";
+import {
   requestCodeLimiter,
   checkRateLimit,
 } from "@/lib/rate-limiter";
@@ -88,8 +93,25 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 9. Log the code for development (replace with email sending in production)
-    console.log(`[AUTH] Verification code for ${normalizedEmail}: ${plainCode}`);
+    // 9. Send the verification email
+    try {
+      await sendVerificationEmail(normalizedEmail, plainCode, CODE_EXPIRY_MINUTES);
+    } catch (error) {
+      console.error("[AUTH] Failed to send verification email:", error);
+      if (error instanceof EmailConfigError) {
+        return errorResponse(
+          "Email service is not configured. Please contact support.",
+          503
+        );
+      }
+      if (error instanceof EmailSendError) {
+        return errorResponse(
+          "Unable to send verification email. Please try again.",
+          503
+        );
+      }
+      throw error;
+    }
 
     return successResponse({
       success: true,

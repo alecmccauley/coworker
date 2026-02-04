@@ -1,5 +1,6 @@
-import { eq, isNull, and, desc, sql } from "drizzle-orm";
+import { eq, isNull, and, desc, sql, ne } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
+import { addBlob, deleteBlob } from "../blob/blob-service";
 import {
   getCurrentWorkspace,
   getCurrentDatabase,
@@ -13,6 +14,7 @@ import {
   type KnowledgeSource,
   type NewEvent,
   type ScopeType,
+  type SourceScopeType,
 } from "../database";
 
 /**
@@ -43,11 +45,34 @@ export interface UpdateKnowledgeItemInput {
  * Input for adding a knowledge source
  */
 export interface AddKnowledgeSourceInput {
+  scopeType: SourceScopeType;
+  scopeId?: string;
   kind: "text" | "file" | "url";
   name?: string;
   blobId?: string;
   extractedTextRef?: string;
   metadata?: string;
+  notes?: string;
+}
+
+/**
+ * Input for updating a knowledge source
+ */
+export interface UpdateKnowledgeSourceInput {
+  name?: string;
+  notes?: string | null;
+}
+
+/**
+ * Input for adding a file-based knowledge source
+ */
+export interface AddFileKnowledgeSourceInput {
+  scopeType: SourceScopeType;
+  scopeId?: string;
+  filename: string;
+  data: Buffer;
+  mime: string;
+  notes?: string;
 }
 
 /**
@@ -76,11 +101,23 @@ interface KnowledgeItemRemovedPayload {
 }
 
 interface KnowledgeSourceAddedPayload {
+  scopeType: string;
+  scopeId?: string;
   kind: string;
   name?: string;
   blobId?: string;
   extractedTextRef?: string;
   metadata?: string;
+  notes?: string;
+}
+
+interface KnowledgeSourceUpdatedPayload {
+  name?: string;
+  notes?: string;
+}
+
+interface KnowledgeSourceRemovedPayload {
+  reason?: string;
 }
 
 /**
@@ -410,11 +447,14 @@ export async function addKnowledgeSource(
   const now = new Date();
 
   const payload: KnowledgeSourceAddedPayload = {
+    scopeType: input.scopeType,
+    scopeId: input.scopeId,
     kind: input.kind,
     name: input.name,
     blobId: input.blobId,
     extractedTextRef: input.extractedTextRef,
     metadata: input.metadata,
+    notes: input.notes,
   };
 
   sqlite.transaction(() => {
@@ -425,12 +465,16 @@ export async function addKnowledgeSource(
       .values({
         id,
         workspaceId: workspace.manifest.id,
+        scopeType: input.scopeType,
+        scopeId: input.scopeId ?? null,
         kind: input.kind,
         name: input.name ?? null,
         blobId: input.blobId ?? null,
         extractedTextRef: input.extractedTextRef ?? null,
         metadata: input.metadata ?? null,
+        notes: input.notes ?? null,
         createdAt: now,
+        updatedAt: now,
       })
       .run();
   })();
@@ -443,9 +487,164 @@ export async function addKnowledgeSource(
 }
 
 /**
+ * Add a file-based knowledge source (blob + source)
+ */
+export async function addFileKnowledgeSource(
+  input: AddFileKnowledgeSourceInput,
+): Promise<KnowledgeSource> {
+  const blobResult = await addBlob({
+    data: input.data,
+    mime: input.mime,
+  });
+
+  return addKnowledgeSource({
+    scopeType: input.scopeType,
+    scopeId: input.scopeId,
+    kind: "file",
+    name: input.filename,
+    blobId: blobResult.blob.id,
+    metadata: JSON.stringify({
+      filename: input.filename,
+      size: input.data.length,
+      mime: input.mime,
+    }),
+    notes: input.notes,
+  });
+}
+
+/**
+ * Update a knowledge source
+ */
+export async function updateKnowledgeSource(
+  id: string,
+  input: UpdateKnowledgeSourceInput,
+): Promise<KnowledgeSource> {
+  const db = getCurrentDatabase();
+  const sqlite = getCurrentSqlite();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !sqlite || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const existing = await db
+    .select()
+    .from(knowledgeSources)
+    .where(
+      and(
+        eq(knowledgeSources.id, id),
+        eq(knowledgeSources.workspaceId, workspace.manifest.id),
+      ),
+    );
+
+  if (existing.length === 0) {
+    throw new Error(`Knowledge source not found: ${id}`);
+  }
+
+  if (existing[0].archivedAt) {
+    throw new Error(`Knowledge source has been removed: ${id}`);
+  }
+
+  const payload: KnowledgeSourceUpdatedPayload = {};
+  const updates: Partial<KnowledgeSource> = { updatedAt: new Date() };
+
+  if (input.name !== undefined) {
+    payload.name = input.name;
+    updates.name = input.name;
+  }
+
+  if (input.notes !== undefined) {
+    payload.notes = input.notes ?? null;
+    updates.notes = input.notes ?? null;
+  }
+
+  sqlite.transaction(() => {
+    const event = createEventRecord("knowledge_source", id, "updated", payload);
+    db.insert(events).values(event).run();
+    db.update(knowledgeSources)
+      .set(updates)
+      .where(eq(knowledgeSources.id, id))
+      .run();
+  })();
+
+  const result = await db
+    .select()
+    .from(knowledgeSources)
+    .where(eq(knowledgeSources.id, id));
+  return result[0];
+}
+
+/**
+ * Remove a knowledge source (archive)
+ */
+export async function removeKnowledgeSource(id: string): Promise<void> {
+  const db = getCurrentDatabase();
+  const sqlite = getCurrentSqlite();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !sqlite || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const existing = await db
+    .select()
+    .from(knowledgeSources)
+    .where(
+      and(
+        eq(knowledgeSources.id, id),
+        eq(knowledgeSources.workspaceId, workspace.manifest.id),
+      ),
+    );
+
+  if (existing.length === 0) {
+    throw new Error(`Knowledge source not found: ${id}`);
+  }
+
+  if (existing[0].archivedAt) {
+    return;
+  }
+
+  const payload: KnowledgeSourceRemovedPayload = {};
+  const blobId = existing[0].blobId;
+
+  sqlite.transaction(() => {
+    const event = createEventRecord("knowledge_source", id, "removed", payload);
+    db.insert(events).values(event).run();
+    db.update(knowledgeSources)
+      .set({
+        archivedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeSources.id, id))
+      .run();
+  })();
+
+  if (blobId) {
+    const remaining = await db
+      .select({ id: knowledgeSources.id })
+      .from(knowledgeSources)
+      .where(
+        and(
+          eq(knowledgeSources.workspaceId, workspace.manifest.id),
+          eq(knowledgeSources.blobId, blobId),
+          isNull(knowledgeSources.archivedAt),
+          ne(knowledgeSources.id, id),
+        ),
+      );
+
+    if (remaining.length === 0) {
+      await deleteBlob(blobId);
+    }
+  }
+}
+
+/**
  * List knowledge sources
  */
-export async function listKnowledgeSources(): Promise<KnowledgeSource[]> {
+export async function listKnowledgeSources(
+  scopeType?: SourceScopeType,
+  scopeId?: string,
+): Promise<KnowledgeSource[]> {
   const db = getCurrentDatabase();
   const workspace = getCurrentWorkspace();
 
@@ -453,11 +652,35 @@ export async function listKnowledgeSources(): Promise<KnowledgeSource[]> {
     throw new Error("No workspace is currently open");
   }
 
+  const baseConditions = and(
+    eq(knowledgeSources.workspaceId, workspace.manifest.id),
+    isNull(knowledgeSources.archivedAt),
+  );
+
+  let whereCondition = baseConditions;
+
+  if (scopeType) {
+    if (scopeId) {
+      whereCondition = and(
+        eq(knowledgeSources.workspaceId, workspace.manifest.id),
+        isNull(knowledgeSources.archivedAt),
+        eq(knowledgeSources.scopeType, scopeType),
+        eq(knowledgeSources.scopeId, scopeId),
+      );
+    } else if (scopeType === "workspace") {
+      whereCondition = and(
+        eq(knowledgeSources.workspaceId, workspace.manifest.id),
+        isNull(knowledgeSources.archivedAt),
+        eq(knowledgeSources.scopeType, "workspace"),
+      );
+    }
+  }
+
   return db
     .select()
     .from(knowledgeSources)
-    .where(eq(knowledgeSources.workspaceId, workspace.manifest.id))
-    .orderBy(desc(knowledgeSources.createdAt));
+    .where(whereCondition)
+    .orderBy(desc(knowledgeSources.updatedAt), desc(knowledgeSources.createdAt));
 }
 
 /**

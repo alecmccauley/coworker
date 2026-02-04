@@ -3,6 +3,7 @@
   import { Input } from '$lib/components/ui/input'
   import { Textarea } from '$lib/components/ui/textarea'
   import { cn } from '$lib/utils.js'
+  import ScopedSources from '../knowledge/ScopedSources.svelte'
   import type { Channel, Coworker, KnowledgeItem, Thread } from '$lib/types'
 
   interface Props {
@@ -220,6 +221,15 @@
               {/each}
             </div>
           {/if}
+        </div>
+
+        <div class="rounded-xl border border-border bg-card p-6">
+          <ScopedSources
+            scopeType="coworker"
+            scopeId={coworker.id}
+            title="Co-worker Sources"
+            description="References and files that should always stay with this co-worker"
+          />
         </div>
 
         <div class="rounded-xl border border-border bg-card p-6">

@@ -8,13 +8,150 @@ import {
   listKnowledgeItems,
   getKnowledgeItemById,
   addKnowledgeSource,
+  updateKnowledgeSource,
+  removeKnowledgeSource,
   listKnowledgeSources,
   getKnowledgeSourceById,
+  addFileKnowledgeSource,
   type AddKnowledgeItemInput,
   type UpdateKnowledgeItemInput,
   type AddKnowledgeSourceInput,
+  type UpdateKnowledgeSourceInput,
+  type AddFileKnowledgeSourceInput,
 } from "./knowledge-service";
-import type { KnowledgeItem, KnowledgeSource, ScopeType } from "../database";
+import { dialog } from "electron";
+import { createId } from "@paralleldrive/cuid2";
+import { readFileSync } from "fs";
+import { extname, basename } from "path";
+import type {
+  KnowledgeItem,
+  KnowledgeSource,
+  ScopeType,
+  SourceScopeType,
+} from "../database";
+
+interface ImportProgressPayload {
+  batchId: string;
+  filePath: string;
+  filename: string;
+  status: "queued" | "processing" | "success" | "error";
+  sourceId?: string;
+  error?: string;
+}
+
+interface ImportFailure {
+  filePath: string;
+  filename: string;
+  error: string;
+}
+
+interface ImportSourcesResult {
+  batchId: string;
+  createdSources: KnowledgeSource[];
+  failures: ImportFailure[];
+  canceled: boolean;
+}
+
+const SUPPORTED_EXTENSIONS = [".md", ".pdf", ".docx"] as const;
+
+function isSupportedExtension(extension: string): boolean {
+  return SUPPORTED_EXTENSIONS.includes(
+    extension.toLowerCase() as (typeof SUPPORTED_EXTENSIONS)[number],
+  );
+}
+
+function fileExtensionToMime(extension: string): string {
+  const normalized = extension.toLowerCase();
+  const mimeMap: Record<string, string> = {
+    ".md": "text/markdown",
+    ".pdf": "application/pdf",
+    ".docx":
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  };
+
+  return mimeMap[normalized] ?? "application/octet-stream";
+}
+
+async function importFilesInternal(
+  filePaths: string[],
+  scopeType: SourceScopeType,
+  scopeId: string | undefined,
+  sender: Electron.WebContents,
+): Promise<ImportSourcesResult> {
+  const batchId = createBatchId();
+  const createdSources: KnowledgeSource[] = [];
+  const failures: ImportFailure[] = [];
+
+  for (const filePath of filePaths) {
+    const filename = basename(filePath);
+    const extension = extname(filename);
+
+    if (!isSupportedExtension(extension)) {
+      const error = "Unsupported file type.";
+      failures.push({ filePath, filename, error });
+      sender.send("knowledge:importProgress", {
+        batchId,
+        filePath,
+        filename,
+        status: "error",
+        error,
+      } satisfies ImportProgressPayload);
+      continue;
+    }
+
+    sender.send("knowledge:importProgress", {
+      batchId,
+      filePath,
+      filename,
+      status: "queued",
+    } satisfies ImportProgressPayload);
+    sender.send("knowledge:importProgress", {
+      batchId,
+      filePath,
+      filename,
+      status: "processing",
+    } satisfies ImportProgressPayload);
+
+    try {
+      const data = readFileSync(filePath);
+      const mime = fileExtensionToMime(extension);
+      const sourceInput: AddFileKnowledgeSourceInput = {
+        scopeType,
+        scopeId,
+        filename,
+        data,
+        mime,
+      };
+      const source = await addFileKnowledgeSource(sourceInput);
+      createdSources.push(source);
+      sender.send("knowledge:importProgress", {
+        batchId,
+        filePath,
+        filename,
+        status: "success",
+        sourceId: source.id,
+      } satisfies ImportProgressPayload);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to import file.";
+      failures.push({ filePath, filename, error: message });
+      sender.send("knowledge:importProgress", {
+        batchId,
+        filePath,
+        filename,
+        status: "error",
+        error: message,
+      } satisfies ImportProgressPayload);
+    }
+  }
+
+  return {
+    batchId,
+    createdSources,
+    failures,
+    canceled: false,
+  };
+}
 
 /**
  * Register all knowledge-related IPC handlers
@@ -95,11 +232,35 @@ export function registerKnowledgeIpcHandlers(): void {
     },
   );
 
+  // Update a knowledge source
+  ipcMain.handle(
+    "knowledge:updateSource",
+    async (
+      _event,
+      id: string,
+      input: UpdateKnowledgeSourceInput,
+    ): Promise<KnowledgeSource> => {
+      return updateKnowledgeSource(id, input);
+    },
+  );
+
+  // Remove a knowledge source
+  ipcMain.handle(
+    "knowledge:removeSource",
+    async (_event, id: string): Promise<void> => {
+      return removeKnowledgeSource(id);
+    },
+  );
+
   // List knowledge sources
   ipcMain.handle(
     "knowledge:listSources",
-    async (): Promise<KnowledgeSource[]> => {
-      return listKnowledgeSources();
+    async (
+      _event,
+      scopeType?: SourceScopeType,
+      scopeId?: string,
+    ): Promise<KnowledgeSource[]> => {
+      return listKnowledgeSources(scopeType, scopeId);
     },
   );
 
@@ -110,4 +271,60 @@ export function registerKnowledgeIpcHandlers(): void {
       return getKnowledgeSourceById(id);
     },
   );
+
+  // Import files as knowledge sources
+  ipcMain.handle(
+    "knowledge:importFiles",
+    async (
+      event,
+      scopeType: SourceScopeType,
+      scopeId?: string,
+    ): Promise<ImportSourcesResult> => {
+      const result = await dialog.showOpenDialog({
+        properties: ["openFile", "multiSelections"],
+        filters: [
+          {
+            name: "Documents",
+            extensions: ["md", "pdf", "docx"],
+          },
+        ],
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return {
+          batchId: createBatchId(),
+          createdSources: [],
+          failures: [],
+          canceled: true,
+        };
+      }
+
+      return importFilesInternal(result.filePaths, scopeType, scopeId, event.sender);
+    },
+  );
+
+  ipcMain.handle(
+    "knowledge:importFilesByPath",
+    async (
+      event,
+      filePaths: string[],
+      scopeType: SourceScopeType,
+      scopeId?: string,
+    ): Promise<ImportSourcesResult> => {
+      if (filePaths.length === 0) {
+        return {
+          batchId: createBatchId(),
+          createdSources: [],
+          failures: [],
+          canceled: true,
+        };
+      }
+
+      return importFilesInternal(filePaths, scopeType, scopeId, event.sender);
+    },
+  );
+}
+
+function createBatchId(): string {
+  return createId();
 }

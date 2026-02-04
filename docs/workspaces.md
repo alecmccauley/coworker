@@ -148,13 +148,16 @@ Projections are tables that mirror “current state” and are updated when even
 | Table | Purpose |
 |-------|---------|
 | `coworkers` | Active coworker configs: id, workspace_id, name, description, created_at, updated_at, deleted_at (soft delete). Index: (workspace_id, deleted_at). |
+| `channels` | Project containers: name, purpose, pinned items, sort order, archived state. |
+| `threads` | Conversation sessions within channels. |
+| `messages` | Thread messages, with content refs for large content. |
+| `knowledge_items` | Scoped pinned notes and summaries. |
+| `knowledge_sources` | Raw inputs (text, links, files) scoped to workspace/channel/coworker/thread with optional notes, file metadata, and blob references. Drag-and-drop is supported in the app UI for file sources. |
+| `blobs` | Blob metadata (path, mime, size, sha256) for files in `blobs/`. |
 
 **Planned (from briefing, not yet in schema):**
 
-- `threads` — Conversation threads (id, title, created_at, updated_at, archived, etc.).
-- `messages` — Messages per thread (id, thread_id, role, content_ref, created_at, status, etc.). Large content can use `content_ref` to point to inline text or a blob id.
 - `tool_runs` — Tool invocations (id, thread_id, status, timings, error).
-- `blobs` — Blob metadata (id, path, mime, size, sha256, created_at) for files in `blobs/`.
 
 ### Write path: append event then update projection
 
@@ -321,7 +324,7 @@ Status of the architecture briefing items (V1 workspace + storage). AI/streaming
 | Threads table + service | Done | thread-service.ts with create, update, archive, list by channel |
 | Messages table + service | Done | message-service.ts with create, update, list by thread |
 | Knowledge items table + service | Done | Scoped to workspace/channel/coworker, pinning support |
-| Knowledge sources table + service | Done | text/file/url sources with metadata |
+| Knowledge sources table + service | Done | text/file/url sources with scope + notes, stored as blobs |
 | Blobs table + service | Done | SHA256 deduplication, add/read/delete APIs |
 | Templates from cloud | Done | Fetched when create co-worker dialog opens (no cache) |
 | Sidebar navigation UI | Done | Channels and coworkers in left rail |

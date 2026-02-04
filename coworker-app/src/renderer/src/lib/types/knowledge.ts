@@ -2,6 +2,7 @@
  * Scope types for knowledge items
  */
 export type ScopeType = "workspace" | "channel" | "coworker";
+export type SourceScopeType = "workspace" | "channel" | "coworker" | "thread";
 
 /**
  * A knowledge item entity - scoped "cards" of extracted/summarized knowledge
@@ -32,12 +33,17 @@ export type KnowledgeSourceKind = "text" | "file" | "url";
 export interface KnowledgeSource {
   id: string;
   workspaceId: string;
-  kind: string;
+  scopeType: SourceScopeType | null;
+  scopeId: string | null;
+  kind: KnowledgeSourceKind;
   name: string | null;
   blobId: string | null;
   extractedTextRef: string | null;
   metadata: string | null;
+  notes: string | null;
   createdAt: Date;
+  updatedAt: Date | null;
+  archivedAt: Date | null;
 }
 
 /**
@@ -68,9 +74,42 @@ export interface UpdateKnowledgeItemInput {
  * Input for adding a knowledge source
  */
 export interface AddKnowledgeSourceInput {
+  scopeType: SourceScopeType;
+  scopeId?: string;
   kind: KnowledgeSourceKind;
   name?: string;
   blobId?: string;
   extractedTextRef?: string;
   metadata?: string;
+  notes?: string;
+}
+
+/**
+ * Input for updating a knowledge source
+ */
+export interface UpdateKnowledgeSourceInput {
+  name?: string;
+  notes?: string | null;
+}
+
+export interface ImportProgressPayload {
+  batchId: string;
+  filePath: string;
+  filename: string;
+  status: "queued" | "processing" | "success" | "error";
+  sourceId?: string;
+  error?: string;
+}
+
+export interface ImportFailure {
+  filePath: string;
+  filename: string;
+  error: string;
+}
+
+export interface ImportSourcesResult {
+  batchId: string;
+  createdSources: KnowledgeSource[];
+  failures: ImportFailure[];
+  canceled: boolean;
 }

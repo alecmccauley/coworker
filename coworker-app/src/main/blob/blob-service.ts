@@ -297,6 +297,8 @@ function mimeToExtension(mime: string): string {
     "text/javascript": ".js",
     "application/json": ".json",
     "application/pdf": ".pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      ".docx",
     "image/png": ".png",
     "image/jpeg": ".jpg",
     "image/gif": ".gif",
