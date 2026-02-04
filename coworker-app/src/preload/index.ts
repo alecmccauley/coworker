@@ -327,6 +327,29 @@ const api = {
       return () => ipcRenderer.removeListener("menu:workspace:close", handler);
     },
   },
+  settings: {
+    onOpenWorkspaceSettings: (callback: () => void) => {
+      const handler = (): void => callback();
+      ipcRenderer.on("menu:settings:workspace", handler);
+      return () =>
+        ipcRenderer.removeListener("menu:settings:workspace", handler);
+    },
+    onOpenChannelsSettings: (callback: () => void) => {
+      const handler = (): void => callback();
+      ipcRenderer.on("menu:settings:channels", handler);
+      return () =>
+        ipcRenderer.removeListener("menu:settings:channels", handler);
+    },
+    onOpenWorkersSettings: (callback: () => void) => {
+      const handler = (): void => callback();
+      ipcRenderer.on("menu:settings:workers", handler);
+      return () =>
+        ipcRenderer.removeListener("menu:settings:workers", handler);
+    },
+    setChannelSettingsEnabled: (enabled: boolean): void => {
+      ipcRenderer.send("menu:setChannelSettingsEnabled", enabled);
+    },
+  },
   coworker: {
     create: (input: CreateCoworkerInput) =>
       ipcRenderer.invoke("coworker:create", input) as Promise<Coworker>,

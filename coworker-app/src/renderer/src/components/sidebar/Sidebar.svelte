@@ -13,11 +13,13 @@
     selectedChannelId: string | null
     selectedCoworkerId: string | null
     isWorkspaceSettingsActive?: boolean
+    isWorkersSettingsActive?: boolean
     onSelectChannel: (channel: Channel) => void
     onSelectCoworker: (coworker: Coworker) => void
     onCreateChannel: () => void
     onCreateCoworker: () => void
     onOpenSettings: () => void
+    onOpenWorkersSettings?: () => void
   }
 
   let {
@@ -27,11 +29,13 @@
     selectedChannelId,
     selectedCoworkerId,
     isWorkspaceSettingsActive = false,
+    isWorkersSettingsActive = false,
     onSelectChannel,
     onSelectCoworker,
     onCreateChannel,
     onCreateCoworker,
-    onOpenSettings
+    onOpenSettings,
+    onOpenWorkersSettings
   }: Props = $props()
 
   let channelsExpanded = $state(true)
@@ -145,6 +149,20 @@
             <PlusIcon class="h-4 w-4 flex-shrink-0" />
             <span>Add Co-worker</span>
           </button>
+          {#if onOpenWorkersSettings}
+            <button
+              onclick={onOpenWorkersSettings}
+              class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              class:bg-accent={isWorkersSettingsActive}
+              class:text-accent-foreground={isWorkersSettingsActive}
+              class:hover:bg-muted={!isWorkersSettingsActive}
+              class:hover:text-foreground={!isWorkersSettingsActive}
+              title="Co-workers settings"
+            >
+              <SettingsIcon class="h-4 w-4 flex-shrink-0" />
+              <span class="truncate">Co-workers settings</span>
+            </button>
+          {/if}
         </div>
       {/if}
     </div>

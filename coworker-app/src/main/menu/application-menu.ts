@@ -16,6 +16,8 @@ import {
 
 const isMac = process.platform === "darwin";
 
+let channelSettingsEnabled = true;
+
 /**
  * Build and set the application menu
  * Call this on app ready and whenever recent workspaces change
@@ -118,6 +120,26 @@ function buildMenuTemplate(): MenuItemConstructorOptions[] {
       { role: "zoomOut" },
       { type: "separator" },
       { role: "togglefullscreen" },
+    ],
+  });
+
+  // Settings menu
+  template.push({
+    label: "Settings",
+    submenu: [
+      {
+        label: "Workspace Settings",
+        click: handleOpenWorkspaceSettings,
+      },
+      {
+        label: "Channels Settings",
+        enabled: channelSettingsEnabled,
+        click: handleOpenChannelsSettings,
+      },
+      {
+        label: "Coworker Settings",
+        click: handleOpenWorkersSettings,
+      },
     ],
   });
 
@@ -274,6 +296,45 @@ async function handleCloseWorkspace(): Promise<void> {
 function handleClearRecentWorkspaces(): void {
   clearRecentWorkspaces();
   buildApplicationMenu(); // Rebuild menu to update recent list
+}
+
+/**
+ * Handle Workspace Settings menu item
+ */
+function handleOpenWorkspaceSettings(): void {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    window.webContents.send("menu:settings:workspace");
+  }
+}
+
+/**
+ * Handle Channels Settings menu item
+ */
+function handleOpenChannelsSettings(): void {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    window.webContents.send("menu:settings:channels");
+  }
+}
+
+/**
+ * Handle Workers Settings menu item
+ */
+function handleOpenWorkersSettings(): void {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    window.webContents.send("menu:settings:workers");
+  }
+}
+
+/**
+ * Set whether the Channels Settings menu item is enabled and rebuild the menu.
+ * Called by the renderer when workspace/channel selection changes.
+ */
+export function setChannelSettingsEnabled(enabled: boolean): void {
+  channelSettingsEnabled = enabled;
+  buildApplicationMenu();
 }
 
 /**

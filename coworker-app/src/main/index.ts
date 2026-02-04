@@ -12,7 +12,7 @@ import { registerMessageIpcHandlers } from "./message";
 import { registerKnowledgeIpcHandlers } from "./knowledge";
 import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
-import { buildApplicationMenu } from "./menu";
+import { buildApplicationMenu, setChannelSettingsEnabled } from "./menu";
 
 let sdk: CoworkerSdk | null = null;
 
@@ -208,6 +208,10 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on("ping", () => console.log("pong"));
+
+  ipcMain.on("menu:setChannelSettingsEnabled", (_event, enabled: boolean) => {
+    setChannelSettingsEnabled(Boolean(enabled));
+  });
 
   // Register IPC handlers
   registerIpcHandlers();

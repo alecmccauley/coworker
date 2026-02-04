@@ -12,9 +12,10 @@
     channel: Channel
     coworkers: Coworker[]
     onCreateCoworker: () => void
+    openSettingsPanel?: boolean
   }
 
-  let { channel, coworkers, onCreateCoworker }: Props = $props()
+  let { channel, coworkers, onCreateCoworker, openSettingsPanel = false }: Props = $props()
 
   let threads = $state<Thread[]>([])
   let isLoading = $state(false)
@@ -26,6 +27,12 @@
     if (channel) {
       selectedThread = null
       loadThreads()
+    }
+  })
+
+  $effect(() => {
+    if (openSettingsPanel) {
+      isSettingsPanelOpen = true
     }
   })
 

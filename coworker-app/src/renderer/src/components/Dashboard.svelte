@@ -16,6 +16,7 @@
   import CreateCoworkerDialog from './coworker/CreateCoworkerDialog.svelte'
   import DeleteCoworkerDialog from './coworker/DeleteCoworkerDialog.svelte'
   import CoworkerProfile from './coworker/CoworkerProfile.svelte'
+  import WorkersSettings from './coworker/WorkersSettings.svelte'
 
   // Sidebar
   import { Sidebar } from './sidebar'
@@ -53,9 +54,14 @@
   let isLoadingChannels = $state(false)
 
   // Navigation state
-  type ViewType = 'channel' | 'coworker-profile' | 'workspace-settings'
+  type ViewType =
+    | 'channel'
+    | 'coworker-profile'
+    | 'workspace-settings'
+    | 'workers-settings'
   let currentView = $state<ViewType>('channel')
   let selectedCoworkerId = $state<string | null>(null)
+  let openChannelSettingsPanel = $state(false)
 
   // Dialog state
   let showCreateCoworkerDialog = $state(false)
@@ -76,6 +82,24 @@
   let cleanupMenuNew: (() => void) | null = null
   let cleanupMenuOpen: (() => void) | null = null
   let cleanupMenuClose: (() => void) | null = null
+  let cleanupMenuWorkspaceSettings: (() => void) | null = null
+  let cleanupMenuChannelsSettings: (() => void) | null = null
+  let cleanupMenuWorkersSettings: (() => void) | null = null
+
+  $effect(() => {
+    if (currentView === 'channel' && openChannelSettingsPanel) {
+      const id = setTimeout(() => {
+        openChannelSettingsPanel = false
+      }, 0)
+      return () => clearTimeout(id)
+    }
+  })
+
+  $effect(() => {
+    window.api.settings.setChannelSettingsEnabled(
+      currentWorkspace !== null && selectedChannel !== null,
+    )
+  })
 
   onMount(async () => {
     mounted = true
@@ -89,12 +113,21 @@
     cleanupMenuNew = window.api.workspace.onMenuNew(handleWorkspaceOpened)
     cleanupMenuOpen = window.api.workspace.onMenuOpen(handleWorkspaceOpened)
     cleanupMenuClose = window.api.workspace.onMenuClose(handleWorkspaceClosed)
+    cleanupMenuWorkspaceSettings =
+      window.api.settings.onOpenWorkspaceSettings(handleMenuWorkspaceSettings)
+    cleanupMenuChannelsSettings =
+      window.api.settings.onOpenChannelsSettings(handleMenuChannelsSettings)
+    cleanupMenuWorkersSettings =
+      window.api.settings.onOpenWorkersSettings(handleMenuWorkersSettings)
   })
 
   onDestroy(() => {
     cleanupMenuNew?.()
     cleanupMenuOpen?.()
     cleanupMenuClose?.()
+    cleanupMenuWorkspaceSettings?.()
+    cleanupMenuChannelsSettings?.()
+    cleanupMenuWorkersSettings?.()
   })
 
   async function loadCurrentWorkspace(): Promise<void> {
@@ -253,6 +286,33 @@
   function handleOpenWorkspaceSettings(): void {
     currentView = 'workspace-settings'
     selectedCoworkerId = null
+    selectedChannel = null
+  }
+
+  function handleOpenWorkersSettings(): void {
+    currentView = 'workers-settings'
+    selectedCoworkerId = null
+    selectedChannel = null
+  }
+
+  function handleMenuWorkspaceSettings(): void {
+    if (!currentWorkspace) return
+    handleOpenWorkspaceSettings()
+  }
+
+  function handleMenuChannelsSettings(): void {
+    if (!currentWorkspace) return
+    currentView = 'channel'
+    selectedCoworkerId = null
+    if (!selectedChannel && channels.length > 0) {
+      selectedChannel = channels[0]
+    }
+    openChannelSettingsPanel = true
+  }
+
+  function handleMenuWorkersSettings(): void {
+    if (!currentWorkspace) return
+    handleOpenWorkersSettings()
   }
 
   function handleBackFromSettings(): void {
@@ -411,11 +471,13 @@
             selectedChannelId={selectedChannel?.id ?? null}
             {selectedCoworkerId}
             isWorkspaceSettingsActive={currentView === 'workspace-settings'}
+            isWorkersSettingsActive={currentView === 'workers-settings'}
             onSelectChannel={handleSelectChannel}
             onSelectCoworker={handleSelectCoworker}
             onCreateChannel={handleOpenCreateChannel}
             onCreateCoworker={handleCreateCoworker}
             onOpenSettings={handleOpenWorkspaceSettings}
+            onOpenWorkersSettings={handleOpenWorkersSettings}
           />
 
           <!-- Main Content Area -->
@@ -429,11 +491,20 @@
                 workspace={currentWorkspace}
                 onBack={handleBackFromSettings}
               />
+            {:else if currentView === 'workers-settings'}
+              <WorkersSettings
+                {coworkers}
+                onBack={handleBackFromSettings}
+                onEdit={handleEditCoworker}
+                onArchive={handleDeleteCoworker}
+                onCreateCoworker={handleCreateCoworker}
+              />
             {:else if currentView === 'channel' && selectedChannel}
               <ChannelView
                 channel={selectedChannel}
                 {coworkers}
                 onCreateCoworker={handleCreateCoworker}
+                openSettingsPanel={openChannelSettingsPanel}
               />
             {:else if currentView === 'coworker-profile' && selectedCoworkerId}
               {#each coworkers.filter((c) => c.id === selectedCoworkerId) as coworker (coworker.id)}
