@@ -10,6 +10,7 @@ export interface Coworker {
   defaultsJson: string | null;
   templateId: string | null;
   templateVersion: number | null;
+  templateDescription: string | null;
   createdAt: Date;
   updatedAt: Date;
   archivedAt: Date | null;
@@ -25,6 +26,7 @@ export interface CreateCoworkerInput {
   defaultsJson?: string;
   templateId?: string;
   templateVersion?: number;
+  templateDescription?: string;
 }
 
 /**

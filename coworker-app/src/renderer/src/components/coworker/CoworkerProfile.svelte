@@ -14,11 +14,10 @@
 
   let { coworker, channels, onEdit, onArchive }: Props = $props()
 
-  type TabId = 'about' | 'knowledge' | 'tools' | 'history'
+  type TabId = 'about' | 'knowledge' | 'history'
   const tabs: { id: TabId; label: string }[] = [
     { id: 'about', label: 'About' },
     { id: 'knowledge', label: 'Knowledge' },
-    { id: 'tools', label: 'Tools' },
     { id: 'history', label: 'History' }
   ]
 
@@ -106,14 +105,28 @@
     return date.toLocaleDateString()
   }
 
-  function formatDefaultsJson(value: string | null): string {
-    if (!value) return 'No defaults configured yet.'
+  // Parse defaults JSON to extract personality traits
+  interface DefaultBehaviors {
+    tone?: string
+    formatting?: string
+    guardrails?: string[]
+  }
+
+  function parseDefaults(value: string | null): DefaultBehaviors | null {
+    if (!value) return null
     try {
-      return JSON.stringify(JSON.parse(value), null, 2)
+      return JSON.parse(value) as DefaultBehaviors
     } catch {
-      return value
+      return null
     }
   }
+
+  const defaults = $derived(parseDefaults(coworker.defaultsJson))
+
+  // Get the description to show - prefer templateDescription, fall back to description
+  const aboutDescription = $derived(
+    coworker.templateDescription || coworker.description || null
+  )
 </script>
 
 <div class="flex flex-1 flex-col px-8 py-6">
@@ -150,18 +163,40 @@
   <div class="flex-1 py-6">
     {#if activeTab === 'about'}
       <div class="space-y-6">
+        <!-- About this co-worker -->
         <div class="rounded-xl border border-border bg-card p-6">
-          <h3 class="text-lg font-semibold text-foreground">Role prompt</h3>
-          <p class="mt-2 text-sm text-muted-foreground">
-            {coworker.rolePrompt || 'Add a role prompt to guide this co-worker.'}
-          </p>
+          <h3 class="font-serif text-lg font-medium text-foreground">About this co-worker</h3>
+          {#if aboutDescription}
+            <p class="mt-3 leading-relaxed text-muted-foreground">
+              {aboutDescription}
+            </p>
+          {:else}
+            <p class="mt-3 text-muted-foreground/70 italic">
+              No description yet. Edit this co-worker to add one.
+            </p>
+          {/if}
         </div>
-        <div class="rounded-xl border border-border bg-card p-6">
-          <h3 class="text-lg font-semibold text-foreground">Defaults</h3>
-          <pre class="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-{formatDefaultsJson(coworker.defaultsJson)}
-          </pre>
-        </div>
+
+        <!-- Personality section - only show if defaults exist with tone or formatting -->
+        {#if defaults && (defaults.tone || defaults.formatting)}
+          <div class="rounded-xl border border-border bg-card p-6">
+            <h3 class="font-serif text-lg font-medium text-foreground">Personality</h3>
+            <div class="mt-4 space-y-3">
+              {#if defaults.tone}
+                <div class="flex items-start gap-3">
+                  <span class="text-sm font-medium text-foreground/80 min-w-[80px]">Tone</span>
+                  <span class="text-sm text-muted-foreground capitalize">{defaults.tone}</span>
+                </div>
+              {/if}
+              {#if defaults.formatting}
+                <div class="flex items-start gap-3">
+                  <span class="text-sm font-medium text-foreground/80 min-w-[80px]">Style</span>
+                  <span class="text-sm text-muted-foreground capitalize">{defaults.formatting}</span>
+                </div>
+              {/if}
+            </div>
+          </div>
+        {/if}
       </div>
     {:else if activeTab === 'knowledge'}
       <div class="space-y-6">
@@ -209,13 +244,6 @@
             </Button>
           </div>
         </div>
-      </div>
-    {:else if activeTab === 'tools'}
-      <div class="rounded-xl border border-border bg-card p-6">
-        <h3 class="text-lg font-semibold text-foreground">Tools access</h3>
-        <p class="mt-2 text-sm text-muted-foreground">
-          Tools policy will appear here once tool access is configured for this co-worker.
-        </p>
       </div>
     {:else if activeTab === 'history'}
       <div class="rounded-xl border border-border bg-card p-6">

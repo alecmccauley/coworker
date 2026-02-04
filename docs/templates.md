@@ -1,6 +1,6 @@
 # Co-worker Templates
 
-This document describes the co-worker template system, including the cloud control plane, local caching, and usage in the desktop app.
+This document describes the co-worker template system, including the cloud control plane and usage in the desktop app.
 
 **Related docs:** [API project](api_project.md), [App project](app_project.md), [Workspaces](workspaces.md).
 
@@ -10,7 +10,7 @@ This document describes the co-worker template system, including the cloud contr
 
 1. [Overview](#1-overview)
 2. [Cloud template system](#2-cloud-template-system)
-3. [Local template caching](#3-local-template-caching)
+3. [Loading templates in the app](#3-loading-templates-in-the-app)
 4. [Using templates](#4-using-templates)
 5. [Admin management](#5-admin-management)
 6. [API reference](#6-api-reference)
@@ -27,7 +27,7 @@ Co-worker templates are centrally-managed role definitions that give users a sta
 - **Tools Policy:** Which tool categories are allowed/disallowed
 - **Model Routing Policy:** (Internal) Preferred models and token limits
 
-Templates are stored in the cloud (PostgreSQL via Prisma) and synced to the desktop app on startup.
+Templates are stored in the cloud (PostgreSQL via Prisma). The desktop app fetches them from the API when needed (e.g. when the create co-worker dialog opens).
 
 ### Architecture
 
@@ -39,19 +39,16 @@ Templates are stored in the cloud (PostgreSQL via Prisma) and synced to the desk
 │ - CoworkerTemplate model    │
 │ - Admin CRUD endpoints      │
 │ - Public list/get endpoints │
-│ - Version check endpoint    │
 └─────────────┬───────────────┘
               │
-              │ SDK (templates.list, templates.checkVersion)
+              │ SDK (templates.list)
               │
 ┌─────────────▼───────────────┐
 │   Desktop App               │
 │   (coworker-app)            │
 ├─────────────────────────────┤
-│ - Template cache (userData) │
-│ - Sync on app start         │
-│ - Fallback to cache         │
-│ - IPC: templates.*          │
+│ - IPC: templates.list       │
+│ - Fetched when dialog opens │
 └─────────────────────────────┘
 ```
 
@@ -96,7 +93,6 @@ Located in `shared-services/src/schemas/template.ts`:
 ```typescript
 sdk.templates.list()           // Get published templates
 sdk.templates.getById(id)      // Get single template
-sdk.templates.checkVersion()   // Get version info for sync
 sdk.templates.adminList()      // (Admin) All templates
 sdk.templates.create(data)     // (Admin) Create template
 sdk.templates.update(id, data) // (Admin) Update template
@@ -105,41 +101,19 @@ sdk.templates.delete(id)       // (Admin) Delete template
 
 ---
 
-## 3. Local template caching
+## 3. Loading templates in the app
 
-The desktop app caches templates locally to provide offline access and fast loading.
+The desktop app does not cache templates locally. Templates are fetched from the API whenever they are needed:
 
-### Cache location
+- **Create co-worker dialog:** When the user opens the "Create a Co-worker" dialog, the app calls `window.api.templates.list()`, which invokes the main process and then the SDK’s `GET /api/v1/templates`. The returned list is shown in the dialog.
 
-Templates are cached in `{userData}/cache/templates.json` (e.g., `~/Library/Application Support/coworker-app/cache/templates.json` on macOS).
+No disk cache or background sync is used; each open of the dialog triggers a fresh API request from the main process.
 
-### Cache structure
-
-```typescript
-interface TemplateCacheData {
-  templates: CoworkerTemplatePublic[]
-  versionInfo: TemplateVersionInfo
-  cachedAt: string // ISO timestamp
-}
-```
-
-### Sync behavior
-
-1. **On app start:** Call `syncTemplatesIfNeeded()` which checks cache age (default 24h)
-2. **If cache is stale:** Fetch fresh templates from cloud
-3. **On network failure:** Fall back to cached templates
-4. **Manual sync:** Call `templates:sync` IPC to force refresh
-
-### IPC handlers
+### IPC
 
 ```typescript
 // From preload/index.ts
-window.api.templates.list()         // Get templates (sync if needed)
-window.api.templates.listCached()   // Get cached templates only
-window.api.templates.sync()         // Force sync from cloud
-window.api.templates.syncIfNeeded() // Sync if cache is stale
-window.api.templates.versionInfo()  // Get cached version info
-window.api.templates.clearCache()   // Clear local cache
+window.api.templates.list()   // Get published templates from API
 ```
 
 ---
@@ -199,7 +173,6 @@ Template admin endpoints require:
 |----------|--------|-------------|
 | `/api/v1/templates` | GET | List published templates |
 | `/api/v1/templates/:id` | GET | Get single published template |
-| `/api/v1/templates/version` | GET | Get version info for sync |
 
 ### Admin endpoints (auth + admin required)
 
@@ -212,15 +185,6 @@ Template admin endpoints require:
 | `/api/v1/admin/templates/:id` | DELETE | Delete template |
 
 ### Response shapes
-
-**TemplateVersionInfo:**
-```json
-{
-  "latestVersion": 5,
-  "templateCount": 12,
-  "lastUpdated": "2026-02-01T10:00:00.000Z"
-}
-```
 
 **CoworkerTemplatePublic:**
 ```json
@@ -251,7 +215,5 @@ Template admin endpoints require:
 | Public API routes | `coworker-pilot/app/api/v1/templates/` |
 | Admin API routes | `coworker-pilot/app/api/v1/admin/templates/` |
 | Admin UI | `coworker-pilot/app/admin/templates/` |
-| Template cache | `coworker-app/src/main/templates/template-cache.ts` |
-| Template sync | `coworker-app/src/main/templates/template-sync.ts` |
 | Template IPC | `coworker-app/src/main/templates/ipc-handlers.ts` |
 | Preload API | `coworker-app/src/preload/index.ts` |

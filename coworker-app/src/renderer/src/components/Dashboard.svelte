@@ -5,7 +5,7 @@
   import LogOutIcon from '@lucide/svelte/icons/log-out'
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
   import type { AuthUser } from '@coworker/shared-services'
-  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel } from '$lib/types'
+  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput } from '$lib/types'
 
   // Workspace components
   import WelcomeView from './workspace/WelcomeView.svelte'
@@ -13,6 +13,7 @@
 
   // Coworker components
   import CoworkerForm from './coworker/CoworkerForm.svelte'
+  import CreateCoworkerDialog from './coworker/CreateCoworkerDialog.svelte'
   import DeleteCoworkerDialog from './coworker/DeleteCoworkerDialog.svelte'
   import CoworkerProfile from './coworker/CoworkerProfile.svelte'
 
@@ -57,7 +58,8 @@
   let selectedCoworkerId = $state<string | null>(null)
 
   // Dialog state
-  let showCoworkerForm = $state(false)
+  let showCreateCoworkerDialog = $state(false)
+  let showEditCoworkerForm = $state(false)
   let editingCoworker = $state<Coworker | null>(null)
   let showDeleteDialog = $state(false)
   let deletingCoworker = $state<Coworker | null>(null)
@@ -87,9 +89,6 @@
     cleanupMenuNew = window.api.workspace.onMenuNew(handleWorkspaceOpened)
     cleanupMenuOpen = window.api.workspace.onMenuOpen(handleWorkspaceOpened)
     cleanupMenuClose = window.api.workspace.onMenuClose(handleWorkspaceClosed)
-
-    // Sync templates in background
-    window.api.templates.syncIfNeeded().catch(console.error)
   })
 
   onDestroy(() => {
@@ -288,13 +287,12 @@
 
   // Coworker handlers
   function handleCreateCoworker(): void {
-    editingCoworker = null
-    showCoworkerForm = true
+    showCreateCoworkerDialog = true
   }
 
   function handleEditCoworker(coworker: Coworker): void {
     editingCoworker = coworker
-    showCoworkerForm = true
+    showEditCoworkerForm = true
   }
 
   function handleDeleteCoworker(coworker: Coworker): void {
@@ -302,13 +300,16 @@
     showDeleteDialog = true
   }
 
-  async function handleSaveCoworker(
+  async function handleCreateCoworkerSave(input: CreateCoworkerInput): Promise<void> {
+    await window.api.coworker.create(input)
+    await loadCoworkers()
+  }
+
+  async function handleEditCoworkerSave(
     input: { name: string; description?: string }
   ): Promise<void> {
     if (editingCoworker) {
       await window.api.coworker.update(editingCoworker.id, input)
-    } else {
-      await window.api.coworker.create(input)
     }
     await loadCoworkers()
   }
@@ -468,14 +469,20 @@
 </AppShell>
 
 <!-- Dialogs -->
+<CreateCoworkerDialog
+  bind:open={showCreateCoworkerDialog}
+  onClose={() => (showCreateCoworkerDialog = false)}
+  onSave={handleCreateCoworkerSave}
+/>
+
 <CoworkerForm
-  bind:open={showCoworkerForm}
+  bind:open={showEditCoworkerForm}
   coworker={editingCoworker}
   onClose={() => {
-    showCoworkerForm = false
+    showEditCoworkerForm = false
     editingCoworker = null
   }}
-  onSave={handleSaveCoworker}
+  onSave={handleEditCoworkerSave}
 />
 
 <DeleteCoworkerDialog

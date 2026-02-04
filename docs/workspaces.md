@@ -316,17 +316,17 @@ Status of the architecture briefing items (V1 workspace + storage). AI/streaming
 | manifest.appVersionCreatedWith | Not done | — |
 | SQLite WAL, transactions | Done | WAL + checkpoint on close; single writer (one open workspace) |
 | Event append + projection | Done | All entities use atomic transactions now |
-| Coworker extended fields | Done | rolePrompt, defaultsJson, templateId, templateVersion |
+| Coworker extended fields | Done | rolePrompt, defaultsJson, templateId, templateVersion, templateDescription |
 | Channels table + service | Done | channel-service.ts with create, update, archive, list, createDefaults |
 | Threads table + service | Done | thread-service.ts with create, update, archive, list by channel |
 | Messages table + service | Done | message-service.ts with create, update, list by thread |
 | Knowledge items table + service | Done | Scoped to workspace/channel/coworker, pinning support |
 | Knowledge sources table + service | Done | text/file/url sources with metadata |
 | Blobs table + service | Done | SHA256 deduplication, add/read/delete APIs |
-| Template sync (cloud) | Done | template-cache.ts and template-sync.ts |
+| Templates from cloud | Done | Fetched when create co-worker dialog opens (no cache) |
 | Sidebar navigation UI | Done | Channels and coworkers in left rail |
 | Channel/Thread UI | Done | Thread list, message view, input composer, context panel |
 | IPC for all entities | Done | workspace.*, coworker.*, channel.*, thread.*, message.*, knowledge.*, blob.*, templates.* |
 | Repair / integrity_check / rebuild projections | Not done | — |
 
-Summary: All core entity tables and services are in place. Event sourcing uses atomic transactions for crash safety. Cloud template system with admin UI and local caching is implemented. UI includes sidebar navigation, channel views, and placeholders for conversation UI. Pending: manifest `appVersionCreatedWith`, optional folders (exports/, logs/, tmp/), and repair/rebuild flows.
+Summary: All core entity tables and services are in place. Event sourcing uses atomic transactions for crash safety. Cloud template system with admin UI; app fetches templates from the API when the create co-worker dialog opens (no local cache). UI includes sidebar navigation, channel views, and placeholders for conversation UI. Pending: manifest `appVersionCreatedWith`, optional folders (exports/, logs/, tmp/), and repair/rebuild flows.

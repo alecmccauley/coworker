@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 /**
  * Run all migrations on a workspace database
@@ -36,8 +36,9 @@ export function runMigrations(sqlite: Database.Database): void {
       runMigrationV2(sqlite);
     }
 
-    // Add more migrations here as needed:
-    // if (currentVersion < 3) { runMigrationV3(sqlite) }
+    if (currentVersion < 3) {
+      runMigrationV3(sqlite);
+    }
 
     // Update schema version
     setSchemaVersion(sqlite, CURRENT_SCHEMA_VERSION);
@@ -292,5 +293,15 @@ function runMigrationV2(sqlite: Database.Database): void {
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_blobs_hash
     ON blobs (sha256)
+  `);
+}
+
+/**
+ * Migration V3: Add template_description to coworkers
+ */
+function runMigrationV3(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V3: Add template_description to coworkers");
+  sqlite.exec(`
+    ALTER TABLE coworkers ADD COLUMN template_description TEXT
   `);
 }

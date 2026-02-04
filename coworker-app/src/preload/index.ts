@@ -35,6 +35,7 @@ export interface Coworker {
   defaultsJson: string | null;
   templateId: string | null;
   templateVersion: number | null;
+  templateDescription: string | null;
   createdAt: Date;
   updatedAt: Date;
   archivedAt: Date | null;
@@ -47,6 +48,7 @@ export interface CreateCoworkerInput {
   defaultsJson?: string;
   templateId?: string;
   templateVersion?: number;
+  templateDescription?: string;
 }
 
 export interface UpdateCoworkerInput {
@@ -236,20 +238,6 @@ export interface CoworkerTemplatePublic {
   updatedAt: Date | string;
 }
 
-export interface TemplateVersionInfo {
-  latestVersion: number;
-  templateCount: number;
-  lastUpdated: Date | string;
-}
-
-export interface TemplateSyncResult {
-  success: boolean;
-  templates: CoworkerTemplatePublic[];
-  versionInfo: TemplateVersionInfo | null;
-  fromCache: boolean;
-  error?: string;
-}
-
 // Custom APIs for renderer
 const api = {
   config: {
@@ -436,22 +424,6 @@ const api = {
   templates: {
     list: () =>
       ipcRenderer.invoke("templates:list") as Promise<CoworkerTemplatePublic[]>,
-    listCached: () =>
-      ipcRenderer.invoke("templates:listCached") as Promise<
-        CoworkerTemplatePublic[]
-      >,
-    sync: () =>
-      ipcRenderer.invoke("templates:sync") as Promise<TemplateSyncResult>,
-    syncIfNeeded: () =>
-      ipcRenderer.invoke(
-        "templates:syncIfNeeded",
-      ) as Promise<TemplateSyncResult>,
-    versionInfo: () =>
-      ipcRenderer.invoke(
-        "templates:versionInfo",
-      ) as Promise<TemplateVersionInfo | null>,
-    clearCache: () =>
-      ipcRenderer.invoke("templates:clearCache") as Promise<void>,
   },
 };
 

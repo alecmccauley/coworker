@@ -26,18 +26,37 @@ export const coworkerModelRoutingPolicySchema = z.object({
   maxTokens: z.number().int().positive().optional(),
 });
 
+const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Normalize user input to a valid slug: trim, lowercase, spaces to hyphens, strip invalid chars.
+ */
+function normalizeSlug(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+const slugSchema = z
+  .string()
+  .transform(normalizeSlug)
+  .pipe(
+    z
+      .string()
+      .min(1, "Slug is required")
+      .max(50, "Slug must be 50 characters or less")
+      .regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens")
+  );
+
 /**
  * Schema for creating a new coworker template
  */
 export const createCoworkerTemplateSchema = z.object({
-  slug: z
-    .string()
-    .min(1, "Slug is required")
-    .max(50, "Slug must be 50 characters or less")
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      "Slug must be lowercase alphanumeric with hyphens"
-    ),
+  slug: slugSchema,
   name: z
     .string()
     .min(1, "Name is required")
@@ -54,18 +73,24 @@ export const createCoworkerTemplateSchema = z.object({
 });
 
 /**
- * Schema for updating an existing coworker template
+ * Schema for updating an existing coworker template.
+ * Slug is optional; empty string is treated as undefined (no change).
  */
 export const updateCoworkerTemplateSchema = z.object({
-  slug: z
-    .string()
-    .min(1, "Slug is required")
-    .max(50, "Slug must be 50 characters or less")
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      "Slug must be lowercase alphanumeric with hyphens"
-    )
-    .optional(),
+  slug: z.preprocess(
+    (val) => {
+      if (val === "" || val === undefined) return undefined;
+      if (typeof val !== "string") return undefined;
+      const normalized = normalizeSlug(val);
+      return normalized === "" ? undefined : normalized;
+    },
+    z
+      .string()
+      .min(1, "Slug is required")
+      .max(50, "Slug must be 50 characters or less")
+      .regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens")
+      .optional()
+  ),
   name: z
     .string()
     .min(1, "Name is required")

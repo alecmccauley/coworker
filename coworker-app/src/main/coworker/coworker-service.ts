@@ -17,6 +17,7 @@ export interface CreateCoworkerInput {
   defaultsJson?: string;
   templateId?: string;
   templateVersion?: number;
+  templateDescription?: string;
 }
 
 /**
@@ -39,6 +40,7 @@ interface CoworkerCreatedPayload {
   defaultsJson?: string;
   templateId?: string;
   templateVersion?: number;
+  templateDescription?: string;
 }
 
 interface CoworkerUpdatedPayload {
@@ -127,6 +129,7 @@ export async function createCoworker(
     defaultsJson: input.defaultsJson,
     templateId: input.templateId,
     templateVersion: input.templateVersion,
+    templateDescription: input.templateDescription,
   };
 
   // Atomic transaction: append event + update projection
@@ -144,6 +147,7 @@ export async function createCoworker(
         defaultsJson: input.defaultsJson ?? null,
         templateId: input.templateId ?? null,
         templateVersion: input.templateVersion ?? null,
+        templateDescription: input.templateDescription ?? null,
         createdAt: now,
         updatedAt: now,
       })

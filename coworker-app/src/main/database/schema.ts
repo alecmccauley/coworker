@@ -29,6 +29,7 @@ export const coworkers = sqliteTable("coworkers", {
   defaultsJson: text("defaults_json"), // JSON with tone, formatting, guardrails
   templateId: text("template_id"), // Cloud template reference
   templateVersion: integer("template_version"), // Version of template when created
+  templateDescription: text("template_description"), // Snapshot of template description at creation time
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   archivedAt: integer("archived_at", { mode: "timestamp_ms" }), // Soft delete (renamed from deletedAt)
