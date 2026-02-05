@@ -5,9 +5,6 @@ import { useInView } from "@/hooks/use-in-view"
 import { Download, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
-const downloadUrlApple = process.env.NEXT_PUBLIC_DOWNLOAD_URL
-const downloadUrlIntel = process.env.NEXT_PUBLIC_DOWNLOAD_URL_INTEL
-
 const downloadButtonBase =
   "group relative inline-flex items-center justify-center gap-3 overflow-hidden rounded-full font-sans text-sm font-semibold tracking-wide transition-all duration-300 active:scale-[0.98]"
 
@@ -17,7 +14,15 @@ const downloadButtonPrimaryInverted =
 const downloadButtonSecondaryInverted =
   "px-8 py-4 border-2 border-background/90 text-background bg-transparent backdrop-blur-sm shadow-md hover:scale-[1.03] hover:shadow-lg hover:border-accent hover:text-accent hover:bg-accent/10 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-foreground"
 
-export function FinalCtaSection() {
+type FinalCtaSectionProps = {
+  downloadUrlApple?: string
+  downloadUrlIntel?: string
+}
+
+export function FinalCtaSection({
+  downloadUrlApple,
+  downloadUrlIntel,
+}: FinalCtaSectionProps) {
   const sectionRef = useRef<HTMLElement>(null)
   const isInView = useInView(sectionRef, { threshold: 0.2, once: true })
   const hasAnyDownload = downloadUrlApple || downloadUrlIntel

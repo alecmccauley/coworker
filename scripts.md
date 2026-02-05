@@ -11,6 +11,12 @@ We keep all project scripts in the `scripts/` folder. Each script should feel li
 - Be explicit about dependencies (Docker, pnpm, etc.).
 - Keep output warm and helpful. No shouting. No noise.
 
+## Distribution Scripts
+
+- `pnpm dist:upload:mac` uploads the macOS DMGs in `coworker-app/dist/` to Vercel
+  Blob and updates the public `releases.json` manifest used by the Pilot
+  landing page.
+
 ## Using `common.sh`
 
 `common.sh` provides:

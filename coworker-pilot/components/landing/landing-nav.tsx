@@ -4,10 +4,11 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Download } from "lucide-react"
+type LandingNavProps = {
+  downloadUrlApple?: string
+}
 
-const downloadUrlApple = process.env.NEXT_PUBLIC_DOWNLOAD_URL
-
-export function LandingNav() {
+export function LandingNav({ downloadUrlApple }: LandingNavProps) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {

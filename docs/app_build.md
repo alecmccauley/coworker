@@ -36,8 +36,48 @@ pnpm --filter coworker-app build:mac
 
 Build output location: `coworker-app/dist/`
 
-- `Coworkers-1.0.0-arm64.dmg` — macOS installer (Apple Silicon)
-- `Coworkers-1.0.0-x64.dmg` — macOS installer (Intel)
+- `coworker-app-1.0.0-arm64.dmg` — macOS installer (Apple Silicon)
+- `coworker-app-1.0.0-x64.dmg` — macOS installer (Intel)
+
+---
+
+## Distribution (Vercel Blob)
+
+After building the macOS DMGs, upload them to Vercel Blob and update the
+public release manifest.
+
+### Environment
+
+Create a root `.env.distribution` file with a Vercel Blob read/write token:
+
+```bash
+BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
+```
+
+### Upload Command
+
+```bash
+pnpm dist:upload:mac
+```
+
+This command:
+
+- Uploads the DMGs to public blob URLs as:
+  - `coworker-app-<version>-arm64.dmg`
+  - `coworker-app-<version>-x64.dmg`
+- Updates `releases.json` at the blob root with:
+  - `latest` version
+  - release `date` (UTC)
+  - per-arch file URLs
+
+### Landing Page Integration
+
+The Pilot landing page reads the release manifest from a server-only env var:
+
+```bash
+# coworker-pilot/.env
+DOWNLOAD_MANIFEST_URL=https://<your-blob-public-url>/releases.json
+```
 
 ---
 
