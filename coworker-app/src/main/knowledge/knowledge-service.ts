@@ -554,7 +554,7 @@ export async function updateKnowledgeSource(
   }
 
   if (input.notes !== undefined) {
-    payload.notes = input.notes ?? null;
+    payload.notes = input.notes ?? undefined;
     updates.notes = input.notes ?? null;
   }
 
