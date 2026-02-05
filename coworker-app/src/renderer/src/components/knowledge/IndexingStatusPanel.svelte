@@ -6,15 +6,22 @@
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
   import ClockIcon from '@lucide/svelte/icons/clock'
   import { Button } from '$lib/components/ui/button'
-  import type { KnowledgeSource, IndexingProgressPayload } from '$lib/types'
+  import type {
+    KnowledgeSource,
+    IndexingProgressPayload,
+    Channel,
+    Coworker
+  } from '$lib/types'
 
   let sources = $state<KnowledgeSource[]>([])
+  let channels = $state<Channel[]>([])
+  let coworkers = $state<Coworker[]>([])
   let isLoading = $state(true)
   let removeListener: (() => void) | null = null
   let isIndexingAll = $state(false)
 
   onMount(async () => {
-    await loadSources()
+    await loadData()
     removeListener = window.api.knowledge.onIndexingProgress(handleIndexingProgress)
   })
 
@@ -22,10 +29,17 @@
     removeListener?.()
   })
 
-  async function loadSources(): Promise<void> {
+  async function loadData(): Promise<void> {
     isLoading = true
     try {
-      sources = await window.api.knowledge.listSources()
+      const [loadedSources, loadedChannels, loadedCoworkers] = await Promise.all([
+        window.api.knowledge.listSources(),
+        window.api.channel.list(),
+        window.api.coworker.list()
+      ])
+      sources = loadedSources
+      channels = loadedChannels
+      coworkers = loadedCoworkers
     } catch (error) {
       console.error('Failed to load sources:', error)
     } finally {
@@ -38,7 +52,7 @@
     isIndexingAll = true
     try {
       await window.api.knowledge.indexAllSources()
-      await loadSources()
+      await loadData()
     } catch (error) {
       console.error('Failed to index all sources:', error)
     } finally {
@@ -49,7 +63,7 @@
   function handleIndexingProgress(payload: IndexingProgressPayload): void {
     const index = sources.findIndex((source) => source.id === payload.sourceId)
     if (index < 0) {
-      void loadSources()
+      void loadData()
       return
     }
 
@@ -93,6 +107,28 @@
     if (!date) return '—'
     return new Date(date).toLocaleString()
   }
+
+  function resolveScopeLabel(source: KnowledgeSource): string {
+    if (!source.scopeType || source.scopeType === 'workspace') {
+      return 'Workspace'
+    }
+
+    if (source.scopeType === 'channel') {
+      const channel = channels.find((item) => item.id === source.scopeId)
+      return channel ? `Channel: ${channel.name}` : 'Channel'
+    }
+
+    if (source.scopeType === 'coworker') {
+      const coworker = coworkers.find((item) => item.id === source.scopeId)
+      return coworker ? `Co-worker: ${coworker.name}` : 'Co-worker'
+    }
+
+    if (source.scopeType === 'thread') {
+      return 'Thread'
+    }
+
+    return 'Workspace'
+  }
 </script>
 
 <div class="space-y-4">
@@ -118,7 +154,7 @@
         {/if}
         Index all sources
       </Button>
-      <Button variant="ghost" size="sm" onclick={loadSources} class="gap-2">
+      <Button variant="ghost" size="sm" onclick={loadData} class="gap-2">
         <RefreshCwIcon class="h-4 w-4" />
         Refresh
       </Button>
@@ -145,7 +181,7 @@
               <div class="space-y-1">
                 <p class="text-sm font-medium text-foreground">{source.name ?? 'Untitled source'}</p>
                 <p class="text-xs text-muted-foreground">
-                  {source.kind.toUpperCase()} · {source.scopeType ?? 'workspace'}
+                  {source.kind.toUpperCase()} · {resolveScopeLabel(source)}
                 </p>
                 {#if source.indexStatus === 'error' && source.indexError}
                   <p class="text-xs text-destructive">{source.indexError}</p>
