@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { drizzle, BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { load as loadSqliteVec } from "sqlite-vec";
 import * as schema from "./schema";
 
 export type WorkspaceDatabase = BetterSQLite3Database<typeof schema>;
@@ -16,6 +17,13 @@ export function openDatabase(dbPath: string): {
   sqlite: Database.Database;
 } {
   const sqlite = new Database(dbPath);
+
+  try {
+    loadSqliteVec(sqlite);
+    console.log("[DB] sqlite-vec loaded");
+  } catch (error) {
+    console.warn("[DB] sqlite-vec failed to load", error);
+  }
 
   // Enable WAL mode for better performance
   sqlite.pragma("journal_mode = WAL");

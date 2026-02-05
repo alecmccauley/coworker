@@ -111,11 +111,43 @@ export const knowledgeSources = sqliteTable("knowledge_sources", {
   name: text("name"), // Display name
   blobId: text("blob_id"), // Reference to blobs table
   extractedTextRef: text("extracted_text_ref"), // Blob ref for extracted/processed text
+  contentHash: text("content_hash"), // SHA256 of blob at last extraction
+  indexStatus: text("index_status"), // 'pending' | 'processing' | 'ready' | 'error'
+  indexError: text("index_error"), // Error message from indexing failure
+  indexedAt: integer("indexed_at", { mode: "timestamp_ms" }),
   metadata: text("metadata"), // JSON metadata (URL, file info, etc.)
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
   notes: text("notes"),
   archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+});
+
+/**
+ * Source text table - extracted plain/rich text for a source
+ */
+export const sourceText = sqliteTable("source_text", {
+  sourceId: text("source_id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  text: text("text").notNull(),
+  richText: text("rich_text"),
+  extractionVersion: integer("extraction_version").notNull(),
+  warningsJson: text("warnings_json"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
+ * Source chunks table - chunked text for retrieval
+ */
+export const sourceChunks = sqliteTable("source_chunks", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  sourceId: text("source_id").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  text: text("text").notNull(),
+  startChar: integer("start_char"),
+  endChar: integer("end_char"),
+  tokenCount: integer("token_count"),
 });
 
 /**
@@ -158,6 +190,14 @@ export type NewKnowledgeItem = typeof knowledgeItems.$inferInsert;
 // Type exports - Knowledge Sources
 export type KnowledgeSource = typeof knowledgeSources.$inferSelect;
 export type NewKnowledgeSource = typeof knowledgeSources.$inferInsert;
+
+// Type exports - Source Text
+export type SourceText = typeof sourceText.$inferSelect;
+export type NewSourceText = typeof sourceText.$inferInsert;
+
+// Type exports - Source Chunks
+export type SourceChunk = typeof sourceChunks.$inferSelect;
+export type NewSourceChunk = typeof sourceChunks.$inferInsert;
 
 // Type exports - Blobs
 export type Blob = typeof blobs.$inferSelect;

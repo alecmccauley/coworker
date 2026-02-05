@@ -20,13 +20,15 @@
 
 Coworker is a monorepo containing three interconnected packages:
 
-- **`coworker-pilot`** — Next.js 16 application serving the brand guide and REST API with Prisma 7, PostgreSQL, and Zod validation
-- **`coworker-app`** — Electron desktop application with Svelte 5 and Tailwind CSS 4
-- **`shared-services`** — Shared types, Zod schemas, Prisma client, and a type-safe API SDK
+- `**coworker-pilot**` — Next.js 16 application serving the brand guide and REST API with Prisma 7, PostgreSQL, and Zod validation
+- `**coworker-app**` — Electron desktop application with Svelte 5 and Tailwind CSS 4
+- `**shared-services**` — Shared types, Zod schemas, Prisma client, and a type-safe API SDK
 
 The architecture enforces strict separation: the API (running in coworker-pilot) handles business logic and data persistence, the app handles user experience, and shared-services bridges them with contracts that guarantee type safety across the stack. The Electron app follows a three-process model (main → preload → renderer) where all network access happens in the main process via the SDK, never in the renderer.
 
 When adding features, start with shared-services to define types and schemas, implement the API endpoint in coworker-pilot, then wire the app through IPC. This flow ensures type safety from database to UI.
+
+Note that we use `pnpm` for all package and workspace management. *Always* use pnpm add / remove commands do not directly modify dependencies in package.json.
 
 ---
 
@@ -81,6 +83,7 @@ API Route → Validation (Zod) → Business Logic → Prisma → Database
 ```
 
 For Next.js API routes:
+
 ```typescript
 export async function POST(request: NextRequest) {
   // 1. Parse input
@@ -197,17 +200,19 @@ ALWAYS review docs/VISUAL_IDENTITY.md AND docs/design_system.md before doing ANY
 
 ## Quick Reference
 
-| Concern | Location | Pattern |
-|---------|----------|---------|
-| Documentation | `docs/` | Read before changes; update after every task |
-| Types & Schemas | `shared-services/src/` | Zod schemas, inferred types |
-| Prisma Schema | `shared-services/prisma/` | Schema + migrations |
-| API Endpoints | `coworker-pilot/app/api/v1/` | Next.js API routes |
-| API Utilities | `coworker-pilot/lib/api-utils.ts` | Response helpers |
-| UI Components | `coworker-app/src/renderer/src/lib/components/ui/` | shadcn/bits-ui wrappers |
-| App Components | `coworker-app/src/renderer/src/components/` | Feature-specific |
-| IPC Handlers | `coworker-app/src/main/index.ts` | `ipcMain.handle` |
-| IPC Facade | `coworker-app/src/preload/index.ts` | `window.api` |
+
+| Concern         | Location                                           | Pattern                                      |
+| --------------- | -------------------------------------------------- | -------------------------------------------- |
+| Documentation   | `docs/`                                            | Read before changes; update after every task |
+| Types & Schemas | `shared-services/src/`                             | Zod schemas, inferred types                  |
+| Prisma Schema   | `shared-services/prisma/`                          | Schema + migrations                          |
+| API Endpoints   | `coworker-pilot/app/api/v1/`                       | Next.js API routes                           |
+| API Utilities   | `coworker-pilot/lib/api-utils.ts`                  | Response helpers                             |
+| UI Components   | `coworker-app/src/renderer/src/lib/components/ui/` | shadcn/bits-ui wrappers                      |
+| App Components  | `coworker-app/src/renderer/src/components/`        | Feature-specific                             |
+| IPC Handlers    | `coworker-app/src/main/index.ts`                   | `ipcMain.handle`                             |
+| IPC Facade      | `coworker-app/src/preload/index.ts`                | `window.api`                                 |
+
 
 ---
 

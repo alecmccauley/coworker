@@ -107,6 +107,10 @@ interface KnowledgeSourceAddedPayload {
   name?: string;
   blobId?: string;
   extractedTextRef?: string;
+  contentHash?: string;
+  indexStatus?: string;
+  indexError?: string | null;
+  indexedAt?: string | null;
   metadata?: string;
   notes?: string;
 }
@@ -445,6 +449,8 @@ export async function addKnowledgeSource(
 
   const id = createId();
   const now = new Date();
+  const hasBlob = Boolean(input.blobId);
+  const indexStatus = hasBlob ? "pending" : "ready";
 
   const payload: KnowledgeSourceAddedPayload = {
     scopeType: input.scopeType,
@@ -453,6 +459,10 @@ export async function addKnowledgeSource(
     name: input.name,
     blobId: input.blobId,
     extractedTextRef: input.extractedTextRef,
+    contentHash: undefined,
+    indexStatus,
+    indexError: null,
+    indexedAt: hasBlob ? null : now.toISOString(),
     metadata: input.metadata,
     notes: input.notes,
   };
@@ -471,6 +481,10 @@ export async function addKnowledgeSource(
         name: input.name ?? null,
         blobId: input.blobId ?? null,
         extractedTextRef: input.extractedTextRef ?? null,
+        contentHash: null,
+        indexStatus,
+        indexError: null,
+        indexedAt: hasBlob ? null : now,
         metadata: input.metadata ?? null,
         notes: input.notes ?? null,
         createdAt: now,

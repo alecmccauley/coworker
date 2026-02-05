@@ -143,6 +143,7 @@ export interface UpdateMessageInput {
 export type ScopeType = "workspace" | "channel" | "coworker";
 export type SourceScopeType = "workspace" | "channel" | "coworker" | "thread";
 export type KnowledgeSourceKind = "text" | "file" | "url";
+export type IndexStatus = "pending" | "processing" | "ready" | "error";
 
 export interface KnowledgeItem {
   id: string;
@@ -186,6 +187,10 @@ export interface KnowledgeSource {
   name: string | null;
   blobId: string | null;
   extractedTextRef: string | null;
+  contentHash: string | null;
+  indexStatus: IndexStatus | null;
+  indexError: string | null;
+  indexedAt: Date | null;
   metadata: string | null;
   notes: string | null;
   createdAt: Date;
@@ -231,6 +236,40 @@ export interface ImportSourcesResult {
   canceled: boolean;
   requiresAccess?: boolean;
   defaultPath?: string;
+}
+
+export interface IndexingProgressPayload {
+  sourceId: string;
+  status: IndexStatus;
+  step?: string;
+  message?: string;
+  updatedAt: number;
+}
+
+export interface SearchParams {
+  query: string;
+  limit?: number;
+  scopeType?: SourceScopeType;
+  scopeId?: string;
+}
+
+export type RagMatchType = "fts" | "vec" | "hybrid";
+
+export interface RagChunkResult {
+  sourceId: string;
+  chunkId: string;
+  text: string;
+  score: number;
+  matchType: RagMatchType;
+}
+
+export interface SourceTextResult {
+  sourceId: string;
+  text: string;
+  tokenCount: number;
+  truncated: boolean;
+  modeUsed: "full" | "selected_chunks";
+  selectedChunkIds: string[];
 }
 
 // Blob types
@@ -482,6 +521,21 @@ const api = {
         "knowledge:getSourceById",
         id,
       ) as Promise<KnowledgeSource | null>,
+    extractSource: (id: string, force?: boolean) =>
+      ipcRenderer.invoke("knowledge:extractSource", id, force) as Promise<void>,
+    searchSources: (params: SearchParams) =>
+      ipcRenderer.invoke(
+        "knowledge:searchSources",
+        params,
+      ) as Promise<RagChunkResult[]>,
+    getSourceText: (sourceId: string, tokenCap: number) =>
+      ipcRenderer.invoke(
+        "knowledge:getSourceText",
+        sourceId,
+        tokenCap,
+      ) as Promise<SourceTextResult | null>,
+    indexAllSources: () =>
+      ipcRenderer.invoke("knowledge:indexAllSources") as Promise<void>,
     importFiles: (scopeType: SourceScopeType, scopeId?: string) =>
       ipcRenderer.invoke(
         "knowledge:importFiles",
@@ -499,22 +553,37 @@ const api = {
         scopeType,
         scopeId,
       ) as Promise<ImportSourcesResult>,
-    requestFileAccessForDrop: (defaultPath?: string) =>
+    requestFileAccessForDrop: (
+      defaultPath?: string,
+    ): Promise<string[]> =>
       ipcRenderer.invoke(
         "knowledge:requestFileAccessForDrop",
         defaultPath,
       ) as Promise<string[]>,
-    requestFolderAccess: () =>
+    requestFolderAccess: (): Promise<{ granted: boolean }> =>
       ipcRenderer.invoke(
         "knowledge:requestFolderAccess",
       ) as Promise<{ granted: boolean }>,
-    onImportProgress: (handler: (payload: ImportProgressPayload) => void) => {
-      const listener = (_event: unknown, payload: unknown) => {
+    onImportProgress: (
+      handler: (payload: ImportProgressPayload) => void,
+    ): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
         handler(payload as ImportProgressPayload);
       };
       ipcRenderer.on("knowledge:importProgress", listener);
       return () => {
         ipcRenderer.removeListener("knowledge:importProgress", listener);
+      };
+    },
+    onIndexingProgress: (
+      handler: (payload: IndexingProgressPayload) => void,
+    ): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as IndexingProgressPayload);
+      };
+      ipcRenderer.on("knowledge:indexingProgress", listener);
+      return () => {
+        ipcRenderer.removeListener("knowledge:indexingProgress", listener);
       };
     },
   },

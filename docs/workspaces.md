@@ -77,7 +77,7 @@ Workspaces are **folders** with the extension `.cowork`, treated as a single log
 |------|--------|
 | `manifest.json` | Workspace metadata: id, name, createdAt, schemaVersion. |
 | `workspace.db` | SQLite database (WAL mode). Single file; created on workspace create. |
-| `blobs/` | Directory for large/binary content. Created on create; no metadata table or APIs yet. |
+| `blobs/` | Directory for large/binary content. Metadata stored in `blobs` table with IPC APIs for add/read/delete. |
 
 **Not yet created (from architecture briefing):**
 
@@ -153,6 +153,8 @@ Projections are tables that mirror “current state” and are updated when even
 | `messages` | Thread messages, with content refs for large content. |
 | `knowledge_items` | Scoped pinned notes and summaries. |
 | `knowledge_sources` | Raw inputs (text, links, files) scoped to workspace/channel/coworker/thread with optional notes, file metadata, and blob references. Drag-and-drop is supported in the app UI for file sources. |
+| `source_text` | Extracted plain/rich text for sources, with extraction versioning and warnings. |
+| `source_chunks` | Chunked text for retrieval, indexed by FTS5 and (optional) sqlite-vec embeddings. |
 | `blobs` | Blob metadata (path, mime, size, sha256) for files in `blobs/`. |
 
 **Planned (from briefing, not yet in schema):**
@@ -248,8 +250,8 @@ Tables are declared in [database/schema.ts](coworker-app/src/main/database/schem
 
 ### Current state
 
-- The **`blobs/`** directory is created when a workspace is created ([workspace-manager.ts](coworker-app/src/main/workspace/workspace-manager.ts)). No files are stored there by app logic yet.
-- There is **no** `blobs` table, no blob metadata, and **no** IPC APIs such as `blob.add` or `blob.read`. The renderer has no way to add or read blobs.
+- The **`blobs/`** directory is created when a workspace is created ([workspace-manager.ts](coworker-app/src/main/workspace/workspace-manager.ts)) and is now used for file storage.
+- The `blobs` table stores blob metadata (path, mime, size, sha256), and IPC APIs `blob.add`, `blob.read`, and `blob.delete` are implemented via the main process.
 
 ### Intended design (future)
 
@@ -261,7 +263,7 @@ The architecture briefing specifies:
 - **References:** Messages (or other entities) use a `content_ref` that can point to inline text, a blob id, or both, so large message bodies or tool outputs are not stored in the event payload.
 - **Encryption:** Secrets stay in OS Keychain/Credential Vault, not in the workspace. Workspace-level encryption (e.g. SQLCipher or FS encryption) is deferred but the layout should stay compatible.
 
-When implementing blobs, add a migration for the `blobs` table, implement blob storage in the main process (hash, path, metadata), expose `blob.add` / `blob.read` (or equivalent) via IPC, and restrict file access to the workspace directory.
+Blobs are implemented with a `blobs` table, SHA256 deduplication, and IPC APIs (`blob.add`, `blob.read`, `blob.delete`). File access is restricted to the workspace directory.
 
 ---
 
@@ -325,6 +327,7 @@ Status of the architecture briefing items (V1 workspace + storage). AI/streaming
 | Messages table + service | Done | message-service.ts with create, update, list by thread |
 | Knowledge items table + service | Done | Scoped to workspace/channel/coworker, pinning support |
 | Knowledge sources table + service | Done | text/file/url sources with scope + notes, stored as blobs |
+| Source extraction + indexing | Done | source_text + source_chunks tables, FTS5 + sqlite-vec indexing |
 | Blobs table + service | Done | SHA256 deduplication, add/read/delete APIs |
 | Templates from cloud | Done | Fetched when create co-worker dialog opens (no cache) |
 | Sidebar navigation UI | Done | Channels and coworkers in left rail |

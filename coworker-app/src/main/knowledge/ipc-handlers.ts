@@ -19,6 +19,17 @@ import {
   type UpdateKnowledgeSourceInput,
   type AddFileKnowledgeSourceInput,
 } from "./knowledge-service";
+import {
+  indexKnowledgeSource,
+  indexAllSources,
+} from "./indexing/indexing-service";
+import {
+  searchKnowledgeSources,
+  getSourceTextForPrompt,
+  type SearchParams,
+  type SourceTextResult,
+  type RagChunkResult,
+} from "./indexing/retrieval";
 import { app, dialog } from "electron";
 import { createId } from "@paralleldrive/cuid2";
 import { readFileSync } from "fs";
@@ -135,6 +146,9 @@ async function importFilesInternal(
         status: "success",
         sourceId: source.id,
       } satisfies ImportProgressPayload);
+      void indexKnowledgeSource(source.id).catch((error) => {
+        console.error("[Knowledge] Indexing failed:", error);
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to import file.";
@@ -245,7 +259,13 @@ export function registerKnowledgeIpcHandlers(): void {
       _event,
       input: AddKnowledgeSourceInput,
     ): Promise<KnowledgeSource> => {
-      return addKnowledgeSource(input);
+      const source = await addKnowledgeSource(input);
+      if (source.blobId) {
+        void indexKnowledgeSource(source.id).catch((error) => {
+          console.error("[Knowledge] Indexing failed:", error);
+        });
+      }
+      return source;
     },
   );
 
@@ -288,6 +308,35 @@ export function registerKnowledgeIpcHandlers(): void {
       return getKnowledgeSourceById(id);
     },
   );
+
+  ipcMain.handle(
+    "knowledge:extractSource",
+    async (_event, id: string, force?: boolean): Promise<void> => {
+      await indexKnowledgeSource(id, { force });
+    },
+  );
+
+  ipcMain.handle(
+    "knowledge:searchSources",
+    async (_event, params: SearchParams): Promise<RagChunkResult[]> => {
+      return searchKnowledgeSources(params);
+    },
+  );
+
+  ipcMain.handle(
+    "knowledge:getSourceText",
+    async (
+      _event,
+      sourceId: string,
+      tokenCap: number,
+    ): Promise<SourceTextResult | null> => {
+      return getSourceTextForPrompt(sourceId, tokenCap);
+    },
+  );
+
+  ipcMain.handle("knowledge:indexAllSources", async (): Promise<void> => {
+    await indexAllSources({ force: true });
+  });
 
   // Import files as knowledge sources
   ipcMain.handle(

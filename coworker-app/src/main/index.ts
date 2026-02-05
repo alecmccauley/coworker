@@ -1,4 +1,11 @@
-import { app, shell, BrowserWindow, ipcMain } from "electron";
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  type MessageBoxSyncOptions,
+} from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
@@ -10,6 +17,7 @@ import { registerChannelIpcHandlers } from "./channel";
 import { registerThreadIpcHandlers } from "./thread";
 import { registerMessageIpcHandlers } from "./message";
 import { registerKnowledgeIpcHandlers } from "./knowledge";
+import { isIndexingInProgress } from "./knowledge/indexing/indexing-service";
 import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
 import { buildApplicationMenu, setChannelSettingsEnabled } from "./menu";
@@ -305,6 +313,32 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on("before-quit", (event) => {
+  if (!isIndexingInProgress()) {
+    return;
+  }
+
+  const window = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  const options: MessageBoxSyncOptions = {
+    type: "warning",
+    buttons: ["Quit Anyway", "Keep Indexing"],
+    defaultId: 1,
+    cancelId: 1,
+    title: "Indexing in Progress",
+    message: "Sources are still indexing.",
+    detail:
+      "If you quit now, indexing will stop and may leave sources partially processed.",
+  };
+
+  const response = window
+    ? dialog.showMessageBoxSync(window, options)
+    : dialog.showMessageBoxSync(options);
+
+  if (response === 1) {
+    event.preventDefault();
   }
 });
 

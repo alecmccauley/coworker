@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 /**
  * Run all migrations on a workspace database
@@ -42,6 +42,10 @@ export function runMigrations(sqlite: Database.Database): void {
 
     if (currentVersion < 4) {
       runMigrationV4(sqlite);
+    }
+
+    if (currentVersion < 5) {
+      runMigrationV5(sqlite);
     }
 
     // Update schema version
@@ -347,4 +351,118 @@ function runMigrationV4(sqlite: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_knowledge_sources_scope
     ON knowledge_sources (scope_type, scope_id, archived_at)
   `);
+}
+
+/**
+ * Migration V5: Add source extraction and indexing tables
+ */
+function runMigrationV5(sqlite: Database.Database): void {
+  console.log(
+    "[DB] Running migration V5: Add source text, chunks, and indexing status",
+  );
+
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN content_hash TEXT
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN index_status TEXT
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN index_error TEXT
+  `);
+  sqlite.exec(`
+    ALTER TABLE knowledge_sources ADD COLUMN indexed_at INTEGER
+  `);
+
+  sqlite.exec(`
+    UPDATE knowledge_sources
+    SET index_status = CASE
+      WHEN blob_id IS NULL THEN 'ready'
+      ELSE 'pending'
+    END
+    WHERE index_status IS NULL
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_knowledge_sources_index_status
+    ON knowledge_sources (workspace_id, index_status)
+  `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS source_text (
+      source_id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      rich_text TEXT,
+      extraction_version INTEGER NOT NULL,
+      warnings_json TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS source_chunks (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      start_char INTEGER,
+      end_char INTEGER,
+      token_count INTEGER
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_source_chunks_source
+    ON source_chunks (source_id, chunk_index)
+  `);
+
+  sqlite.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS source_chunks_fts
+    USING fts5(text, content='source_chunks', content_rowid='rowid')
+  `);
+
+  sqlite.exec(`
+    CREATE TRIGGER IF NOT EXISTS source_chunks_ai
+    AFTER INSERT ON source_chunks
+    BEGIN
+      INSERT INTO source_chunks_fts(rowid, text)
+      VALUES (new.rowid, new.text);
+    END
+  `);
+
+  sqlite.exec(`
+    CREATE TRIGGER IF NOT EXISTS source_chunks_ad
+    AFTER DELETE ON source_chunks
+    BEGIN
+      INSERT INTO source_chunks_fts(source_chunks_fts, rowid, text)
+      VALUES('delete', old.rowid, old.text);
+    END
+  `);
+
+  sqlite.exec(`
+    CREATE TRIGGER IF NOT EXISTS source_chunks_au
+    AFTER UPDATE ON source_chunks
+    BEGIN
+      INSERT INTO source_chunks_fts(source_chunks_fts, rowid, text)
+      VALUES('delete', old.rowid, old.text);
+      INSERT INTO source_chunks_fts(rowid, text)
+      VALUES (new.rowid, new.text);
+    END
+  `);
+
+  try {
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS source_chunks_vec
+      USING vec0(
+        embedding float[384],
+        chunk_id TEXT,
+        source_id TEXT
+      )
+    `);
+  } catch (error) {
+    console.warn("[DB] sqlite-vec unavailable, skipping vec table creation", error);
+  }
 }

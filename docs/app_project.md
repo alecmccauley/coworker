@@ -240,6 +240,8 @@ Sources can be text notes, links, or file attachments (PDF, DOCX, Markdown). Eac
 Sources panels also accept drag-and-drop for supported files; dropping files imports them directly into the current scope with inline progress feedback.
 On macOS, drag-and-drop may require granting access to Documents and Downloads; after granting, re-drop the file to attach it.
 
+Workspace Settings includes an **Indexing** tab that shows the live indexing status for all sources across the workspace. It updates in real time as files are extracted, chunked, and embedded.
+
 ### Knowledge Components
 
 - `src/renderer/src/components/knowledge/ScopedNotes.svelte` — Reusable pinned notes component for any scope
@@ -250,6 +252,7 @@ On macOS, drag-and-drop may require granting access to Documents and Downloads; 
 ### Knowledge Views
 
 - **Workspace Settings** (`components/workspace/WorkspaceSettings.svelte`): Access via settings icon in sidebar header. Manages workspace-level knowledge and sources.
+- **Workspace Settings > Indexing**: Shows a workspace-wide index status panel with realtime updates.
 - **Channel Settings Panel** (`components/channel/ChannelSettingsPanel.svelte`): Right panel in ChannelView (can be opened even while a thread is selected). Manages channel-specific knowledge.
 - **Thread Sources Panel** (`components/thread/ThreadSourcesPanel.svelte`): Right panel in ThreadView. Shows only attached sources for the conversation.
 - **Co-worker Profile** (`components/coworker/CoworkerProfile.svelte`): Knowledge tab includes co-worker specific sources and notes.
