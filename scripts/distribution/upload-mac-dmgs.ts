@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url"
 import dotenv from "dotenv"
 
 type ReleaseFiles = {
-  universal: {
+  arm64: {
+    name: string
+    url: string
+  }
+  x64: {
     name: string
     url: string
   }
@@ -60,12 +64,12 @@ const distDir = path.join(rootDir, "coworker-app/dist")
 const listDistFiles = (): string[] =>
   readdirSync(distDir).filter((entry) => !entry.startsWith("."))
 
-const resolveUniversalDmg = (): { name: string; path: string } => {
+const resolveDmgPath = (
+  arch: "arm64" | "x64",
+): { name: string; path: string } => {
   const candidates = [
-    `Coworkers-${version}-universal.dmg`,
-    `coworker-app-${version}-universal.dmg`,
-    `Coworkers-${version}.dmg`,
-    `coworker-app-${version}.dmg`,
+    `coworker-app-${version}-${arch}.dmg`,
+    `Coworkers-${version}-${arch}.dmg`,
   ]
 
   for (const candidate of candidates) {
@@ -75,32 +79,36 @@ const resolveUniversalDmg = (): { name: string; path: string } => {
     }
   }
 
-  const dmgs = listDistFiles().filter(
-    (file) => file.endsWith(".dmg") && file.includes(version),
-  )
-  if (dmgs.length === 1) {
-    return { name: dmgs[0], path: path.join(distDir, dmgs[0]) }
-  }
-
   throw new Error(
-    `Missing universal DMG for version ${version}. Found: ${dmgs.join(", ") || "none"}`,
+    `Missing DMG files for ${arch}. Found: ${candidates.join(", ")}`,
   )
 }
 
-const resolveLatestMacYml = (): { name: string; path: string } => {
-  const ymlPath = path.join(distDir, "latest-mac.yml")
-  if (!existsSync(ymlPath)) {
-    throw new Error(`Missing latest-mac.yml in ${distDir}`)
+const resolveLatestMacYml = (
+  arch: "arm64" | "x64",
+): { name: string; path: string } => {
+  const candidates = [
+    `latest-mac-${arch}.yml`,
+    `latest-mac.yml`,
+  ]
+
+  for (const candidate of candidates) {
+    const candidatePath = path.join(distDir, candidate)
+    if (existsSync(candidatePath)) {
+      return { name: candidate, path: candidatePath }
+    }
   }
-  return { name: "latest-mac.yml", path: ymlPath }
+
+  throw new Error(`Missing latest-mac.yml for ${arch} in ${distDir}`)
 }
 
-const resolveMacZip = (): { name: string; path: string } => {
+const resolveMacZip = (
+  arch: "arm64" | "x64",
+): { name: string; path: string } => {
   const zips = listDistFiles().filter((file) => file.endsWith(".zip"))
-  const macZips = zips.filter((file) => file.includes("-mac"))
-  const candidates = macZips.length > 0 ? macZips : zips
-
+  const candidates = zips.filter((file) => file.includes(arch))
   const matches = candidates.filter((file) => file.includes(version))
+
   if (matches.length === 1) {
     return { name: matches[0], path: path.join(distDir, matches[0]) }
   }
@@ -109,7 +117,7 @@ const resolveMacZip = (): { name: string; path: string } => {
   }
 
   throw new Error(
-    `Missing mac ZIP for version ${version}. Found: ${candidates.join(", ") || "none"}`,
+    `Missing ${arch} ZIP for version ${version}. Found: ${candidates.join(", ") || "none"}`,
   )
 }
 
@@ -130,54 +138,80 @@ const resolveBlockmap = (zipName: string): { name: string; path: string } => {
   )
 }
 
-const dmgUniversal = resolveUniversalDmg()
-const latestMacYml = resolveLatestMacYml()
-const zipUniversal = resolveMacZip()
-const blockmapUniversal = resolveBlockmap(zipUniversal.name)
+const dmgArm = resolveDmgPath("arm64")
+const dmgX64 = resolveDmgPath("x64")
+const latestArm = resolveLatestMacYml("arm64")
+const latestX64 = resolveLatestMacYml("x64")
+const zipArm = resolveMacZip("arm64")
+const zipX64 = resolveMacZip("x64")
+const blockmapArm = resolveBlockmap(zipArm.name)
+const blockmapX64 = resolveBlockmap(zipX64.name)
 
-const downloadKey = `downloads/macos/${version}/${dmgUniversal.name}`
 const updatesBase = `updates/macos/stable`
 
-const dmgResult = (await put(
-  downloadKey,
-  createReadStream(dmgUniversal.path),
-  {
+const [armDmgResult, x64DmgResult] = (await Promise.all([
+  put(`downloads/macos/${version}/${dmgArm.name}`, createReadStream(dmgArm.path), {
     access: "public",
     contentType: "application/x-apple-diskimage",
     addRandomSuffix: false,
     allowOverwrite: true,
-  },
-)) as PutResult
+  }),
+  put(`downloads/macos/${version}/${dmgX64.name}`, createReadStream(dmgX64.path), {
+    access: "public",
+    contentType: "application/x-apple-diskimage",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  }),
+])) as [PutResult, PutResult]
 
-const [latestResult, zipResult, blockmapResult] = (await Promise.all([
-  put(`${updatesBase}/${latestMacYml.name}`, createReadStream(latestMacYml.path), {
-    access: "public",
-    contentType: "text/yaml",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  }),
-  put(`${updatesBase}/${zipUniversal.name}`, createReadStream(zipUniversal.path), {
-    access: "public",
-    contentType: "application/zip",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  }),
-  put(
-    `${updatesBase}/${blockmapUniversal.name}`,
-    createReadStream(blockmapUniversal.path),
-    {
+const [armLatestResult, x64LatestResult, armZipResult, x64ZipResult, armBlockmapResult, x64BlockmapResult] =
+  (await Promise.all([
+    put(`${updatesBase}/arm64/${latestArm.name}`, createReadStream(latestArm.path), {
+      access: "public",
+      contentType: "text/yaml",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }),
+    put(`${updatesBase}/x64/${latestX64.name}`, createReadStream(latestX64.path), {
+      access: "public",
+      contentType: "text/yaml",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }),
+    put(`${updatesBase}/arm64/${zipArm.name}`, createReadStream(zipArm.path), {
+      access: "public",
+      contentType: "application/zip",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }),
+    put(`${updatesBase}/x64/${zipX64.name}`, createReadStream(zipX64.path), {
+      access: "public",
+      contentType: "application/zip",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }),
+    put(`${updatesBase}/arm64/${blockmapArm.name}`, createReadStream(blockmapArm.path), {
       access: "public",
       contentType: "application/octet-stream",
       addRandomSuffix: false,
       allowOverwrite: true,
-    },
-  ),
-])) as [PutResult, PutResult, PutResult]
+    }),
+    put(`${updatesBase}/x64/${blockmapX64.name}`, createReadStream(blockmapX64.path), {
+      access: "public",
+      contentType: "application/octet-stream",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }),
+  ])) as [PutResult, PutResult, PutResult, PutResult, PutResult, PutResult]
 
-console.log(`Uploaded ${dmgUniversal.name} -> ${dmgResult.url}`)
-console.log(`Uploaded ${latestMacYml.name} -> ${latestResult.url}`)
-console.log(`Uploaded ${zipUniversal.name} -> ${zipResult.url}`)
-console.log(`Uploaded ${blockmapUniversal.name} -> ${blockmapResult.url}`)
+console.log(`Uploaded ${dmgArm.name} -> ${armDmgResult.url}`)
+console.log(`Uploaded ${dmgX64.name} -> ${x64DmgResult.url}`)
+console.log(`Uploaded ${latestArm.name} -> ${armLatestResult.url}`)
+console.log(`Uploaded ${latestX64.name} -> ${x64LatestResult.url}`)
+console.log(`Uploaded ${zipArm.name} -> ${armZipResult.url}`)
+console.log(`Uploaded ${zipX64.name} -> ${x64ZipResult.url}`)
+console.log(`Uploaded ${blockmapArm.name} -> ${armBlockmapResult.url}`)
+console.log(`Uploaded ${blockmapX64.name} -> ${x64BlockmapResult.url}`)
 
 const manifestKey = "downloads/releases.json"
 
@@ -212,9 +246,13 @@ const newEntry: ReleaseEntry = {
   version,
   date: nowIso,
   files: {
-    universal: {
-      name: dmgUniversal.name,
-      url: dmgResult.url,
+    arm64: {
+      name: dmgArm.name,
+      url: armDmgResult.url,
+    },
+    x64: {
+      name: dmgX64.name,
+      url: x64DmgResult.url,
     },
   },
 }

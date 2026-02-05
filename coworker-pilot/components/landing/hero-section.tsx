@@ -8,14 +8,19 @@ const downloadButtonBase =
 const downloadButtonPrimary =
   "px-8 py-4 bg-foreground text-background shadow-lg shadow-foreground/15 hover:scale-[1.03] hover:shadow-xl hover:shadow-foreground/25 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 
+const downloadButtonSecondary =
+  "px-8 py-4 border-2 border-foreground/90 text-foreground bg-background/80 backdrop-blur-sm shadow-md hover:scale-[1.03] hover:shadow-lg hover:border-accent hover:text-accent hover:bg-accent/5 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+
 type HeroSectionProps = {
-  downloadUrl?: string
+  downloadUrlApple?: string
+  downloadUrlIntel?: string
 }
 
 export function HeroSection({
-  downloadUrl,
+  downloadUrlApple,
+  downloadUrlIntel,
 }: HeroSectionProps) {
-  const hasAnyDownload = downloadUrl
+  const hasAnyDownload = downloadUrlApple || downloadUrlIntel
 
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-6 md:px-12">
@@ -35,9 +40,9 @@ export function HeroSection({
         {hasAnyDownload && (
           <div className="mt-12 md:mt-14 flex flex-col items-center gap-4 animate-fade-in-up [animation-delay:300ms]">
             <div className="flex flex-wrap items-center justify-center gap-4">
-              {downloadUrl && (
+              {downloadUrlApple && (
                 <a
-                  href={downloadUrl}
+                  href={downloadUrlApple}
                   className={`${downloadButtonBase} ${downloadButtonPrimary}`}
                 >
                   <span className="absolute inset-0 bg-gradient-to-r from-accent/0 via-accent/20 to-accent/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -46,7 +51,16 @@ export function HeroSection({
                     aria-hidden
                   />
                   <Download className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />
-                  <span className="relative z-10">Download for macOS</span>
+                  <span className="relative z-10">Download (Apple Silicon)</span>
+                </a>
+              )}
+              {downloadUrlIntel && (
+                <a
+                  href={downloadUrlIntel}
+                  className={`${downloadButtonBase} ${downloadButtonSecondary}`}
+                >
+                  <Download className="w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />
+                  <span>Download (Intel)</span>
                 </a>
               )}
             </div>

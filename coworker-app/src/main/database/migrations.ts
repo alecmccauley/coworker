@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 /**
  * Run all migrations on a workspace database
@@ -46,6 +46,10 @@ export function runMigrations(sqlite: Database.Database): void {
 
     if (currentVersion < 5) {
       runMigrationV5(sqlite);
+    }
+
+    if (currentVersion < 6) {
+      runMigrationV6(sqlite);
     }
 
     // Update schema version
@@ -465,4 +469,38 @@ function runMigrationV5(sqlite: Database.Database): void {
   } catch (error) {
     console.warn("[DB] sqlite-vec unavailable, skipping vec table creation", error);
   }
+}
+
+/**
+ * Migration V6: Add channel-coworker relationship table
+ */
+function runMigrationV6(sqlite: Database.Database): void {
+  console.log(
+    "[DB] Running migration V6: Add channel_coworkers relationship table",
+  );
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS channel_coworkers (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      coworker_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_channel_coworkers_channel
+    ON channel_coworkers (channel_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_channel_coworkers_coworker
+    ON channel_coworkers (coworker_id)
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_coworkers_unique
+    ON channel_coworkers (channel_id, coworker_id)
+  `);
 }

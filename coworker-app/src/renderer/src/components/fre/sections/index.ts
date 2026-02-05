@@ -1,0 +1,8 @@
+export { default as HelloSection } from './HelloSection.svelte'
+export { default as MentalModelSection } from './MentalModelSection.svelte'
+export { default as UIOrientationSection } from './UIOrientationSection.svelte'
+export { default as FirstValueSection } from './FirstValueSection.svelte'
+export { default as KnowledgeGuideSection } from './KnowledgeGuideSection.svelte'
+export { default as HowItWorksSection } from './HowItWorksSection.svelte'
+export { default as PrivacySection } from './PrivacySection.svelte'
+export { default as CompletionSection } from './CompletionSection.svelte'

@@ -147,8 +147,8 @@ This keeps network access and secrets out of the renderer, while preserving end-
 - Build order: `shared-services` must be built before consuming packages.
 - Prisma commands run from the repo root via pnpm scripts.
 - Electron builds are configured in `coworker-app/electron-builder.yml`.
-- macOS builds are **universal** and include `dmg` for first-time installs plus `zip` + `latest-mac.yml` for OTA updates.
-- Distribution uploads DMGs to `/downloads/` and OTA update artifacts to `/updates/`, with the public manifest at `/downloads/releases.json`.
+- macOS builds are **dual-arch** (`arm64` + `x64`) and include `dmg` for first-time installs plus `zip` + `latest-mac.yml` for OTA updates.
+- Distribution uploads DMGs to `/downloads/` and OTA update artifacts to `/updates/` per arch, with the public manifest at `/downloads/releases.json`.
 
 ## Quick Orientation for New Contributors
 

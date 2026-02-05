@@ -6,6 +6,7 @@ import {
   getCurrentWorkspace,
   showCreateWorkspaceDialog,
   showOpenWorkspaceDialog,
+  setOnboardingComplete,
   type WorkspaceInfo,
 } from "./workspace-manager";
 import {
@@ -73,6 +74,14 @@ export function registerWorkspaceIpcHandlers(): void {
     "workspace:showOpenDialog",
     async (): Promise<WorkspaceInfo | null> => {
       return showOpenWorkspaceDialog(BrowserWindow.getFocusedWindow());
+    },
+  );
+
+  // Mark onboarding as complete
+  ipcMain.handle(
+    "workspace:setOnboardingComplete",
+    (_event, completed: boolean): void => {
+      setOnboardingComplete(completed);
     },
   );
 }

@@ -34,12 +34,18 @@ pnpm build:shared
 pnpm --filter coworker-app build:mac
 ```
 
+`build:mac` runs both arm64 and x64 builds sequentially.
+
 Build output location: `coworker-app/dist/`
 
-- `Coworkers-1.0.0.dmg` — macOS installer (Universal)
-- `Coworkers-1.0.0-mac.zip` — OTA update payload
-- `Coworkers-1.0.0-mac.zip.blockmap` — OTA differential updates
-- `latest-mac.yml` — OTA update metadata
+- `coworker-app-1.0.0-arm64.dmg` — macOS installer (Apple Silicon)
+- `coworker-app-1.0.0-x64.dmg` — macOS installer (Intel)
+- `Coworkers-1.0.0-mac-arm64.zip` — OTA update payload (Apple Silicon)
+- `Coworkers-1.0.0-mac-x64.zip` — OTA update payload (Intel)
+- `Coworkers-1.0.0-mac-arm64.zip.blockmap` — OTA differential updates (Apple Silicon)
+- `Coworkers-1.0.0-mac-x64.zip.blockmap` — OTA differential updates (Intel)
+- `latest-mac-arm64.yml` — OTA update metadata (Apple Silicon)
+- `latest-mac-x64.yml` — OTA update metadata (Intel)
 
 ---
 
@@ -64,24 +70,29 @@ pnpm dist:upload:mac
 
 This command:
 
-- Uploads the universal DMG to:
-  - `/downloads/macos/<version>/Coworkers-<version>.dmg`
+- Uploads DMGs to:
+  - `/downloads/macos/<version>/Coworkers-<version>-arm64.dmg`
+  - `/downloads/macos/<version>/Coworkers-<version>-x64.dmg`
 - Uploads OTA update artifacts to:
-  - `/updates/macos/stable/latest-mac.yml`
-  - `/updates/macos/stable/<version>-mac.zip`
-  - `/updates/macos/stable/<version>-mac.zip.blockmap`
+  - `/updates/macos/stable/arm64/latest-mac.yml`
+  - `/updates/macos/stable/arm64/<version>-mac-arm64.zip`
+  - `/updates/macos/stable/arm64/<version>-mac-arm64.zip.blockmap`
+  - `/updates/macos/stable/x64/latest-mac.yml`
+  - `/updates/macos/stable/x64/<version>-mac-x64.zip`
+  - `/updates/macos/stable/x64/<version>-mac-x64.zip.blockmap`
 - Updates `/downloads/releases.json` with:
   - `latest` version
   - release `date` (UTC)
-  - universal file URL
+  - per-arch file URLs
 
 ### Auto-setting Update Feed URL
 
 `build:mac` now runs a helper script that derives the Blob public base URL and writes
-`COWORKER_UPDATES_URL` into `coworker-app/.env.production` before packaging:
+`COWORKER_UPDATES_URL` into `coworker-app/.env.production` for each arch before packaging:
 
 ```bash
-pnpm dist:set-updates-url
+pnpm dist:set-updates-url -- arm64
+pnpm dist:set-updates-url -- x64
 ```
 
 This requires `BLOB_READ_WRITE_TOKEN` in the root `.env.distribution`. If no blobs
@@ -98,11 +109,11 @@ DOWNLOAD_MANIFEST_URL=https://<your-blob-public-url>/downloads/releases.json
 
 ### App Update Feed
 
-The Electron app reads the OTA update feed from a build-time env var:
+The Electron app reads the OTA update feed from a build-time env var that is set per arch:
 
 ```bash
 # coworker-app/.env.production
-COWORKER_UPDATES_URL=https://<your-blob-public-url>/updates/macos/stable
+COWORKER_UPDATES_URL=https://<your-blob-public-url>/updates/macos/stable/arm64
 ```
 
 ---
@@ -119,7 +130,7 @@ The build is configured via `coworker-app/electron-builder.yml`.
 | Product Name | `Coworkers` |
 | Electron Version | `39.4.0` |
 | macOS Category | `public.app-category.productivity` |
-| Target Architecture | `universal` |
+| Target Architecture | `arm64` (Apple Silicon) + `x64` (Intel) |
 | Target Format | `dmg` + `zip` |
 | Notarization | Enabled (requires `.env` credentials) |
 
@@ -134,10 +145,12 @@ mac:
   target:
     - target: dmg
       arch:
-        - universal
+        - arm64
+        - x64
     - target: zip
       arch:
-        - universal
+        - arm64
+        - x64
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -325,13 +338,13 @@ pnpm --filter coworker-app build:mac
 After building, verify notarization:
 
 ```bash
-spctl -a -vvv -t install coworker-app/dist/mac/Coworkers.app
+spctl -a -vvv -t install coworker-app/dist/mac-arm64/Coworkers.app
 ```
 
 Expected output:
 
 ```
-dist/mac/Coworkers.app: accepted
+dist/mac-arm64/Coworkers.app: accepted
 source=Notarized Developer ID
 ```
 
@@ -435,10 +448,16 @@ coworker-app/
 │   ├── preload/
 │   └── renderer/
 └── dist/                   # Distribution artifacts
-    ├── mac/                # Unpacked app (Universal)
+    ├── mac-arm64/          # Unpacked app (Apple Silicon)
     │   └── Coworkers.app
-    ├── Coworkers-1.0.0.dmg
-    ├── Coworkers-1.0.0-mac.zip
-    ├── Coworkers-1.0.0-mac.zip.blockmap
-    └── latest-mac.yml
+    ├── mac-x64/            # Unpacked app (Intel)
+    │   └── Coworkers.app
+    ├── Coworkers-1.0.0-arm64.dmg
+    ├── Coworkers-1.0.0-x64.dmg
+    ├── Coworkers-1.0.0-mac-arm64.zip
+    ├── Coworkers-1.0.0-mac-x64.zip
+    ├── Coworkers-1.0.0-mac-arm64.zip.blockmap
+    ├── Coworkers-1.0.0-mac-x64.zip.blockmap
+    ├── latest-mac-arm64.yml
+    └── latest-mac-x64.yml
 ```

@@ -12,6 +12,10 @@ export interface WorkspaceManifest {
   name: string;
   createdAt: string;
   schemaVersion: number;
+  /** Whether the user has completed the first-run experience */
+  hasCompletedOnboarding?: boolean;
+  /** ISO timestamp when onboarding was completed */
+  onboardingCompletedAt?: string;
 }
 
 export interface WorkspaceInfo {
@@ -450,6 +454,11 @@ const api = {
       ipcRenderer.on("menu:workspace:close", handler);
       return () => ipcRenderer.removeListener("menu:workspace:close", handler);
     },
+    setOnboardingComplete: (completed: boolean) =>
+      ipcRenderer.invoke(
+        "workspace:setOnboardingComplete",
+        completed,
+      ) as Promise<void>,
   },
   settings: {
     onOpenWorkspaceSettings: (callback: () => void) => {
@@ -497,6 +506,22 @@ const api = {
       ipcRenderer.invoke("channel:getById", id) as Promise<Channel | null>,
     createDefaults: () =>
       ipcRenderer.invoke("channel:createDefaults") as Promise<Channel[]>,
+    addCoworker: (channelId: string, coworkerId: string) =>
+      ipcRenderer.invoke(
+        "channel:addCoworker",
+        channelId,
+        coworkerId,
+      ) as Promise<{ id: string; channelId: string; coworkerId: string }>,
+    removeCoworker: (channelId: string, coworkerId: string) =>
+      ipcRenderer.invoke(
+        "channel:removeCoworker",
+        channelId,
+        coworkerId,
+      ) as Promise<void>,
+    listCoworkers: (channelId: string) =>
+      ipcRenderer.invoke("channel:listCoworkers", channelId) as Promise<
+        Coworker[]
+      >,
   },
   thread: {
     create: (input: CreateThreadInput) =>

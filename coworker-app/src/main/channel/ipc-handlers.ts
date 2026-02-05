@@ -6,10 +6,13 @@ import {
   listChannels,
   getChannelById,
   createDefaultChannels,
+  addCoworkerToChannel,
+  removeCoworkerFromChannel,
+  listChannelCoworkers,
   type CreateChannelInput,
   type UpdateChannelInput,
 } from "./channel-service";
-import type { Channel } from "../database";
+import type { Channel, ChannelCoworker, Coworker } from "../database";
 
 /**
  * Register all channel-related IPC handlers
@@ -56,4 +59,32 @@ export function registerChannelIpcHandlers(): void {
   ipcMain.handle("channel:createDefaults", async (): Promise<Channel[]> => {
     return createDefaultChannels();
   });
+
+  // Add a coworker to a channel
+  ipcMain.handle(
+    "channel:addCoworker",
+    async (
+      _event,
+      channelId: string,
+      coworkerId: string,
+    ): Promise<ChannelCoworker> => {
+      return addCoworkerToChannel(channelId, coworkerId);
+    },
+  );
+
+  // Remove a coworker from a channel
+  ipcMain.handle(
+    "channel:removeCoworker",
+    async (_event, channelId: string, coworkerId: string): Promise<void> => {
+      return removeCoworkerFromChannel(channelId, coworkerId);
+    },
+  );
+
+  // List coworkers assigned to a channel
+  ipcMain.handle(
+    "channel:listCoworkers",
+    async (_event, channelId: string): Promise<Coworker[]> => {
+      return listChannelCoworkers(channelId);
+    },
+  );
 }

@@ -3,6 +3,7 @@
   import HashIcon from '@lucide/svelte/icons/hash'
   import ScopedNotes from '../knowledge/ScopedNotes.svelte'
   import ScopedSources from '../knowledge/ScopedSources.svelte'
+  import ChannelCoworkers from './ChannelCoworkers.svelte'
   import type { Channel } from '$lib/types'
 
   interface Props {
@@ -41,6 +42,9 @@
           <p class="text-sm text-muted-foreground/50">No purpose set</p>
         {/if}
       </div>
+
+      <!-- Channel Co-workers -->
+      <ChannelCoworkers channelId={channel.id} />
 
       <!-- Channel Knowledge -->
       <ScopedNotes

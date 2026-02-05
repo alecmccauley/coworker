@@ -25,6 +25,9 @@
   import ChannelView from './channel/ChannelView.svelte'
   import CreateChannelDialog from './channel/CreateChannelDialog.svelte'
 
+  // First-run experience
+  import { FirstRunExperience } from './fre'
+
   import AppShell from './AppShell.svelte'
 
   interface Props {
@@ -74,6 +77,9 @@
   let showDeleteDialog = $state(false)
   let deletingCoworker = $state<Coworker | null>(null)
   let showChannelDialog = $state(false)
+
+  // First-run experience state
+  let showFRE = $state(false)
 
   // Error state
   let errorMessage = $state<string | null>(null)
@@ -146,10 +152,21 @@
       currentWorkspace = await window.api.workspace.getCurrent()
       if (currentWorkspace) {
         await Promise.all([loadCoworkers(), loadChannels()])
+        // Check if we should show the first-run experience
+        checkOnboardingStatus()
       }
     } catch (error) {
       console.error('Failed to load current workspace:', error)
       errorMessage = formatError(error, 'Failed to load current workspace.')
+    }
+  }
+
+  function checkOnboardingStatus(): void {
+    if (!currentWorkspace) return
+    const manifest = currentWorkspace.manifest
+    // Show FRE if onboarding hasn't been completed
+    if (!manifest.hasCompletedOnboarding) {
+      showFRE = true
     }
   }
 
@@ -262,9 +279,12 @@
     currentWorkspace = workspace
     selectedChannel = null
     channels = []
+    showFRE = false // Reset FRE state
     loadCoworkers()
     loadChannels()
     loadRecentWorkspaces()
+    // Check onboarding status for the new workspace
+    checkOnboardingStatus()
   }
 
   async function handleWorkspaceClosed(): Promise<void> {
@@ -408,6 +428,33 @@
       return error
     }
     return fallbackMessage
+  }
+
+  // FRE handlers
+  async function handleFREComplete(dontShowAgain: boolean): Promise<void> {
+    showFRE = false
+    if (dontShowAgain) {
+      try {
+        await window.api.workspace.setOnboardingComplete(true)
+      } catch (error) {
+        console.error('Failed to save onboarding preference:', error)
+      }
+    }
+  }
+
+  function handleFRESkip(): void {
+    showFRE = false
+  }
+
+  function handleFREChannelCreated(channel: Channel): void {
+    channels = [...channels, channel]
+    if (!selectedChannel) {
+      selectedChannel = channel
+    }
+  }
+
+  function handleFRECoworkerCreated(coworker: Coworker): void {
+    coworkers = [...coworkers, coworker]
   }
 </script>
 
@@ -607,3 +654,16 @@
   onClose={() => (showChannelDialog = false)}
   onSave={handleCreateChannel}
 />
+
+<!-- First-Run Experience -->
+{#if showFRE && currentWorkspace}
+  <FirstRunExperience
+    workspace={currentWorkspace}
+    {channels}
+    {coworkers}
+    onComplete={handleFREComplete}
+    onSkip={handleFRESkip}
+    onChannelCreated={handleFREChannelCreated}
+    onCoworkerCreated={handleFRECoworkerCreated}
+  />
+{/if}

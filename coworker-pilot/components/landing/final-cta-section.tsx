@@ -11,16 +11,21 @@ const downloadButtonBase =
 const downloadButtonPrimaryInverted =
   "px-8 py-4 bg-background text-foreground shadow-lg shadow-background/15 hover:scale-[1.03] hover:shadow-xl hover:shadow-background/25 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-foreground"
 
+const downloadButtonSecondaryInverted =
+  "px-8 py-4 border-2 border-background/90 text-background bg-transparent backdrop-blur-sm shadow-md hover:scale-[1.03] hover:shadow-lg hover:border-accent hover:text-accent hover:bg-accent/10 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-foreground"
+
 type FinalCtaSectionProps = {
-  downloadUrl?: string
+  downloadUrlApple?: string
+  downloadUrlIntel?: string
 }
 
 export function FinalCtaSection({
-  downloadUrl,
+  downloadUrlApple,
+  downloadUrlIntel,
 }: FinalCtaSectionProps) {
   const sectionRef = useRef<HTMLElement>(null)
   const isInView = useInView(sectionRef, { threshold: 0.2, once: true })
-  const hasAnyDownload = downloadUrl
+  const hasAnyDownload = downloadUrlApple || downloadUrlIntel
 
   return (
     <section
@@ -50,13 +55,22 @@ export function FinalCtaSection({
             }`}
           >
             <div className="flex flex-wrap items-center justify-center gap-4">
-              {downloadUrl && (
+              {downloadUrlApple && (
                 <a
-                  href={downloadUrl}
+                  href={downloadUrlApple}
                   className={`${downloadButtonBase} ${downloadButtonPrimaryInverted}`}
                 >
                   <Download className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />
-                  <span className="relative z-10">Download for macOS</span>
+                  <span className="relative z-10">Download (Apple Silicon)</span>
+                </a>
+              )}
+              {downloadUrlIntel && (
+                <a
+                  href={downloadUrlIntel}
+                  className={`${downloadButtonBase} ${downloadButtonSecondaryInverted}`}
+                >
+                  <Download className="w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />
+                  <span>Download (Intel)</span>
                 </a>
               )}
             </div>

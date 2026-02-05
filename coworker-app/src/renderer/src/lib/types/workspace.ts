@@ -6,6 +6,10 @@ export interface WorkspaceManifest {
   name: string;
   createdAt: string;
   schemaVersion: number;
+  /** Whether the user has completed the first-run experience */
+  hasCompletedOnboarding?: boolean;
+  /** ISO timestamp when onboarding was completed */
+  onboardingCompletedAt?: string;
 }
 
 /**

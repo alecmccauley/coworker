@@ -157,6 +157,22 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Driver.js tour overlay tuning for FRE */
+.driver-overlay,
+.driver-overlay-animate {
+  background-color: rgba(0, 0, 0, 0) !important;
+  opacity: 1 !important;
+}
+
+.driver-stage {
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55) !important;
+  background-color: transparent !important;
+}
+
+.driver-active-element {
+  box-shadow: 0 0 0 4px rgba(196, 114, 92, 0.6) !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -245,4 +261,128 @@
   .text-pretty {
     text-wrap: pretty;
   }
+}
+
+/* ============================================
+   Driver.js Custom Styling for FRE
+   ============================================ */
+
+.driver-popover {
+  background: oklch(0.99 0.003 85) !important;
+  border: 1px solid oklch(0.88 0.01 85) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25) !important;
+  padding: 1.25rem !important;
+  max-width: 320px !important;
+}
+
+.dark .driver-popover {
+  background: oklch(0.22 0.01 60) !important;
+  border: 1px solid oklch(1 0 0 / 10%) !important;
+}
+
+.driver-popover .driver-popover-title {
+  font-family: var(--font-serif);
+  font-size: 1.125rem !important;
+  font-weight: 500 !important;
+  color: oklch(0.18 0.01 60) !important;
+  margin-bottom: 0.5rem !important;
+  line-height: 1.3 !important;
+}
+
+.dark .driver-popover .driver-popover-title {
+  color: oklch(0.95 0.005 85) !important;
+}
+
+.driver-popover .driver-popover-description {
+  font-family: var(--font-sans);
+  font-size: 0.875rem !important;
+  color: oklch(0.45 0.01 60) !important;
+  line-height: 1.5 !important;
+}
+
+.dark .driver-popover .driver-popover-description {
+  color: oklch(0.65 0.01 60) !important;
+}
+
+.driver-popover .driver-popover-progress-text {
+  color: oklch(0.65 0.14 25) !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+}
+
+.driver-popover .driver-popover-navigation-btns {
+  gap: 0.5rem !important;
+  margin-top: 1rem !important;
+}
+
+.driver-popover .driver-popover-prev-btn,
+.driver-popover .driver-popover-next-btn {
+  font-family: var(--font-sans) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.driver-popover .driver-popover-prev-btn {
+  background: transparent !important;
+  color: oklch(0.45 0.01 60) !important;
+  border: 1px solid oklch(0.88 0.01 85) !important;
+}
+
+.driver-popover .driver-popover-prev-btn:hover {
+  background: oklch(0.94 0.008 85) !important;
+  color: oklch(0.18 0.01 60) !important;
+}
+
+.dark .driver-popover .driver-popover-prev-btn {
+  border-color: oklch(1 0 0 / 15%) !important;
+  color: oklch(0.65 0.01 60) !important;
+}
+
+.dark .driver-popover .driver-popover-prev-btn:hover {
+  background: oklch(0.24 0.01 60) !important;
+  color: oklch(0.95 0.005 85) !important;
+}
+
+.driver-popover .driver-popover-next-btn {
+  background: oklch(0.18 0.01 60) !important;
+  color: oklch(0.975 0.005 85) !important;
+  border: none !important;
+}
+
+.driver-popover .driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.dark .driver-popover .driver-popover-next-btn {
+  background: oklch(0.95 0.005 85) !important;
+  color: oklch(0.16 0.01 60) !important;
+}
+
+.driver-popover .driver-popover-close-btn {
+  color: oklch(0.45 0.01 60) !important;
+}
+
+.driver-popover .driver-popover-close-btn:hover {
+  color: oklch(0.18 0.01 60) !important;
+}
+
+.dark .driver-popover .driver-popover-close-btn:hover {
+  color: oklch(0.95 0.005 85) !important;
+}
+
+.driver-popover .driver-popover-arrow {
+  border-color: oklch(0.99 0.003 85) !important;
+}
+
+.dark .driver-popover .driver-popover-arrow {
+  border-color: oklch(0.22 0.01 60) !important;
+}
+
+/* Keep overlay transparent so only .driver-stage provides dimming (single layer) */
+.driver-overlay {
+  background: transparent !important;
 }

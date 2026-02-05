@@ -27,7 +27,9 @@
     "postinstall": "electron-builder install-app-deps && npm run rebuild",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "dotenv -e .env.production -- npm run build && electron-builder --win",
-    "build:mac": "pnpm -w build:shared && pnpm -w dist:set-updates-url && dotenv -e .env.production -- npm run build && dotenv -e .env.production -- electron-builder --mac",
+    "build:mac:arm64": "pnpm -w dist:set-updates-url -- arm64 && dotenv -e .env.production -- npm run build && dotenv -e .env.production -- electron-builder --mac --arm64 && pnpm -w dist:rename-latest-mac-yml -- arm64",
+    "build:mac:x64": "pnpm -w dist:set-updates-url -- x64 && dotenv -e .env.production -- npm run build && dotenv -e .env.production -- electron-builder --mac --x64 && pnpm -w dist:rename-latest-mac-yml -- x64",
+    "build:mac": "pnpm -w build:shared && pnpm --filter coworker-app build:mac:arm64 && pnpm --filter coworker-app build:mac:x64",
     "build:mac:dev": "dotenv -e .env -- npm run build && dotenv -e .env -- electron-builder --mac",
     "build:linux": "dotenv -e .env.production -- npm run build && electron-builder --linux"
   },
@@ -39,6 +41,7 @@
     "@lucide/svelte": "^0.561.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "better-sqlite3": "^12.6.2",
+    "driver.js": "^1.4.0",
     "drizzle-orm": "^0.45.1",
     "electron-updater": "^6.3.9",
     "mammoth": "^1.11.0",

@@ -259,6 +259,87 @@ Workspace Settings also includes an **Updates** tab that surfaces the auto-updat
 - **Thread Sources Panel** (`components/thread/ThreadSourcesPanel.svelte`): Right panel in ThreadView. Shows only attached sources for the conversation.
 - **Co-worker Profile** (`components/coworker/CoworkerProfile.svelte`): Knowledge tab includes co-worker specific sources and notes.
 
+## First-Run Experience (FRE)
+
+When a user opens a workspace for the first time (or when `hasCompletedOnboarding` is not set in the manifest), the app displays a stunning onboarding experience that introduces core concepts.
+
+### Trigger Conditions
+
+- Shows on first workspace open (unless `hasCompletedOnboarding: true` in manifest)
+- "Don't show again" checkbox persists the setting to the workspace manifest
+- Without checkbox, shows every workspace load
+
+### FRE Sections
+
+The experience consists of 8 sections:
+
+1. **HelloSection** - Apple "Hello"-inspired welcome with workspace name
+2. **MentalModelSection** - Interactive hierarchy diagram (Workspace → Channels/Co-workers/Knowledge → Threads)
+3. **UIOrientationSection** - Driver.js spotlight tour of the sidebar and settings
+4. **FirstValueSection** - Interactive: select/create channel and co-worker
+5. **KnowledgeGuideSection** - Four-quadrant explanation of knowledge scopes
+6. **HowItWorksSection** - Non-technical explanation of how co-workers work
+7. **PrivacySection** - Local-first security messaging
+8. **CompletionSection** - Checklist and "Don't show again" option
+
+### Architecture
+
+```
+components/fre/
+├── FirstRunExperience.svelte    # Root orchestrator
+├── FREOverlay.svelte            # Full-screen overlay (scrollable, optional transparent backdrop)
+├── FREProgress.svelte           # Dot progress indicator
+├── FRENavigation.svelte         # Continue/Back/Skip controls
+├── sections/
+│   ├── HelloSection.svelte
+│   ├── MentalModelSection.svelte
+│   ├── UIOrientationSection.svelte
+│   ├── FirstValueSection.svelte
+│   ├── KnowledgeGuideSection.svelte
+│   ├── HowItWorksSection.svelte
+│   ├── PrivacySection.svelte
+│   └── CompletionSection.svelte
+└── index.ts
+```
+
+### Manifest Extension
+
+The workspace manifest includes onboarding state:
+
+```typescript
+interface WorkspaceManifest {
+  // ... existing fields
+  hasCompletedOnboarding?: boolean;
+  onboardingCompletedAt?: string;
+}
+```
+
+### IPC Handler
+
+```typescript
+// workspace:setOnboardingComplete
+ipcMain.handle("workspace:setOnboardingComplete", (_event, completed: boolean) => {
+  setOnboardingComplete(completed);
+});
+```
+
+### Sidebar Data Attributes
+
+The sidebar includes `data-fre` attributes for Driver.js targeting:
+
+- `data-fre="sidebar"` - Main sidebar container
+
+The Driver.js overlay opacity is tuned in `coworker-app/src/app.css` so the underlying UI remains visible during the tour.
+The UI Orientation section temporarily disables the FRE backdrop only while the Driver.js tour is active, so the "Let's look around" screen remains readable while the tour is idle.
+- `data-fre="channels"` - Channels section
+- `data-fre="coworkers"` - Co-workers section
+- `data-fre="settings"` - Settings button
+
+### Dependencies
+
+- **driver.js** (~5kb gzipped) - Spotlight/tour system
+- Custom Driver.js styling in `app.css`
+
 ## Co-worker Profile Tabs
 
 Co-worker profiles include structured tabs for richer context:
@@ -476,6 +557,31 @@ The app uses Svelte 5 with runes. Key patterns:
 
 <p>Count: {count}, Doubled: {doubled}</p>
 <button onclick={increment}>Increment</button>
+```
+
+#### Class Directives on Components
+
+Svelte only allows `class:` directives on DOM elements, not component instances. For icon or UI components, use a computed `class` string (or wrap the component in a `div`) when you need conditional classes.
+
+```svelte
+<LockIcon
+  class={`h-4 w-4 transition-all ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+/>
+```
+
+Class directives also cannot include modifiers like `/` or `group-hover:`. Use a computed `class` string instead.
+
+```svelte
+<div class={isActive ? 'bg-accent/5' : 'bg-card hover:border-accent/50'} />
+```
+
+#### Strings with Apostrophes
+
+When a string contains an apostrophe, use double quotes or escape the apostrophe to avoid parse errors.
+
+```svelte
+const title = "They're teammates."
+const description = 'They\'re reliable.'
 ```
 
 #### Render Snippets (Replacing Slots)

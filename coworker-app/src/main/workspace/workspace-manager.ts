@@ -19,6 +19,10 @@ export interface WorkspaceManifest {
   name: string;
   createdAt: string; // ISO timestamp
   schemaVersion: number;
+  /** Whether the user has completed the first-run experience */
+  hasCompletedOnboarding?: boolean;
+  /** ISO timestamp when onboarding was completed */
+  onboardingCompletedAt?: string;
 }
 
 /**
@@ -268,4 +272,28 @@ export function getWorkspaceDisplayName(workspacePath: string): string {
  */
 export function getWorkspaceParentDir(workspacePath: string): string {
   return dirname(workspacePath);
+}
+
+/**
+ * Mark the first-run experience as completed for the current workspace
+ */
+export function setOnboardingComplete(completed: boolean): void {
+  if (!currentWorkspace) {
+    throw new Error("No workspace open");
+  }
+
+  const manifestPath = join(currentWorkspace.path, "manifest.json");
+  const manifest: WorkspaceManifest = {
+    ...currentWorkspace.manifest,
+    hasCompletedOnboarding: completed,
+    onboardingCompletedAt: completed ? new Date().toISOString() : undefined,
+  };
+
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+  currentWorkspace.manifest = manifest;
+
+  console.log(
+    "[Workspace] Onboarding marked as",
+    completed ? "complete" : "incomplete",
+  );
 }

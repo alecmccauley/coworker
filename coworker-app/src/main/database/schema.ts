@@ -163,6 +163,17 @@ export const blobs = sqliteTable("blobs", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+/**
+ * Channel-Coworker relationship table - which coworkers are assigned to which channels
+ */
+export const channelCoworkers = sqliteTable("channel_coworkers", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  channelId: text("channel_id").notNull(),
+  coworkerId: text("coworker_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 // Type exports - Events
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
@@ -202,6 +213,10 @@ export type NewSourceChunk = typeof sourceChunks.$inferInsert;
 // Type exports - Blobs
 export type Blob = typeof blobs.$inferSelect;
 export type NewBlob = typeof blobs.$inferInsert;
+
+// Type exports - Channel Coworkers
+export type ChannelCoworker = typeof channelCoworkers.$inferSelect;
+export type NewChannelCoworker = typeof channelCoworkers.$inferInsert;
 
 // Entity type enumeration for event sourcing
 export type EntityType =

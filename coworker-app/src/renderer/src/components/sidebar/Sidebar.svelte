@@ -42,7 +42,7 @@
   let coworkersExpanded = $state(true)
 </script>
 
-<aside class="flex h-full w-64 flex-shrink-0 flex-col border-r border-border bg-card/50">
+<aside class="flex h-full w-64 flex-shrink-0 flex-col border-r border-border bg-card/50" data-fre="sidebar">
   <!-- Workspace Header -->
   <div class="flex h-14 items-center border-b border-border px-4">
     <div class="flex w-full items-center justify-between">
@@ -60,6 +60,7 @@
         class:bg-accent={isWorkspaceSettingsActive}
         class:text-accent-foreground={isWorkspaceSettingsActive}
         title="Workspace settings"
+        data-fre="settings"
       >
         <SettingsIcon class="h-4 w-4" />
       </button>
@@ -69,7 +70,7 @@
   <!-- Scrollable Content -->
   <div class="flex-1 overflow-y-auto py-2">
     <!-- Channels Section -->
-    <div class="px-2">
+    <div class="px-2" data-fre="channels">
     <button
       onclick={() => (channelsExpanded = !channelsExpanded)}
         class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
@@ -112,7 +113,7 @@
     <div class="my-3 mx-4 border-t border-border" />
 
     <!-- Co-workers Section -->
-    <div class="px-2">
+    <div class="px-2" data-fre="coworkers">
       <button
         onclick={() => (coworkersExpanded = !coworkersExpanded)}
         class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
