@@ -112,4 +112,6 @@ export interface ImportSourcesResult {
   createdSources: KnowledgeSource[];
   failures: ImportFailure[];
   canceled: boolean;
+  requiresAccess?: boolean;
+  defaultPath?: string;
 }

@@ -33,6 +33,9 @@
   let importBatchId = $state<string | null>(null)
   let isImporting = $state(false)
   let importWarning = $state<string | null>(null)
+  let permissionWarning = $state<string | null>(null)
+  let permissionSuccess = $state<string | null>(null)
+  let isRequestingAccess = $state(false)
   let removeImportListener: (() => void) | null = null
   let warningTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -83,7 +86,7 @@
     })
   }
 
-  function clearWarningTimeout(): void {
+  function clearWarningTimeouts(): void {
     if (warningTimeout) {
       clearTimeout(warningTimeout)
       warningTimeout = null
@@ -92,11 +95,29 @@
 
   function setWarning(message: string): void {
     importWarning = message
-    clearWarningTimeout()
+    clearWarningTimeouts()
     warningTimeout = setTimeout(() => {
       importWarning = null
       warningTimeout = null
     }, 4000)
+  }
+
+  function setPermissionWarning(message: string): void {
+    permissionWarning = message
+    clearWarningTimeouts()
+    warningTimeout = setTimeout(() => {
+      permissionWarning = null
+      warningTimeout = null
+    }, 6000)
+  }
+
+  function setPermissionSuccess(message: string): void {
+    permissionSuccess = message
+    clearWarningTimeouts()
+    warningTimeout = setTimeout(() => {
+      permissionSuccess = null
+      warningTimeout = null
+    }, 6000)
   }
 
   async function importFiles(filePaths: string[]): Promise<void> {
@@ -113,6 +134,18 @@
         scopeType,
         scopeId
       )
+      if (result.requiresAccess) {
+        setPermissionWarning(
+          'macOS requires access to these files. Please confirm to import them.'
+        )
+        const grantedPaths = await window.api.knowledge.requestFileAccessForDrop(
+          result.defaultPath
+        )
+        if (grantedPaths.length > 0) {
+          await importFiles(grantedPaths)
+        }
+        return
+      }
       if (!result.canceled) {
         await loadSources()
       }
@@ -174,8 +207,25 @@
       .map((file) => file.path)
       .filter((path): path is string => Boolean(path && path.length > 0))
 
-    if (paths.length === 0) {
-      setWarning('Unable to access those files. Try the Add button instead.')
+    if (paths.length === 0 && supportedFiles.length > 0) {
+      if (isRequestingAccess) return
+      setPermissionWarning(
+        'macOS requires access to Documents and Downloads to read dropped files.'
+      )
+      isRequestingAccess = true
+      try {
+        const result = await window.api.knowledge.requestFolderAccess()
+        if (result.granted) {
+          setPermissionSuccess('Access granted. Please re-drop the file to attach it.')
+        } else {
+          setWarning('Access not granted. Use the Add button to attach files.')
+        }
+      } catch (error) {
+        console.error('Failed to request folder access:', error)
+        setWarning('Unable to request access. Try the Add button instead.')
+      } finally {
+        isRequestingAccess = false
+      }
       return
     }
 
@@ -184,7 +234,7 @@
 
   onDestroy(() => {
     removeImportListener?.()
-    clearWarningTimeout()
+    clearWarningTimeouts()
   })
 </script>
 
@@ -212,6 +262,36 @@
       </Button>
     {/if}
   </div>
+
+  {#if permissionWarning}
+    <div class="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+      <div class="flex items-center gap-2">
+        <AlertTriangleIcon class="h-4 w-4" />
+        {permissionWarning}
+      </div>
+      <button
+        class="text-xs font-medium text-amber-700/80 hover:text-amber-700"
+        onclick={() => (permissionWarning = null)}
+      >
+        Dismiss
+      </button>
+    </div>
+  {/if}
+
+  {#if permissionSuccess}
+    <div class="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+      <div class="flex items-center gap-2">
+        <CheckCircleIcon class="h-4 w-4" />
+        {permissionSuccess}
+      </div>
+      <button
+        class="text-xs font-medium text-emerald-700/80 hover:text-emerald-700"
+        onclick={() => (permissionSuccess = null)}
+      >
+        Dismiss
+      </button>
+    </div>
+  {/if}
 
   {#if importWarning}
     <div class="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">

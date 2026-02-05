@@ -19,7 +19,7 @@ import {
   type UpdateKnowledgeSourceInput,
   type AddFileKnowledgeSourceInput,
 } from "./knowledge-service";
-import { dialog } from "electron";
+import { app, dialog } from "electron";
 import { createId } from "@paralleldrive/cuid2";
 import { readFileSync } from "fs";
 import { extname, basename } from "path";
@@ -50,6 +50,8 @@ interface ImportSourcesResult {
   createdSources: KnowledgeSource[];
   failures: ImportFailure[];
   canceled: boolean;
+  requiresAccess?: boolean;
+  defaultPath?: string;
 }
 
 const SUPPORTED_EXTENSIONS = [".md", ".pdf", ".docx"] as const;
@@ -81,6 +83,8 @@ async function importFilesInternal(
   const batchId = createBatchId();
   const createdSources: KnowledgeSource[] = [];
   const failures: ImportFailure[] = [];
+  let requiresAccess = false;
+  let defaultPath: string | undefined;
 
   for (const filePath of filePaths) {
     const filename = basename(filePath);
@@ -134,6 +138,17 @@ async function importFilesInternal(
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to import file.";
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error as NodeJS.ErrnoException).code &&
+        ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "")
+      ) {
+        requiresAccess = true;
+        if (!defaultPath) {
+          defaultPath = filePath;
+        }
+      }
       failures.push({ filePath, filename, error: message });
       sender.send("knowledge:importProgress", {
         batchId,
@@ -150,6 +165,8 @@ async function importFilesInternal(
     createdSources,
     failures,
     canceled: false,
+    requiresAccess: requiresAccess || undefined,
+    defaultPath,
   };
 }
 
@@ -296,6 +313,7 @@ export function registerKnowledgeIpcHandlers(): void {
           createdSources: [],
           failures: [],
           canceled: true,
+          requiresAccess: false,
         };
       }
 
@@ -317,10 +335,63 @@ export function registerKnowledgeIpcHandlers(): void {
           createdSources: [],
           failures: [],
           canceled: true,
+          requiresAccess: false,
         };
       }
 
       return importFilesInternal(filePaths, scopeType, scopeId, event.sender);
+    },
+  );
+
+  ipcMain.handle(
+    "knowledge:requestFileAccessForDrop",
+    async (_event, defaultPath?: string): Promise<string[]> => {
+      const result = await dialog.showOpenDialog({
+        defaultPath,
+        properties: ["openFile", "multiSelections"],
+        filters: [
+          {
+            name: "Documents",
+            extensions: ["md", "pdf", "docx"],
+          },
+        ],
+      });
+
+      if (result.canceled) {
+        return [];
+      }
+
+      return result.filePaths;
+    },
+  );
+
+  ipcMain.handle(
+    "knowledge:requestFolderAccess",
+    async (): Promise<{ granted: boolean }> => {
+      const documents = app.getPath("documents");
+      const downloads = app.getPath("downloads");
+
+      const documentsResult = await dialog.showOpenDialog({
+        defaultPath: documents,
+        properties: ["openDirectory"],
+        buttonLabel: "Grant Access",
+      });
+
+      if (documentsResult.canceled) {
+        return { granted: false };
+      }
+
+      const downloadsResult = await dialog.showOpenDialog({
+        defaultPath: downloads,
+        properties: ["openDirectory"],
+        buttonLabel: "Grant Access",
+      });
+
+      if (downloadsResult.canceled) {
+        return { granted: false };
+      }
+
+      return { granted: true };
     },
   );
 }

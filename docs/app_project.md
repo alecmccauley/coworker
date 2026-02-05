@@ -238,6 +238,7 @@ Knowledge is managed at different levels with dedicated locations:
 
 Sources can be text notes, links, or file attachments (PDF, DOCX, Markdown). Each source supports a display label, optional notes, and delete/rename actions.
 Sources panels also accept drag-and-drop for supported files; dropping files imports them directly into the current scope with inline progress feedback.
+On macOS, drag-and-drop may require granting access to Documents and Downloads; after granting, re-drop the file to attach it.
 
 ### Knowledge Components
 

@@ -229,6 +229,8 @@ export interface ImportSourcesResult {
   createdSources: KnowledgeSource[];
   failures: ImportFailure[];
   canceled: boolean;
+  requiresAccess?: boolean;
+  defaultPath?: string;
 }
 
 // Blob types
@@ -497,6 +499,15 @@ const api = {
         scopeType,
         scopeId,
       ) as Promise<ImportSourcesResult>,
+    requestFileAccessForDrop: (defaultPath?: string) =>
+      ipcRenderer.invoke(
+        "knowledge:requestFileAccessForDrop",
+        defaultPath,
+      ) as Promise<string[]>,
+    requestFolderAccess: () =>
+      ipcRenderer.invoke(
+        "knowledge:requestFolderAccess",
+      ) as Promise<{ granted: boolean }>,
     onImportProgress: (handler: (payload: ImportProgressPayload) => void) => {
       const listener = (_event: unknown, payload: unknown) => {
         handler(payload as ImportProgressPayload);
