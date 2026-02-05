@@ -27,7 +27,7 @@
     "postinstall": "electron-builder install-app-deps && npm run rebuild",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "dotenv -e .env.production -- npm run build && electron-builder --win",
-    "build:mac": "dotenv -e .env.production -- npm run build && dotenv -e .env.production -- electron-builder --mac",
+    "build:mac": "pnpm -w build:shared && pnpm -w dist:set-updates-url && dotenv -e .env.production -- npm run build && dotenv -e .env.production -- electron-builder --mac",
     "build:mac:dev": "dotenv -e .env -- npm run build && dotenv -e .env -- electron-builder --mac",
     "build:linux": "dotenv -e .env.production -- npm run build && electron-builder --linux"
   },

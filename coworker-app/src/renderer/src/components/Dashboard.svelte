@@ -5,7 +5,7 @@
   import LogOutIcon from '@lucide/svelte/icons/log-out'
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
   import type { AuthUser } from '@coworker/shared-services'
-  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput } from '$lib/types'
+  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput, UpdateState } from '$lib/types'
 
   // Workspace components
   import WelcomeView from './workspace/WelcomeView.svelte'
@@ -62,6 +62,10 @@
   let currentView = $state<ViewType>('channel')
   let selectedCoworkerId = $state<string | null>(null)
   let openChannelSettingsPanel = $state(false)
+  let workspaceSettingsTab = $state<'overview' | 'indexing' | 'updates'>('overview')
+
+  // Updates state
+  let updateState = $state<UpdateState | null>(null)
 
   // Dialog state
   let showCreateCoworkerDialog = $state(false)
@@ -85,6 +89,7 @@
   let cleanupMenuWorkspaceSettings: (() => void) | null = null
   let cleanupMenuChannelsSettings: (() => void) | null = null
   let cleanupMenuWorkersSettings: (() => void) | null = null
+  let cleanupUpdatesListener: (() => void) | null = null
 
   $effect(() => {
     if (currentView === 'channel' && openChannelSettingsPanel) {
@@ -109,6 +114,11 @@
     await loadCurrentWorkspace()
     await loadRecentWorkspaces()
 
+    updateState = await window.api.updates.getState()
+    cleanupUpdatesListener = window.api.updates.onState((state) => {
+      updateState = state
+    })
+
     // Set up menu event listeners
     cleanupMenuNew = window.api.workspace.onMenuNew(handleWorkspaceOpened)
     cleanupMenuOpen = window.api.workspace.onMenuOpen(handleWorkspaceOpened)
@@ -128,6 +138,7 @@
     cleanupMenuWorkspaceSettings?.()
     cleanupMenuChannelsSettings?.()
     cleanupMenuWorkersSettings?.()
+    cleanupUpdatesListener?.()
   })
 
   async function loadCurrentWorkspace(): Promise<void> {
@@ -284,6 +295,7 @@
   }
 
   function handleOpenWorkspaceSettings(): void {
+    workspaceSettingsTab = 'overview'
     currentView = 'workspace-settings'
     selectedCoworkerId = null
     selectedChannel = null
@@ -317,6 +329,14 @@
 
   function handleBackFromSettings(): void {
     currentView = 'channel'
+  }
+
+  function handleOpenUpdates(): void {
+    if (!currentWorkspace) return
+    workspaceSettingsTab = 'updates'
+    currentView = 'workspace-settings'
+    selectedCoworkerId = null
+    selectedChannel = null
   }
 
   function handleOpenCreateChannel(): void {
@@ -392,6 +412,21 @@
 </script>
 
 {#snippet dashboardHeaderActions()}
+  {#if updateState && (updateState.status === 'available' || updateState.status === 'downloaded')}
+    <button
+      onclick={handleOpenUpdates}
+      class="group relative flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-all hover:border-accent hover:text-accent"
+    >
+      <span class="h-1.5 w-1.5 rounded-full bg-accent"></span>
+      {updateState.status === 'downloaded' ? 'Restart to install' : 'Update available'}
+      <span
+        class="pointer-events-none absolute -bottom-8 right-0 whitespace-nowrap rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        aria-hidden="true"
+      >
+        Open update settings
+      </span>
+    </button>
+  {/if}
   {#if currentWorkspace}
     <button
       onclick={handleWorkspaceClosed}
@@ -490,6 +525,7 @@
               <WorkspaceSettings
                 workspace={currentWorkspace}
                 onBack={handleBackFromSettings}
+                initialTab={workspaceSettingsTab}
               />
             {:else if currentView === 'workers-settings'}
               <WorkersSettings

@@ -21,6 +21,16 @@ import { isIndexingInProgress } from "./knowledge/indexing/indexing-service";
 import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
 import { buildApplicationMenu, setChannelSettingsEnabled } from "./menu";
+import {
+  initUpdates,
+  checkForUpdates,
+  downloadUpdate,
+  quitAndInstall,
+  getUpdateState,
+  setAutoDownload,
+  getAutoDownload,
+  getCurrentVersion,
+} from "./updates";
 
 let sdk: CoworkerSdk | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -132,6 +142,17 @@ const registerIpcHandlers = (): void => {
   ipcMain.handle("api:hello:sayHello", async (_event, name?: string) =>
     (await getSdk()).hello.sayHello(name ? { name } : undefined),
   );
+
+  // Update handlers
+  ipcMain.handle("updates:getState", () => getUpdateState());
+  ipcMain.handle("updates:check", async () => checkForUpdates());
+  ipcMain.handle("updates:download", async () => downloadUpdate());
+  ipcMain.handle("updates:quitAndInstall", () => quitAndInstall());
+  ipcMain.handle("updates:setAutoDownload", (_event, value: boolean) =>
+    setAutoDownload(Boolean(value)),
+  );
+  ipcMain.handle("updates:getAutoDownload", () => getAutoDownload());
+  ipcMain.handle("updates:getCurrentVersion", () => getCurrentVersion());
 
   // User handlers
   ipcMain.handle("api:users:list", async () => (await getSdk()).users.list());
@@ -296,6 +317,7 @@ app.whenReady().then(() => {
   buildApplicationMenu();
 
   createWindow();
+  initUpdates(() => mainWindow);
   flushPendingOpenPaths().catch((error) => {
     console.error("[Workspace] Failed to process pending open paths:", error);
   });

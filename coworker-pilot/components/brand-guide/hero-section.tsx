@@ -1,9 +1,7 @@
 import { Download } from "lucide-react"
 
-/** Apple Silicon build download URL (existing). */
-const downloadUrlApple = process.env.NEXT_PUBLIC_DOWNLOAD_URL
-/** Intel build download URL (optional second env var). */
-const downloadUrlIntel = process.env.NEXT_PUBLIC_DOWNLOAD_URL_INTEL
+/** Universal macOS build download URL. */
+const downloadUrl = process.env.NEXT_PUBLIC_DOWNLOAD_URL
 
 const downloadButtonBase =
   "group relative inline-flex items-center justify-center gap-3 overflow-hidden rounded-full font-sans text-sm font-semibold tracking-wide transition-all duration-300 active:scale-[0.98]"
@@ -11,11 +9,8 @@ const downloadButtonBase =
 const downloadButtonPrimary =
   "px-8 py-4 bg-foreground text-background shadow-lg shadow-foreground/15 hover:scale-[1.03] hover:shadow-xl hover:shadow-foreground/25 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 
-const downloadButtonSecondary =
-  "px-8 py-4 border-2 border-foreground/90 text-foreground bg-background/80 backdrop-blur-sm shadow-md hover:scale-[1.03] hover:shadow-lg hover:border-accent hover:text-accent hover:bg-accent/5 hover:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-
 export function HeroSection() {
-  const hasAnyDownload = downloadUrlApple || downloadUrlIntel
+  const hasAnyDownload = downloadUrl
 
   return (
     <section className="min-h-[90vh] flex flex-col items-center justify-center px-6 md:px-12 pt-16">
@@ -35,9 +30,9 @@ export function HeroSection() {
         {hasAnyDownload && (
           <div className="mt-14 flex flex-col items-center gap-4">
             <div className="flex flex-wrap items-center justify-center gap-4">
-              {downloadUrlApple && (
+              {downloadUrl && (
                 <a
-                  href={downloadUrlApple}
+                  href={downloadUrl}
                   className={`${downloadButtonBase} ${downloadButtonPrimary}`}
                 >
                   <span className="absolute inset-0 bg-gradient-to-r from-accent/0 via-accent/20 to-accent/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -46,16 +41,7 @@ export function HeroSection() {
                     aria-hidden
                   />
                   <Download className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />
-                  <span className="relative z-10">Download (Apple Silicon)</span>
-                </a>
-              )}
-              {downloadUrlIntel && (
-                <a
-                  href={downloadUrlIntel}
-                  className={`${downloadButtonBase} ${downloadButtonSecondary}`}
-                >
-                  <Download className="w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />
-                  <span>Download (Intel)</span>
+                  <span className="relative z-10">Download for macOS</span>
                 </a>
               )}
             </div>

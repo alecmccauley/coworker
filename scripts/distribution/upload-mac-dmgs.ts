@@ -1,15 +1,11 @@
 import { put, list } from "@vercel/blob"
-import { createReadStream, existsSync, readFileSync } from "node:fs"
+import { createReadStream, existsSync, readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import dotenv from "dotenv"
 
 type ReleaseFiles = {
-  arm64: {
-    name: string
-    url: string
-  }
-  x64: {
+  universal: {
     name: string
     url: string
   }
@@ -61,10 +57,15 @@ if (!version) {
 }
 
 const distDir = path.join(rootDir, "coworker-app/dist")
-const resolveDmgPath = (arch: "arm64" | "x64"): { name: string; path: string } => {
+const listDistFiles = (): string[] =>
+  readdirSync(distDir).filter((entry) => !entry.startsWith("."))
+
+const resolveUniversalDmg = (): { name: string; path: string } => {
   const candidates = [
-    `coworker-app-${version}-${arch}.dmg`,
-    `Coworkers-${version}-${arch}.dmg`,
+    `Coworkers-${version}-universal.dmg`,
+    `coworker-app-${version}-universal.dmg`,
+    `Coworkers-${version}.dmg`,
+    `coworker-app-${version}.dmg`,
   ]
 
   for (const candidate of candidates) {
@@ -74,46 +75,111 @@ const resolveDmgPath = (arch: "arm64" | "x64"): { name: string; path: string } =
     }
   }
 
-  return { name: candidates[0], path: path.join(distDir, candidates[0]) }
+  const dmgs = listDistFiles().filter(
+    (file) => file.endsWith(".dmg") && file.includes(version),
+  )
+  if (dmgs.length === 1) {
+    return { name: dmgs[0], path: path.join(distDir, dmgs[0]) }
+  }
+
+  throw new Error(
+    `Missing universal DMG for version ${version}. Found: ${dmgs.join(", ") || "none"}`,
+  )
 }
 
-const dmgApple = resolveDmgPath("arm64")
-const dmgIntel = resolveDmgPath("x64")
-const dmgAppleName = dmgApple.name
-const dmgIntelName = dmgIntel.name
-const dmgApplePath = dmgApple.path
-const dmgIntelPath = dmgIntel.path
-
-const missingFiles: string[] = []
-if (!existsSync(dmgApplePath)) missingFiles.push(dmgApplePath)
-if (!existsSync(dmgIntelPath)) missingFiles.push(dmgIntelPath)
-
-if (missingFiles.length > 0) {
-  throw new Error(`Missing DMG files:\n${missingFiles.join("\n")}`)
+const resolveLatestMacYml = (): { name: string; path: string } => {
+  const ymlPath = path.join(distDir, "latest-mac.yml")
+  if (!existsSync(ymlPath)) {
+    throw new Error(`Missing latest-mac.yml in ${distDir}`)
+  }
+  return { name: "latest-mac.yml", path: ymlPath }
 }
 
-const blobAppleName = `coworker-app-${version}-arm64.dmg`
-const blobIntelName = `coworker-app-${version}-x64.dmg`
+const resolveMacZip = (): { name: string; path: string } => {
+  const zips = listDistFiles().filter((file) => file.endsWith(".zip"))
+  const macZips = zips.filter((file) => file.includes("-mac"))
+  const candidates = macZips.length > 0 ? macZips : zips
 
-const [appleResult, intelResult] = (await Promise.all([
-  put(blobAppleName, createReadStream(dmgApplePath), {
+  const matches = candidates.filter((file) => file.includes(version))
+  if (matches.length === 1) {
+    return { name: matches[0], path: path.join(distDir, matches[0]) }
+  }
+  if (candidates.length === 1) {
+    return { name: candidates[0], path: path.join(distDir, candidates[0]) }
+  }
+
+  throw new Error(
+    `Missing mac ZIP for version ${version}. Found: ${candidates.join(", ") || "none"}`,
+  )
+}
+
+const resolveBlockmap = (zipName: string): { name: string; path: string } => {
+  const blockmapName = `${zipName}.blockmap`
+  const blockmapPath = path.join(distDir, blockmapName)
+  if (existsSync(blockmapPath)) {
+    return { name: blockmapName, path: blockmapPath }
+  }
+
+  const blockmaps = listDistFiles().filter((file) => file.endsWith(".blockmap"))
+  if (blockmaps.length === 1) {
+    return { name: blockmaps[0], path: path.join(distDir, blockmaps[0]) }
+  }
+
+  throw new Error(
+    `Missing blockmap for ${zipName}. Found: ${blockmaps.join(", ") || "none"}`,
+  )
+}
+
+const dmgUniversal = resolveUniversalDmg()
+const latestMacYml = resolveLatestMacYml()
+const zipUniversal = resolveMacZip()
+const blockmapUniversal = resolveBlockmap(zipUniversal.name)
+
+const downloadKey = `downloads/macos/${version}/${dmgUniversal.name}`
+const updatesBase = `updates/macos/stable`
+
+const dmgResult = (await put(
+  downloadKey,
+  createReadStream(dmgUniversal.path),
+  {
     access: "public",
     contentType: "application/x-apple-diskimage",
     addRandomSuffix: false,
     allowOverwrite: true,
-  }),
-  put(blobIntelName, createReadStream(dmgIntelPath), {
+  },
+)) as PutResult
+
+const [latestResult, zipResult, blockmapResult] = (await Promise.all([
+  put(`${updatesBase}/${latestMacYml.name}`, createReadStream(latestMacYml.path), {
     access: "public",
-    contentType: "application/x-apple-diskimage",
+    contentType: "text/yaml",
     addRandomSuffix: false,
     allowOverwrite: true,
   }),
-])) as [PutResult, PutResult]
+  put(`${updatesBase}/${zipUniversal.name}`, createReadStream(zipUniversal.path), {
+    access: "public",
+    contentType: "application/zip",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  }),
+  put(
+    `${updatesBase}/${blockmapUniversal.name}`,
+    createReadStream(blockmapUniversal.path),
+    {
+      access: "public",
+      contentType: "application/octet-stream",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    },
+  ),
+])) as [PutResult, PutResult, PutResult]
 
-console.log(`Uploaded ${dmgAppleName} -> ${appleResult.url}`)
-console.log(`Uploaded ${dmgIntelName} -> ${intelResult.url}`)
+console.log(`Uploaded ${dmgUniversal.name} -> ${dmgResult.url}`)
+console.log(`Uploaded ${latestMacYml.name} -> ${latestResult.url}`)
+console.log(`Uploaded ${zipUniversal.name} -> ${zipResult.url}`)
+console.log(`Uploaded ${blockmapUniversal.name} -> ${blockmapResult.url}`)
 
-const manifestKey = "releases.json"
+const manifestKey = "downloads/releases.json"
 
 const existingManifest = await (async (): Promise<ReleaseManifest | null> => {
   try {
@@ -146,13 +212,9 @@ const newEntry: ReleaseEntry = {
   version,
   date: nowIso,
   files: {
-    arm64: {
-      name: blobAppleName,
-      url: appleResult.url,
-    },
-    x64: {
-      name: blobIntelName,
-      url: intelResult.url,
+    universal: {
+      name: dmgUniversal.name,
+      url: dmgResult.url,
     },
   },
 }

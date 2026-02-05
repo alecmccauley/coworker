@@ -5,10 +5,10 @@ import Image from "next/image"
 import Link from "next/link"
 import { Download } from "lucide-react"
 type LandingNavProps = {
-  downloadUrlApple?: string
+  downloadUrl?: string
 }
 
-export function LandingNav({ downloadUrlApple }: LandingNavProps) {
+export function LandingNav({ downloadUrl }: LandingNavProps) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -50,9 +50,9 @@ export function LandingNav({ downloadUrlApple }: LandingNavProps) {
             Brand Guide
           </Link>
 
-          {downloadUrlApple && (
+          {downloadUrl && (
             <a
-              href={downloadUrlApple}
+              href={downloadUrl}
               className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-sans font-semibold transition-all duration-300 hover:scale-[1.03] hover:shadow-lg"
             >
               <Download className="w-4 h-4 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden />

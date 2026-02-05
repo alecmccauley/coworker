@@ -238,6 +238,32 @@ export interface ImportSourcesResult {
   defaultPath?: string;
 }
 
+export type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "not-available"
+  | "downloading"
+  | "downloaded"
+  | "error";
+
+export interface UpdateProgress {
+  percent: number;
+  transferred: number;
+  total: number;
+  bytesPerSecond: number;
+}
+
+export interface UpdateState {
+  status: UpdateStatus;
+  currentVersion: string;
+  availableVersion?: string;
+  progress?: UpdateProgress;
+  lastCheckedAt?: string;
+  error?: string;
+  autoDownload: boolean;
+}
+
 export interface IndexingProgressPayload {
   sourceId: string;
   status: IndexStatus;
@@ -341,6 +367,27 @@ const api = {
   hello: {
     sayHello: async (name?: string) =>
       ipcRenderer.invoke("api:hello:sayHello", name),
+  },
+  updates: {
+    getState: () => ipcRenderer.invoke("updates:getState") as Promise<UpdateState>,
+    check: () => ipcRenderer.invoke("updates:check") as Promise<void>,
+    download: () => ipcRenderer.invoke("updates:download") as Promise<void>,
+    quitAndInstall: () => ipcRenderer.invoke("updates:quitAndInstall") as Promise<void>,
+    setAutoDownload: (value: boolean) =>
+      ipcRenderer.invoke("updates:setAutoDownload", value) as Promise<void>,
+    getAutoDownload: () =>
+      ipcRenderer.invoke("updates:getAutoDownload") as Promise<boolean>,
+    getCurrentVersion: () =>
+      ipcRenderer.invoke("updates:getCurrentVersion") as Promise<string>,
+    onState: (handler: (state: UpdateState) => void): (() => void) => {
+      const listener = (_event: unknown, state: unknown): void => {
+        handler(state as UpdateState);
+      };
+      ipcRenderer.on("updates:state", listener);
+      return () => {
+        ipcRenderer.removeListener("updates:state", listener);
+      };
+    },
   },
   users: {
     list: async () => ipcRenderer.invoke("api:users:list"),

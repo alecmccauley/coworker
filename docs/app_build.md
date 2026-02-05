@@ -36,8 +36,10 @@ pnpm --filter coworker-app build:mac
 
 Build output location: `coworker-app/dist/`
 
-- `coworker-app-1.0.0-arm64.dmg` — macOS installer (Apple Silicon)
-- `coworker-app-1.0.0-x64.dmg` — macOS installer (Intel)
+- `Coworkers-1.0.0.dmg` — macOS installer (Universal)
+- `Coworkers-1.0.0-mac.zip` — OTA update payload
+- `Coworkers-1.0.0-mac.zip.blockmap` — OTA differential updates
+- `latest-mac.yml` — OTA update metadata
 
 ---
 
@@ -62,13 +64,28 @@ pnpm dist:upload:mac
 
 This command:
 
-- Uploads the DMGs to public blob URLs as:
-  - `coworker-app-<version>-arm64.dmg`
-  - `coworker-app-<version>-x64.dmg`
-- Updates `releases.json` at the blob root with:
+- Uploads the universal DMG to:
+  - `/downloads/macos/<version>/Coworkers-<version>.dmg`
+- Uploads OTA update artifacts to:
+  - `/updates/macos/stable/latest-mac.yml`
+  - `/updates/macos/stable/<version>-mac.zip`
+  - `/updates/macos/stable/<version>-mac.zip.blockmap`
+- Updates `/downloads/releases.json` with:
   - `latest` version
   - release `date` (UTC)
-  - per-arch file URLs
+  - universal file URL
+
+### Auto-setting Update Feed URL
+
+`build:mac` now runs a helper script that derives the Blob public base URL and writes
+`COWORKER_UPDATES_URL` into `coworker-app/.env.production` before packaging:
+
+```bash
+pnpm dist:set-updates-url
+```
+
+This requires `BLOB_READ_WRITE_TOKEN` in the root `.env.distribution`. If no blobs
+exist yet, upload at least one artifact first.
 
 ### Landing Page Integration
 
@@ -76,7 +93,16 @@ The Pilot landing page reads the release manifest from a server-only env var:
 
 ```bash
 # coworker-pilot/.env
-DOWNLOAD_MANIFEST_URL=https://<your-blob-public-url>/releases.json
+DOWNLOAD_MANIFEST_URL=https://<your-blob-public-url>/downloads/releases.json
+```
+
+### App Update Feed
+
+The Electron app reads the OTA update feed from a build-time env var:
+
+```bash
+# coworker-app/.env.production
+COWORKER_UPDATES_URL=https://<your-blob-public-url>/updates/macos/stable
 ```
 
 ---
@@ -93,8 +119,8 @@ The build is configured via `coworker-app/electron-builder.yml`.
 | Product Name | `Coworkers` |
 | Electron Version | `39.4.0` |
 | macOS Category | `public.app-category.productivity` |
-| Target Architecture | `arm64` (Apple Silicon) + `x64` (Intel) |
-| Target Format | `dmg` |
+| Target Architecture | `universal` |
+| Target Format | `dmg` + `zip` |
 | Notarization | Enabled (requires `.env` credentials) |
 
 ### Key Configuration Sections
@@ -108,8 +134,10 @@ mac:
   target:
     - target: dmg
       arch:
-        - arm64
-        - x64
+        - universal
+    - target: zip
+      arch:
+        - universal
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -297,13 +325,13 @@ pnpm --filter coworker-app build:mac
 After building, verify notarization:
 
 ```bash
-spctl -a -vvv -t install coworker-app/dist/mac-arm64/Coworkers.app
+spctl -a -vvv -t install coworker-app/dist/mac/Coworkers.app
 ```
 
 Expected output:
 
 ```
-dist/mac-arm64/Coworkers.app: accepted
+dist/mac/Coworkers.app: accepted
 source=Notarized Developer ID
 ```
 
@@ -407,10 +435,10 @@ coworker-app/
 │   ├── preload/
 │   └── renderer/
 └── dist/                   # Distribution artifacts
-    ├── mac-arm64/          # Unpacked app (Apple Silicon)
+    ├── mac/                # Unpacked app (Universal)
     │   └── Coworkers.app
-    ├── mac-x64/            # Unpacked app (Intel)
-    │   └── Coworkers.app
-    ├── Coworkers-1.0.0-arm64.dmg
-    └── Coworkers-1.0.0-x64.dmg
+    ├── Coworkers-1.0.0.dmg
+    ├── Coworkers-1.0.0-mac.zip
+    ├── Coworkers-1.0.0-mac.zip.blockmap
+    └── latest-mac.yml
 ```

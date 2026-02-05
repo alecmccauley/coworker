@@ -241,6 +241,7 @@ Sources panels also accept drag-and-drop for supported files; dropping files imp
 On macOS, drag-and-drop may require granting access to Documents and Downloads; after granting, re-drop the file to attach it.
 
 Workspace Settings includes an **Indexing** tab that shows the live indexing status for all sources across the workspace. It updates in real time as files are extracted, chunked, and embedded.
+Workspace Settings also includes an **Updates** tab that surfaces the auto-update status and controls for downloading and installing new versions.
 
 ### Knowledge Components
 
@@ -253,6 +254,7 @@ Workspace Settings includes an **Indexing** tab that shows the live indexing sta
 
 - **Workspace Settings** (`components/workspace/WorkspaceSettings.svelte`): Access via settings icon in sidebar header. Manages workspace-level knowledge and sources.
 - **Workspace Settings > Indexing**: Shows a workspace-wide index status panel with realtime updates.
+- **Workspace Settings > Updates**: Shows current version, update status, auto-download toggle, and restart-to-install action when an update is ready.
 - **Channel Settings Panel** (`components/channel/ChannelSettingsPanel.svelte`): Right panel in ChannelView (can be opened even while a thread is selected). Manages channel-specific knowledge.
 - **Thread Sources Panel** (`components/thread/ThreadSourcesPanel.svelte`): Right panel in ThreadView. Shows only attached sources for the conversation.
 - **Co-worker Profile** (`components/coworker/CoworkerProfile.svelte`): Knowledge tab includes co-worker specific sources and notes.
@@ -269,6 +271,17 @@ Co-worker profiles include structured tabs for richer context:
 Primary component:
 
 - `src/renderer/src/components/coworker/CoworkerProfile.svelte`
+
+## Updates (OTA)
+
+The app uses `electron-updater` with a **generic** provider to deliver over-the-air updates on macOS. The main process owns the updater, persists update preferences, and pushes update state to the renderer via IPC. The renderer displays update status in **Workspace Settings > Updates** and shows a subtle title-bar pill when an update is available.
+
+Key files:
+
+- `coworker-app/src/main/updates/update-service.ts` — electron-updater wrapper and update state
+- `coworker-app/src/main/updates/update-preferences.ts` — persisted auto-download preference
+- `coworker-app/src/preload/index.ts` — `window.api.updates` IPC surface
+- `coworker-app/src/renderer/src/components/updates/UpdateSettingsPanel.svelte` — UI
 
 ## Preload Script
 

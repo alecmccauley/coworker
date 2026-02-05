@@ -6,3 +6,4 @@ export * from "./message";
 export * from "./knowledge";
 export * from "./blob";
 export * from "./events";
+export * from "./updates";

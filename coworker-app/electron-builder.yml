@@ -34,8 +34,12 @@ mac:
   target:
     - target: dmg
       arch:
-        - arm64
-        - x64
+        - universal
+    - target: zip
+      arch:
+        - universal
+  mergeASARs: true
+  x64ArchFiles: "**/node_modules/{better-sqlite3,sqlite-vec-darwin-*}/**"
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -70,6 +74,6 @@ appImage:
 npmRebuild: false
 publish:
   provider: generic
-  url: https://example.com/auto-updates
+  url: ${env.COWORKER_UPDATES_URL}
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

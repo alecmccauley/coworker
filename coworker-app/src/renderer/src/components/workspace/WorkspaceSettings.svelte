@@ -4,16 +4,24 @@
   import ScopedNotes from '../knowledge/ScopedNotes.svelte'
   import ScopedSources from '../knowledge/ScopedSources.svelte'
   import IndexingStatusPanel from '../knowledge/IndexingStatusPanel.svelte'
+  import UpdateSettingsPanel from '../updates/UpdateSettingsPanel.svelte'
   import type { WorkspaceInfo } from '$lib/types'
 
   interface Props {
     workspace: WorkspaceInfo
     onBack: () => void
+    initialTab?: 'overview' | 'indexing' | 'updates'
   }
 
-  let { workspace, onBack }: Props = $props()
+  let { workspace, onBack, initialTab = 'overview' }: Props = $props()
 
-  let activeTab = $state<'overview' | 'indexing'>('overview')
+  let activeTab = $state<'overview' | 'indexing' | 'updates'>(initialTab)
+
+  $effect(() => {
+    if (initialTab && activeTab !== initialTab) {
+      activeTab = initialTab
+    }
+  })
 </script>
 
 <div class="flex h-full flex-1 flex-col">
@@ -52,6 +60,16 @@
           onclick={() => (activeTab = 'indexing')}
         >
           Indexing
+        </button>
+        <button
+          class={`rounded-full px-4 py-2 text-sm font-medium transition ${
+            activeTab === 'updates'
+              ? 'bg-foreground text-background'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onclick={() => (activeTab = 'updates')}
+        >
+          Updates
         </button>
       </div>
 
@@ -117,10 +135,12 @@
             </div>
           </section>
         </div>
-      {:else}
+      {:else if activeTab === 'indexing'}
         <div class="rounded-xl border border-border bg-card p-6">
           <IndexingStatusPanel />
         </div>
+      {:else}
+        <UpdateSettingsPanel />
       {/if}
     </div>
   </div>

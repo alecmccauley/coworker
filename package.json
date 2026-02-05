@@ -19,6 +19,7 @@
     "db:studio": "pnpm --filter @coworker/shared-services db:studio",
     "build:shared": "pnpm --filter @coworker/shared-services build",
     "dist:mac": "pnpm --filter coworker-app build:mac",
+    "dist:set-updates-url": "tsx scripts/distribution/set-updates-url.ts",
     "lint:shared": "pnpm --filter @coworker/shared-services lint",
     "dist:upload:mac": "tsx scripts/distribution/upload-mac-dmgs.ts"
   },
