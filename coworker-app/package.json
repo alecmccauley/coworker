@@ -1,10 +1,10 @@
 {
   "name": "coworker-app",
-  "version": "1.0.0",
-  "description": "An Electron application with Svelte and TypeScript",
+  "version": "1.0.1",
+  "description": "Coworker App - Electron Desktop App",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "The Modern Company",
+  "homepage": "https://coworkers.2tm.ca/",
   "scripts": {
     "format": "prettier --plugin prettier-plugin-svelte --write .",
     "lint": "eslint --cache .",

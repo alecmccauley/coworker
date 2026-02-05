@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import type { CoworkerSdk } from "@coworker/shared-services";
 import { authStorage } from "./auth-storage";
-import { registerWorkspaceIpcHandlers } from "./workspace";
+import { openWorkspace, registerWorkspaceIpcHandlers } from "./workspace";
 import { registerCoworkerIpcHandlers } from "./coworker";
 import { registerChannelIpcHandlers } from "./channel";
 import { registerThreadIpcHandlers } from "./thread";
@@ -15,6 +15,9 @@ import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
 import { buildApplicationMenu, setChannelSettingsEnabled } from "./menu";
 
 let sdk: CoworkerSdk | null = null;
+let mainWindow: BrowserWindow | null = null;
+const pendingOpenPaths: string[] = [];
+const WORKSPACE_EXTENSION = ".cowork";
 
 const getSdk = async (): Promise<CoworkerSdk> => {
   if (sdk) return sdk;
@@ -145,9 +148,9 @@ const registerIpcHandlers = (): void => {
   );
 };
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   // Create the browser window with premium macOS-native styling
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
@@ -175,7 +178,10 @@ function createWindow(): void {
   });
 
   mainWindow.on("ready-to-show", () => {
-    mainWindow.show();
+    mainWindow?.show();
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -190,7 +196,58 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
+
+  return mainWindow;
 }
+
+function getPrimaryWindow(): BrowserWindow {
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused) return focused;
+  const existing = BrowserWindow.getAllWindows()[0];
+  if (existing) return existing;
+  return createWindow();
+}
+
+async function handleOpenWorkspacePath(
+  workspacePath: string,
+): Promise<void> {
+  if (!workspacePath.endsWith(WORKSPACE_EXTENSION)) {
+    console.warn(
+      "[Workspace] Ignoring open-file path without .cowork extension:",
+      workspacePath,
+    );
+    return;
+  }
+
+  const workspace = await openWorkspace(workspacePath);
+  const window = getPrimaryWindow();
+  window.webContents.send("menu:workspace:open", workspace);
+}
+
+async function flushPendingOpenPaths(): Promise<void> {
+  if (pendingOpenPaths.length === 0) return;
+  const paths = pendingOpenPaths.splice(0, pendingOpenPaths.length);
+  for (const path of paths) {
+    try {
+      await handleOpenWorkspacePath(path);
+    } catch (error) {
+      console.error("[Workspace] Failed to open from pending path:", error);
+    }
+  }
+}
+
+app.on("will-finish-launching", () => {
+  app.on("open-file", (event, path) => {
+    event.preventDefault();
+    if (app.isReady()) {
+      handleOpenWorkspacePath(path).catch((error) => {
+        console.error("[Workspace] Failed to open workspace:", error);
+      });
+      return;
+    }
+    pendingOpenPaths.push(path);
+  });
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -231,6 +288,9 @@ app.whenReady().then(() => {
   buildApplicationMenu();
 
   createWindow();
+  flushPendingOpenPaths().catch((error) => {
+    console.error("[Workspace] Failed to process pending open paths:", error);
+  });
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the

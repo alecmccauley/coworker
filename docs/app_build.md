@@ -81,6 +81,18 @@ dmg:
   sign: false
 ```
 
+### macOS Workspace Package Association
+
+The macOS build registers `.cowork` as a document package and file association:
+
+- Finder treats `.cowork` folders as a single file (`LSTypeIsPackage`)
+- Double-click opens Coworkers via Launch Services
+- UTI export: `com.works.myco.cowork`
+
+This is configured in `coworker-app/electron-builder.yml` via:
+- `fileAssociations` (extension, role, rank, `isPackage`)
+- `mac.extendInfo.UTExportedTypeDeclarations` (UTI + extension mapping)
+
 ### Build Resources
 
 Located in `coworker-app/build/`:

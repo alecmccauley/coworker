@@ -67,7 +67,7 @@ flowchart LR
 
 ## 2. Workspace bundle
 
-Workspaces are **folders** with the extension `.cowork`, treated as a single logical “workspace” (e.g. macOS can show them as a package). They are real directories on disk.
+Workspaces are **folders** with the extension `.cowork`, treated as a single logical “workspace” (e.g. macOS can show them as a package). They are real directories on disk. On macOS, Coworkers registers `.cowork` as a document package (`LSTypeIsPackage`) with a UTI so Finder treats it like a file and double-click opens the app.
 
 ### Folder layout
 

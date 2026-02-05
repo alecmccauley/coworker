@@ -12,6 +12,12 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+fileAssociations:
+  - ext: cowork
+    name: Coworker Workspace
+    role: Editor
+    rank: Owner
+    isPackage: true
 asarUnpack:
   - resources/**
   - "**/node_modules/better-sqlite3/**"
@@ -35,10 +41,19 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    UTExportedTypeDeclarations:
+      - UTTypeIdentifier: com.works.myco.cowork
+        UTTypeDescription: Coworker Workspace
+        UTTypeConformsTo:
+          - public.directory
+          - com.apple.package
+        UTTypeTagSpecification:
+          public.filename-extension:
+            - cowork
   notarize: true
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
