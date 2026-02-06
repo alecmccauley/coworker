@@ -218,6 +218,7 @@ Channel views now provide a full conversation experience:
 
 - Thread list on the left and conversation view on the right
 - Message list with user/co-worker styling
+- Markdown rendering for message content (sanitized, linkified)
 - Composer for sending messages as the user
 - Sources panel for thread-specific attachments (files, links, notes)
 
@@ -227,6 +228,7 @@ Primary components:
 - `src/renderer/src/components/message/MessageList.svelte`
 - `src/renderer/src/components/message/MessageInput.svelte`
 - `src/renderer/src/components/thread/ThreadSourcesPanel.svelte`
+- `src/renderer/src/lib/markdown.ts` — MarkdownIt + DOMPurify rendering utility
 
 ## Knowledge Management
 

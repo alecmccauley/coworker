@@ -1,5 +1,6 @@
 <script lang="ts">
   import { cn } from '$lib/utils.js'
+  import { renderMarkdown } from '$lib/markdown.js'
   import type { Message } from '$lib/types'
 
   interface Props {
@@ -15,6 +16,8 @@
     message.contentShort ??
       (message.contentRef ? 'Content stored in attachments.' : '')
   )
+
+  const contentHtml = $derived(renderMarkdown(content))
 
   const isStreaming = $derived(message.status === 'streaming')
 </script>
@@ -34,7 +37,18 @@
         Typing...
       </span>
     {:else}
-      {content || 'No message content yet.'}
+      {#if content}
+        <div
+          class={cn(
+            'markdown-content prose prose-sm max-w-none',
+            isOwn && 'prose-invert'
+          )}
+        >
+          {@html contentHtml}
+        </div>
+      {:else}
+        No message content yet.
+      {/if}
     {/if}
   </div>
 </div>

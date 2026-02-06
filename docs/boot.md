@@ -54,3 +54,4 @@ pnpm pm2:delete:all
 
 - If Docker is not running, start it and re-run `pnpm boot`.
 - If the database is slow to start, the script will warn and continue.
+- If you see a `better-sqlite3` Node ABI mismatch error, run `pnpm clean:better-sqlite3` (or `./scripts/clean-better-sqlite3.sh`) to clean native artifacts, reinstall, and rebuild.
