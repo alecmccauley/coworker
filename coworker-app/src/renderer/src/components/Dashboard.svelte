@@ -11,8 +11,6 @@
   import WelcomeView from './workspace/WelcomeView.svelte'
   import WorkspaceSettings from './workspace/WorkspaceSettings.svelte'
 
-  // Updates
-  import UpdatesDialog from './updates/UpdatesDialog.svelte'
 
   // Coworker components
   import CoworkerForm from './coworker/CoworkerForm.svelte'
@@ -36,9 +34,10 @@
   interface Props {
     user: AuthUser
     onLogout: () => void
+    onOpenUpdates: () => void
   }
 
-  let { user, onLogout }: Props = $props()
+  let { user, onLogout, onOpenUpdates }: Props = $props()
 
   // Animation states
   let mounted = $state(false)
@@ -71,8 +70,6 @@
 
   // Updates state
   let updateState = $state<UpdateState | null>(null)
-  let showUpdatesDialog = $state(false)
-
   // Dialog state
   let showCreateCoworkerDialog = $state(false)
   let showEditCoworkerForm = $state(false)
@@ -98,7 +95,6 @@
   let cleanupMenuWorkspaceSettings: (() => void) | null = null
   let cleanupMenuChannelsSettings: (() => void) | null = null
   let cleanupMenuWorkersSettings: (() => void) | null = null
-  let cleanupMenuUpdates: (() => void) | null = null
   let cleanupUpdatesListener: (() => void) | null = null
 
   $effect(() => {
@@ -139,9 +135,6 @@
       window.api.settings.onOpenChannelsSettings(handleMenuChannelsSettings)
     cleanupMenuWorkersSettings =
       window.api.settings.onOpenWorkersSettings(handleMenuWorkersSettings)
-    cleanupMenuUpdates = window.api.settings.onOpenUpdates(() => {
-      showUpdatesDialog = true
-    })
   })
 
   onDestroy(() => {
@@ -151,7 +144,6 @@
     cleanupMenuWorkspaceSettings?.()
     cleanupMenuChannelsSettings?.()
     cleanupMenuWorkersSettings?.()
-    cleanupMenuUpdates?.()
     cleanupUpdatesListener?.()
   })
 
@@ -359,7 +351,7 @@
   }
 
   function handleOpenUpdates(): void {
-    showUpdatesDialog = true
+    onOpenUpdates()
   }
 
   function handleOpenCreateChannel(): void {
@@ -671,4 +663,3 @@
 {/if}
 
 <!-- Updates Dialog -->
-<UpdatesDialog bind:open={showUpdatesDialog} />

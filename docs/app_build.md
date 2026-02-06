@@ -133,15 +133,15 @@ productName: Coworkers
 
 mac:
   category: public.app-category.productivity
+  artifactName: ${name}-${version}-mac.${ext}
+  x64ArchFiles: "**/node_modules/sqlite-vec-darwin-*/**"
   target:
     - target: dmg
       arch:
         - universal
-      artifactName: ${name}-${version}.${ext}
     - target: zip
       arch:
         - universal
-      artifactName: ${name}-${version}-mac.${ext}
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -149,6 +149,7 @@ mac:
   notarize: true
 
 dmg:
+  artifactName: ${name}-${version}.${ext}
   sign: false
 ```
 

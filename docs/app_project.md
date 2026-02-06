@@ -193,12 +193,15 @@ For full detail on how workspace data is stored (SQLite, Drizzle, event log, pro
 The app uses a native Electron application menu built in `src/main/menu/application-menu.ts`. Menu actions that affect the renderer (e.g. opening a workspace or a settings view) are implemented by the main process sending one-way IPC events; the preload script exposes listeners for these events, and the Dashboard subscribes and updates view state accordingly.
 
 - **File:** New Workspace, Open Workspace, Open Recent, Close Workspace (and platform-specific close/quit).
+- **App (macOS):** Check for Updates — opens the updates dialog from anywhere in the app, including before sign-in (the root App component listens for `menu:updates:open` and toggles the dialog).
 - **Settings:** Requires an open workspace; otherwise the commands have no effect.
   - **Workspace Settings** — Opens the workspace settings view (same as the sidebar settings icon).
   - **Channels Settings** — Switches to the channel view and opens the channel settings panel for the current (or first) channel. This item is **disabled** when no channel is selected (the renderer reports state to the main process so the menu can be updated).
   - **Coworker Settings** — Opens the Co-workers settings view (list of co-workers with add/edit/archive). Also reachable from the sidebar via “Co-workers settings” in the Co-workers section (below "+ Add Co-worker").
 
-The Settings menu is placed after View and before Window. Listeners are exposed under `window.api.settings` (`onOpenWorkspaceSettings`, `onOpenChannelsSettings`, `onOpenWorkersSettings`). The renderer calls `setChannelSettingsEnabled(enabled)` so the main process can enable or disable the Channels Settings item.
+The Settings menu is placed after View and before Window. Listeners are exposed under `window.api.settings` (`onOpenWorkspaceSettings`, `onOpenChannelsSettings`, `onOpenWorkersSettings`, `onOpenUpdates`). The renderer calls `setChannelSettingsEnabled(enabled)` so the main process can enable or disable the Channels Settings item.
+
+The pre-auth screens (welcome splash and sign-in flow) surface a compact “Update available” pill when an update is available or downloaded. The pill is managed at the root App level so it is visible before login and opens the same updates dialog as the menu item.
 
 ## Post-auth layout (AppShell)
 
