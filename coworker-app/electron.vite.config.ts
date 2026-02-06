@@ -15,7 +15,7 @@ export default defineConfig({
     },
     plugins: [
       externalizeDepsPlugin({
-        exclude: ["mammoth", "jszip", "pako", "pdf.js-extract"],
+        exclude: ["mammoth", "jszip", "pako"],
       }),
     ],
     define: {

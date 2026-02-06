@@ -11,6 +11,9 @@
   import WelcomeView from './workspace/WelcomeView.svelte'
   import WorkspaceSettings from './workspace/WorkspaceSettings.svelte'
 
+  // Updates
+  import UpdatesDialog from './updates/UpdatesDialog.svelte'
+
   // Coworker components
   import CoworkerForm from './coworker/CoworkerForm.svelte'
   import CreateCoworkerDialog from './coworker/CreateCoworkerDialog.svelte'
@@ -65,10 +68,10 @@
   let currentView = $state<ViewType>('channel')
   let selectedCoworkerId = $state<string | null>(null)
   let openChannelSettingsPanel = $state(false)
-  let workspaceSettingsTab = $state<'overview' | 'indexing' | 'updates'>('overview')
 
   // Updates state
   let updateState = $state<UpdateState | null>(null)
+  let showUpdatesDialog = $state(false)
 
   // Dialog state
   let showCreateCoworkerDialog = $state(false)
@@ -95,6 +98,7 @@
   let cleanupMenuWorkspaceSettings: (() => void) | null = null
   let cleanupMenuChannelsSettings: (() => void) | null = null
   let cleanupMenuWorkersSettings: (() => void) | null = null
+  let cleanupMenuUpdates: (() => void) | null = null
   let cleanupUpdatesListener: (() => void) | null = null
 
   $effect(() => {
@@ -135,6 +139,9 @@
       window.api.settings.onOpenChannelsSettings(handleMenuChannelsSettings)
     cleanupMenuWorkersSettings =
       window.api.settings.onOpenWorkersSettings(handleMenuWorkersSettings)
+    cleanupMenuUpdates = window.api.settings.onOpenUpdates(() => {
+      showUpdatesDialog = true
+    })
   })
 
   onDestroy(() => {
@@ -144,6 +151,7 @@
     cleanupMenuWorkspaceSettings?.()
     cleanupMenuChannelsSettings?.()
     cleanupMenuWorkersSettings?.()
+    cleanupMenuUpdates?.()
     cleanupUpdatesListener?.()
   })
 
@@ -315,7 +323,6 @@
   }
 
   function handleOpenWorkspaceSettings(): void {
-    workspaceSettingsTab = 'overview'
     currentView = 'workspace-settings'
     selectedCoworkerId = null
     selectedChannel = null
@@ -352,11 +359,7 @@
   }
 
   function handleOpenUpdates(): void {
-    if (!currentWorkspace) return
-    workspaceSettingsTab = 'updates'
-    currentView = 'workspace-settings'
-    selectedCoworkerId = null
-    selectedChannel = null
+    showUpdatesDialog = true
   }
 
   function handleOpenCreateChannel(): void {
@@ -470,7 +473,7 @@
         class="pointer-events-none absolute -bottom-8 right-0 whitespace-nowrap rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm opacity-0 transition-opacity duration-200 group-hover:opacity-100"
         aria-hidden="true"
       >
-        Open update settings
+        Open updates
       </span>
     </button>
   {/if}
@@ -572,7 +575,6 @@
               <WorkspaceSettings
                 workspace={currentWorkspace}
                 onBack={handleBackFromSettings}
-                initialTab={workspaceSettingsTab}
               />
             {:else if currentView === 'workers-settings'}
               <WorkersSettings
@@ -667,3 +669,6 @@
     onCoworkerCreated={handleFRECoworkerCreated}
   />
 {/if}
+
+<!-- Updates Dialog -->
+<UpdatesDialog bind:open={showUpdatesDialog} />

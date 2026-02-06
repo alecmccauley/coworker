@@ -21,6 +21,7 @@ fileAssociations:
 asarUnpack:
   - resources/**
   - "**/node_modules/better-sqlite3/**"
+  - "**/node_modules/pdf.js-extract/**"
   - "**/*.node"
 win:
   executableName: coworkers

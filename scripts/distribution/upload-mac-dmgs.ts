@@ -26,6 +26,20 @@ type ReleaseManifest = {
   releases: ReleaseEntry[]
 }
 
+type LatestMacFileEntry = {
+  url: string
+  sha512: string
+  size: number
+}
+
+type LatestMacManifest = {
+  version: string
+  files: LatestMacFileEntry[]
+  path: string
+  sha512: string
+  releaseDate: string
+}
+
 type PutResult = {
   url: string
 }
@@ -106,19 +120,162 @@ const resolveMacZip = (
   arch: "arm64" | "x64",
 ): { name: string; path: string } => {
   const zips = listDistFiles().filter((file) => file.endsWith(".zip"))
-  const candidates = zips.filter((file) => file.includes(arch))
-  const matches = candidates.filter((file) => file.includes(version))
+  const versionMatches = zips.filter((file) => file.includes(version))
+  const archMatches = (files: string[]): string[] =>
+    files.filter((file) => file.includes(arch))
+  const isGenericMacZip = (file: string): boolean =>
+    file.endsWith("-mac.zip") &&
+    !file.includes("arm64") &&
+    !file.includes("universal") &&
+    !file.includes("x64")
+
+  const archCandidates = archMatches(zips)
+  const versionedArchCandidates = archMatches(versionMatches)
+  const genericMacCandidates =
+    arch === "x64" ? zips.filter(isGenericMacZip) : []
+  const versionedGenericMacCandidates =
+    arch === "x64" ? versionMatches.filter(isGenericMacZip) : []
+
+  const matches =
+    versionedArchCandidates.length > 0
+      ? versionedArchCandidates
+      : versionedGenericMacCandidates
 
   if (matches.length === 1) {
     return { name: matches[0], path: path.join(distDir, matches[0]) }
   }
-  if (candidates.length === 1) {
-    return { name: candidates[0], path: path.join(distDir, candidates[0]) }
+
+  const fallbackCandidates =
+    archCandidates.length > 0 ? archCandidates : genericMacCandidates
+
+  if (fallbackCandidates.length === 1) {
+    return {
+      name: fallbackCandidates[0],
+      path: path.join(distDir, fallbackCandidates[0]),
+    }
   }
 
   throw new Error(
-    `Missing ${arch} ZIP for version ${version}. Found: ${candidates.join(", ") || "none"}`,
+    `Missing ${arch} ZIP for version ${version}. Found: ${
+      fallbackCandidates.join(", ") || "none"
+    }`,
   )
+}
+
+const stripQuotes = (value: string): string => {
+  const trimmed = value.trim()
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith("\"") && trimmed.endsWith("\""))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+const parseLatestMacYml = (
+  raw: string,
+  source: string,
+): LatestMacManifest => {
+  const lines = raw.split(/\r?\n/)
+  let version = ""
+  let pathValue = ""
+  let sha512Value = ""
+  let releaseDate = ""
+  const files: LatestMacFileEntry[] = []
+
+  let index = 0
+  const nextLine = (): string | null => {
+    if (index >= lines.length) return null
+    const line = lines[index]
+    index += 1
+    return line
+  }
+
+  let line = nextLine()
+  while (line !== null) {
+    if (line.startsWith("version:")) {
+      version = stripQuotes(line.split(":").slice(1).join(":"))
+    } else if (line.startsWith("files:")) {
+      let fileLine = nextLine()
+      while (fileLine !== null && fileLine.startsWith("  -")) {
+        const urlMatch = fileLine.match(/^\s*-\s+url:\s*(.+)\s*$/)
+        if (!urlMatch) {
+          throw new Error(`Invalid files entry in ${source}: ${fileLine}`)
+        }
+        const url = stripQuotes(urlMatch[1])
+        const shaLine = nextLine()
+        const sizeLine = nextLine()
+        if (!shaLine || !sizeLine) {
+          throw new Error(`Incomplete files entry in ${source}`)
+        }
+        const shaMatch = shaLine.match(/^\s*sha512:\s*(.+)\s*$/)
+        const sizeMatch = sizeLine.match(/^\s*size:\s*(\d+)\s*$/)
+        if (!shaMatch || !sizeMatch) {
+          throw new Error(`Invalid files entry in ${source}: ${url}`)
+        }
+        files.push({
+          url,
+          sha512: stripQuotes(shaMatch[1]),
+          size: Number(sizeMatch[1]),
+        })
+        fileLine = nextLine()
+      }
+      line = fileLine
+      continue
+    } else if (line.startsWith("path:")) {
+      pathValue = stripQuotes(line.split(":").slice(1).join(":"))
+    } else if (line.startsWith("sha512:")) {
+      sha512Value = stripQuotes(line.split(":").slice(1).join(":"))
+    } else if (line.startsWith("releaseDate:")) {
+      releaseDate = stripQuotes(line.split(":").slice(1).join(":"))
+    }
+    line = nextLine()
+  }
+
+  if (!version || !pathValue || !sha512Value || !releaseDate || files.length === 0) {
+    throw new Error(`Invalid latest-mac.yml in ${source}`)
+  }
+
+  return {
+    version,
+    files,
+    path: pathValue,
+    sha512: sha512Value,
+    releaseDate,
+  }
+}
+
+const serializeLatestMacYml = (manifest: LatestMacManifest): string => {
+  const file = manifest.files[0]
+  return [
+    `version: ${manifest.version}`,
+    `files:`,
+    `  - url: ${file.url}`,
+    `    sha512: ${file.sha512}`,
+    `    size: ${file.size}`,
+    `path: ${manifest.path}`,
+    `sha512: ${manifest.sha512}`,
+    `releaseDate: '${manifest.releaseDate}'`,
+    "",
+  ].join("\n")
+}
+
+const buildLatestMacYml = (filePath: string, zipName: string): string => {
+  const raw = readFileSync(filePath, "utf-8")
+  const manifest = parseLatestMacYml(raw, filePath)
+  const zipEntry = manifest.files.find((file) => file.url === zipName)
+  if (!zipEntry) {
+    const urls = manifest.files.map((file) => file.url).join(", ") || "none"
+    throw new Error(`latest-mac.yml missing ${zipName}. Found: ${urls}`)
+  }
+
+  return serializeLatestMacYml({
+    ...manifest,
+    files: [zipEntry],
+    path: zipEntry.url,
+    sha512: zipEntry.sha512,
+  })
 }
 
 const resolveBlockmap = (zipName: string): { name: string; path: string } => {
@@ -146,6 +303,9 @@ const zipArm = resolveMacZip("arm64")
 const zipX64 = resolveMacZip("x64")
 const blockmapArm = resolveBlockmap(zipArm.name)
 const blockmapX64 = resolveBlockmap(zipX64.name)
+const latestArmBody = buildLatestMacYml(latestArm.path, zipArm.name)
+const latestX64Body = buildLatestMacYml(latestX64.path, zipX64.name)
+const latestBlobName = "latest-mac.yml"
 
 const updatesBase = `updates/macos/stable`
 
@@ -166,13 +326,13 @@ const [armDmgResult, x64DmgResult] = (await Promise.all([
 
 const [armLatestResult, x64LatestResult, armZipResult, x64ZipResult, armBlockmapResult, x64BlockmapResult] =
   (await Promise.all([
-    put(`${updatesBase}/arm64/${latestArm.name}`, createReadStream(latestArm.path), {
+    put(`${updatesBase}/arm64/${latestBlobName}`, latestArmBody, {
       access: "public",
       contentType: "text/yaml",
       addRandomSuffix: false,
       allowOverwrite: true,
     }),
-    put(`${updatesBase}/x64/${latestX64.name}`, createReadStream(latestX64.path), {
+    put(`${updatesBase}/x64/${latestBlobName}`, latestX64Body, {
       access: "public",
       contentType: "text/yaml",
       addRandomSuffix: false,

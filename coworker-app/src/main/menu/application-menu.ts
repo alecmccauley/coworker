@@ -41,6 +41,11 @@ function buildMenuTemplate(): MenuItemConstructorOptions[] {
       submenu: [
         { role: "about" },
         { type: "separator" },
+        {
+          label: "Check for Updates...",
+          click: handleCheckForUpdates,
+        },
+        { type: "separator" },
         { role: "services" },
         { type: "separator" },
         { role: "hide" },
@@ -296,6 +301,16 @@ async function handleCloseWorkspace(): Promise<void> {
 function handleClearRecentWorkspaces(): void {
   clearRecentWorkspaces();
   buildApplicationMenu(); // Rebuild menu to update recent list
+}
+
+/**
+ * Handle Check for Updates menu item
+ */
+function handleCheckForUpdates(): void {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    window.webContents.send("menu:updates:open");
+  }
 }
 
 /**

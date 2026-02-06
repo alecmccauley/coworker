@@ -1,6 +1,6 @@
 {
   "name": "coworker-app",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Coworker App - Electron Desktop App",
   "main": "./out/main/index.js",
   "author": "The Modern Company",

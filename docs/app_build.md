@@ -52,9 +52,9 @@ Build output location: `coworker-app/dist/`
 - `coworker-app-1.0.0-arm64.dmg` — macOS installer (Apple Silicon)
 - `coworker-app-1.0.0-x64.dmg` — macOS installer (Intel)
 - `Coworkers-1.0.0-mac-arm64.zip` — OTA update payload (Apple Silicon)
-- `Coworkers-1.0.0-mac-x64.zip` — OTA update payload (Intel)
+- `Coworkers-1.0.0-mac-x64.zip` or `Coworkers-1.0.0-mac.zip` — OTA update payload (Intel)
 - `Coworkers-1.0.0-mac-arm64.zip.blockmap` — OTA differential updates (Apple Silicon)
-- `Coworkers-1.0.0-mac-x64.zip.blockmap` — OTA differential updates (Intel)
+- `Coworkers-1.0.0-mac-x64.zip.blockmap` or `Coworkers-1.0.0-mac.zip.blockmap` — OTA differential updates (Intel)
 - `latest-mac-arm64.yml` — OTA update metadata (Apple Silicon)
 - `latest-mac-x64.yml` — OTA update metadata (Intel)
 
@@ -89,8 +89,9 @@ This command:
   - `/updates/macos/stable/arm64/<version>-mac-arm64.zip`
   - `/updates/macos/stable/arm64/<version>-mac-arm64.zip.blockmap`
   - `/updates/macos/stable/x64/latest-mac.yml`
-  - `/updates/macos/stable/x64/<version>-mac-x64.zip`
-  - `/updates/macos/stable/x64/<version>-mac-x64.zip.blockmap`
+  - `/updates/macos/stable/x64/<version>-mac-x64.zip` or `/updates/macos/stable/x64/<version>-mac.zip`
+  - `/updates/macos/stable/x64/<version>-mac-x64.zip.blockmap` or `/updates/macos/stable/x64/<version>-mac.zip.blockmap`
+- Normalizes each local `latest-mac-<arch>.yml` so it only references the arch-specific ZIP in its `files` list, then uploads it as `latest-mac.yml`.
 - Updates `/downloads/releases.json` with:
   - `latest` version
   - release `date` (UTC)
@@ -466,9 +467,9 @@ coworker-app/
     ├── Coworkers-1.0.0-arm64.dmg
     ├── Coworkers-1.0.0-x64.dmg
     ├── Coworkers-1.0.0-mac-arm64.zip
-    ├── Coworkers-1.0.0-mac-x64.zip
+    ├── Coworkers-1.0.0-mac-x64.zip (or Coworkers-1.0.0-mac.zip)
     ├── Coworkers-1.0.0-mac-arm64.zip.blockmap
-    ├── Coworkers-1.0.0-mac-x64.zip.blockmap
+    ├── Coworkers-1.0.0-mac-x64.zip.blockmap (or Coworkers-1.0.0-mac.zip.blockmap)
     ├── latest-mac-arm64.yml
     └── latest-mac-x64.yml
 ```
