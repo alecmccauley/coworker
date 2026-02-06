@@ -8,15 +8,15 @@
   let isDownloading = $state(false)
   let autoDownload = $state(true)
 
-  const statusLabel = $derived(() => {
-    if (!updateState) return 'Checking for updates...'
-    switch (updateState.status) {
+  function getStatusLabel(state: UpdateState | null): string {
+    if (!state) return 'Checking for updates...'
+    switch (state.status) {
       case 'idle':
         return 'Ready to check for updates.'
       case 'checking':
         return 'Checking for updates...'
       case 'available':
-        return `Update ${updateState.availableVersion ?? ''} available.`.trim()
+        return `Update ${state.availableVersion ?? ''} available.`.trim()
       case 'not-available':
         return 'You are up to date.'
       case 'downloading':
@@ -24,11 +24,13 @@
       case 'downloaded':
         return 'Update ready to install.'
       case 'error':
-        return updateState.error || 'Update failed.'
+        return state.error || 'Update failed.'
       default:
         return 'Update status unknown.'
     }
-  })
+  }
+
+  const statusLabel = $derived(getStatusLabel(updateState))
 
   let unsubscribe: (() => void) | null = null
 
@@ -75,10 +77,10 @@
   }
 
   const isUpdateAvailable = $derived(
-    () => updateState?.status === 'available' || updateState?.status === 'downloading'
+    updateState?.status === 'available' || updateState?.status === 'downloading'
   )
-  const isUpdateDownloaded = $derived(() => updateState?.status === 'downloaded')
-  const progressPercent = $derived(() => updateState?.progress?.percent ?? 0)
+  const isUpdateDownloaded = $derived(updateState?.status === 'downloaded')
+  const progressPercent = $derived(updateState?.progress?.percent ?? 0)
 </script>
 
 <section class="space-y-6">

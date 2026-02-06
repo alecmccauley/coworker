@@ -16,10 +16,15 @@
   let { workspace, onBack, initialTab = 'overview' }: Props = $props()
 
   let activeTab = $state<'overview' | 'indexing' | 'updates'>(initialTab)
+  let lastInitialTab = $state(initialTab)
 
+  // Only sync activeTab when the parent passes a new initialTab (e.g. opening via "Updates" menu).
+  // Do not overwrite user's in-component tab choice when they click Indexing/Updates.
   $effect(() => {
-    if (initialTab && activeTab !== initialTab) {
-      activeTab = initialTab
+    const it = initialTab
+    if (it !== lastInitialTab) {
+      lastInitialTab = it
+      activeTab = it
     }
   })
 </script>
