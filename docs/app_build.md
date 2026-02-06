@@ -34,7 +34,18 @@ pnpm build:shared
 pnpm --filter coworker-app build:mac
 ```
 
-`build:mac` runs both arm64 and x64 builds sequentially.
+`build:mac` runs a single app build, then packages arm64 and x64 sequentially.
+
+If you only need packaging for a specific arch after a build, run:
+
+```bash
+# Build once
+pnpm --filter coworker-app build:prod
+
+# Package per-arch
+pnpm --filter coworker-app package:mac:arm64
+pnpm --filter coworker-app package:mac:x64
+```
 
 Build output location: `coworker-app/dist/`
 
@@ -87,7 +98,7 @@ This command:
 
 ### Auto-setting Update Feed URL
 
-`build:mac` now runs a helper script that derives the Blob public base URL and writes
+The macOS packaging steps run a helper script that derives the Blob public base URL and writes
 `COWORKER_UPDATES_URL` into `coworker-app/.env.production` for each arch before packaging:
 
 ```bash
@@ -319,7 +330,7 @@ APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
 APPLE_TEAM_ID=84D9A6MA23
 ```
 
-3. **Build** — credentials are loaded automatically:
+3. **Build** — credentials must be available in the environment (or `.env.production`):
 
 ```bash
 pnpm build:shared
@@ -328,10 +339,10 @@ pnpm --filter coworker-app build:mac
 
 ### How It Works
 
-- The `build:mac` script uses `dotenv-cli` to load `.env` before running electron-builder
+- The macOS packaging scripts use `dotenv-cli` to load `.env.production` before running electron-builder
 - Credentials are passed to Apple's notarization service during the build
 - The notarization ticket is "stapled" to the app, so it works offline
-- `.env` is in `.gitignore` and never committed
+- `.env`/`.env.production` are in `.gitignore` and never committed
 
 ### Verification
 
