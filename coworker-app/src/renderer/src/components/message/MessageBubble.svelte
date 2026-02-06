@@ -15,6 +15,8 @@
     message.contentShort ??
       (message.contentRef ? 'Content stored in attachments.' : '')
   )
+
+  const isStreaming = $derived(message.status === 'streaming')
 </script>
 
 <div class={cn('flex flex-col gap-1', isOwn ? 'items-end' : 'items-start')}>
@@ -27,6 +29,12 @@
       !isOwn && !highlight && 'border-border bg-card text-foreground'
     )}
   >
-    {content || 'No message content yet.'}
+    {#if isStreaming && !content}
+      <span class="text-xs uppercase tracking-wide text-muted-foreground">
+        Typing...
+      </span>
+    {:else}
+      {content || 'No message content yet.'}
+    {/if}
   </div>
 </div>

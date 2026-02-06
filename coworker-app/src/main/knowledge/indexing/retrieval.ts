@@ -49,6 +49,7 @@ export async function searchKnowledgeSources(
   const limit = params.limit ?? 8;
 
   const scopeFilter = buildScopeFilter(params.scopeType, params.scopeId);
+  const ftsQuery = buildFtsQuery(params.query);
 
   const ftsSql = `
     SELECT
@@ -67,17 +68,30 @@ export async function searchKnowledgeSources(
     LIMIT ?
   `;
 
-  const ftsRows = sqlite.prepare(ftsSql).all(
-    params.query,
-    workspace.manifest.id,
-    ...scopeFilter.params,
-    limit,
-  ) as Array<{
+  let ftsRows: Array<{
     sourceId: string;
     chunkId: string;
     text: string;
     score: number;
-  }>;
+  }> = [];
+
+  if (ftsQuery) {
+    try {
+      ftsRows = sqlite.prepare(ftsSql).all(
+        ftsQuery,
+        workspace.manifest.id,
+        ...scopeFilter.params,
+        limit,
+      ) as Array<{
+        sourceId: string;
+        chunkId: string;
+        text: string;
+        score: number;
+      }>;
+    } catch {
+      ftsRows = [];
+    }
+  }
 
   const vecRows = fetchVectorMatches(
     sqlite,
@@ -299,4 +313,20 @@ function buildScopeFilter(
     };
   }
   return { clause: "AND knowledge_sources.scope_type = ?", params: [scopeType] };
+}
+
+function buildFtsQuery(query: string): string | null {
+  const tokens = query
+    .replace(/["'`]/g, " ")
+    .replace(/[^a-zA-Z0-9\\s_-]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const escaped = tokens.map((token) => `"${token.replace(/"/g, '""')}"`);
+  return escaped.join(" OR ");
 }

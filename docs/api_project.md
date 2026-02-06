@@ -222,6 +222,8 @@ Some endpoints are designed for server-to-server automation and must be protecte
 
 - `MACHINE_KEY` — shared secret required for machine-key protected routes
 - `PROMOTE_USER` — email address used by `/api/v1/promote` to bootstrap the first admin user
+- `AI_GATEWAY_API_KEY` — Vercel AI Gateway API key used by `/api/v1/chat` (AI streaming)
+- `AI_MODEL` — optional override for the default chat model (e.g. `openai/gpt-4.1`)
 
 ### Header Contract
 
@@ -395,6 +397,12 @@ POST   /api/v1/users          # Create user
 GET    /api/v1/users/:id      # Get user by ID
 PATCH  /api/v1/users/:id      # Update user
 DELETE /api/v1/users/:id      # Delete user
+```
+
+### Chat (Protected)
+
+```
+POST /api/v1/chat  # Stream AI responses for thread conversations
 ```
 
 ## Adding a New API Endpoint

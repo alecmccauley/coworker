@@ -124,6 +124,38 @@ Key paths:
 
 This keeps network access and secrets out of the renderer, while preserving end-to-end type safety.
 
+### AI Chat Streaming
+
+We support a streaming chat pipeline for thread conversations:
+
+- Renderer calls `window.api.chat.sendMessage()`.
+- Main process gathers RAG context from local workspace sources, composes the system prompt, and streams via the SDK.
+- API route `/api/v1/chat` proxies to the model provider and returns a streaming response.
+- Renderer updates message content incrementally from IPC events.
+- Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
+
+#### Data Flow (RAG in Main Process)
+
+```mermaid
+sequenceDiagram
+  participant Renderer
+  participant Preload
+  participant Main
+  participant API as coworker-pilot
+  participant Model
+
+  Renderer->>Preload: window.api.chat.sendMessage()
+  Preload->>Main: chat:sendMessage
+  Main->>Main: searchKnowledgeSources (local RAG)
+  Main->>Main: buildSystemPrompt + Context (Untrusted)
+  Main->>API: POST /api/v1/chat
+  API->>Model: streamText()
+  Model-->>API: data stream
+  API-->>Main: streaming response
+  Main-->>Preload: chat:chunk/chat:complete
+  Preload-->>Renderer: update UI
+```
+
 ## Type Safety and Contracts
 
 - All request/response validation uses Zod schemas from `shared-services`.

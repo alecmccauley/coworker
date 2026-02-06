@@ -231,6 +231,71 @@ export class ApiClient {
   }
 
   /**
+   * POST request that returns a raw streaming response
+   */
+  async postStream(
+    path: string,
+    body?: unknown,
+    options?: { signal?: AbortSignal },
+  ): Promise<Response> {
+    const url = this.buildUrl(path);
+
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: options?.signal,
+      });
+
+      // Handle 401 with token refresh (only once to prevent loops)
+      if (response.status === 401 && this.onTokenExpired && !this.isRefreshing) {
+        this.isRefreshing = true;
+        try {
+          const newToken = await this.onTokenExpired();
+          if (newToken) {
+            const retryHeaders = await this.getHeaders(newToken);
+            const retryResponse = await fetch(url, {
+              method: "POST",
+              headers: retryHeaders,
+              body: body ? JSON.stringify(body) : undefined,
+              signal: options?.signal,
+            });
+            this.isRefreshing = false;
+
+            if (!retryResponse.ok) {
+              await this.handleResponse<unknown>(retryResponse);
+            }
+            return retryResponse;
+          }
+        } catch {
+          // Refresh failed, continue with original 401 response
+        }
+        this.isRefreshing = false;
+      }
+
+      if (!response.ok) {
+        await this.handleResponse<unknown>(response);
+      }
+
+      return response;
+    } catch (error) {
+      if (error instanceof SdkError) {
+        throw error;
+      }
+
+      if (error instanceof TypeError) {
+        throw new NetworkSdkError("Failed to connect to the server");
+      }
+
+      throw new NetworkSdkError(
+        error instanceof Error ? error.message : "Unknown network error",
+      );
+    }
+  }
+
+  /**
    * POST request without authentication (for auth endpoints)
    */
   async postPublic<T>(path: string, body?: unknown): Promise<T> {

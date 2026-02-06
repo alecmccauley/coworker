@@ -2,7 +2,14 @@
   import PanelRightOpenIcon from '@lucide/svelte/icons/panel-right-open'
   import PanelRightCloseIcon from '@lucide/svelte/icons/panel-right-close'
   import { Button } from '$lib/components/ui/button'
-  import type { Coworker, Message, Thread } from '$lib/types'
+  import type {
+    ChatChunkPayload,
+    ChatCompletePayload,
+    ChatErrorPayload,
+    Coworker,
+    Message,
+    Thread
+  } from '$lib/types'
   import MessageList from '../message/MessageList.svelte'
   import MessageInput from '../message/MessageInput.svelte'
   import ThreadSourcesPanel from './ThreadSourcesPanel.svelte'
@@ -19,9 +26,51 @@
   let isLoading = $state(false)
   let error = $state<string | null>(null)
   let isSourcesOpen = $state(false)
+  let streamingMessageId = $state<string | null>(null)
 
   $effect(() => {
     void loadMessages()
+  })
+
+  $effect(() => {
+    const cleanupChunk = window.api.chat.onChunk((payload: ChatChunkPayload) => {
+      messages = messages.map((message) =>
+        message.id === payload.messageId
+          ? { ...message, contentShort: payload.fullContent, status: 'streaming' }
+          : message
+      )
+    })
+
+    const cleanupComplete = window.api.chat.onComplete(
+      (payload: ChatCompletePayload) => {
+        messages = messages.map((message) =>
+          message.id === payload.messageId
+            ? { ...message, contentShort: payload.content, status: 'complete' }
+            : message
+        )
+        if (streamingMessageId === payload.messageId) {
+          streamingMessageId = null
+        }
+      }
+    )
+
+    const cleanupError = window.api.chat.onError((payload: ChatErrorPayload) => {
+      messages = messages.map((message) =>
+        message.id === payload.messageId
+          ? { ...message, status: 'error' }
+          : message
+      )
+      if (streamingMessageId === payload.messageId) {
+        streamingMessageId = null
+      }
+      error = payload.error
+    })
+
+    return () => {
+      cleanupChunk()
+      cleanupComplete()
+      cleanupError()
+    }
   })
 
   async function loadMessages(): Promise<void> {
@@ -41,13 +90,9 @@
 
   async function handleSend(input: { content: string }): Promise<void> {
     try {
-      const message = await window.api.message.create({
-        threadId: thread.id,
-        authorType: 'user',
-        contentShort: input.content,
-        status: 'complete'
-      })
-      messages = [...messages, message]
+      const result = await window.api.chat.sendMessage(thread.id, input.content)
+      messages = [...messages, result.userMessage, result.assistantMessage]
+      streamingMessageId = result.assistantMessage.id
     } catch (err) {
       console.error('Failed to send message:', err)
       error = 'Something went wrong while sending. Please try again.'
@@ -96,7 +141,7 @@
     {/if}
 
     <MessageList {messages} {coworkers} isLoading={isLoading} />
-    <MessageInput onSend={handleSend} />
+    <MessageInput onSend={handleSend} disabled={streamingMessageId !== null} />
   </div>
 
   <ThreadSourcesPanel

@@ -302,6 +302,23 @@ export interface SourceTextResult {
   selectedChunkIds: string[];
 }
 
+// Chat streaming types
+export interface ChatChunkPayload {
+  messageId: string;
+  text: string;
+  fullContent: string;
+}
+
+export interface ChatCompletePayload {
+  messageId: string;
+  content: string;
+}
+
+export interface ChatErrorPayload {
+  messageId: string;
+  error: string;
+}
+
 // Blob types
 export interface Blob {
   id: string;
@@ -678,6 +695,45 @@ const api = {
   templates: {
     list: () =>
       ipcRenderer.invoke("templates:list") as Promise<CoworkerTemplatePublic[]>,
+  },
+  chat: {
+    sendMessage: (threadId: string, content: string) =>
+      ipcRenderer.invoke(
+        "chat:sendMessage",
+        threadId,
+        content,
+      ) as Promise<{ userMessage: Message; assistantMessage: Message }>,
+    cancelMessage: (messageId: string) =>
+      ipcRenderer.invoke("chat:cancelMessage", messageId) as Promise<void>,
+    onChunk: (handler: (payload: ChatChunkPayload) => void): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as ChatChunkPayload);
+      };
+      ipcRenderer.on("chat:chunk", listener);
+      return () => {
+        ipcRenderer.removeListener("chat:chunk", listener);
+      };
+    },
+    onComplete: (
+      handler: (payload: ChatCompletePayload) => void,
+    ): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as ChatCompletePayload);
+      };
+      ipcRenderer.on("chat:complete", listener);
+      return () => {
+        ipcRenderer.removeListener("chat:complete", listener);
+      };
+    },
+    onError: (handler: (payload: ChatErrorPayload) => void): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as ChatErrorPayload);
+      };
+      ipcRenderer.on("chat:error", listener);
+      return () => {
+        ipcRenderer.removeListener("chat:error", listener);
+      };
+    },
   },
 };
 
