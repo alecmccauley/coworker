@@ -14,10 +14,7 @@ type ReleaseManifest = {
     version: string
     date: string
     files: {
-      arm64?: {
-        url: string
-      }
-      x64?: {
+      mac?: {
         url: string
       }
     }
@@ -25,8 +22,7 @@ type ReleaseManifest = {
 }
 
 type DownloadUrls = {
-  apple?: string
-  intel?: string
+  mac?: string
 }
 
 const getLatestDownloadUrls = async (): Promise<DownloadUrls> => {
@@ -46,8 +42,7 @@ const getLatestDownloadUrls = async (): Promise<DownloadUrls> => {
     if (!latest?.files) return {}
 
     return {
-      apple: latest.files.arm64?.url,
-      intel: latest.files.x64?.url,
+      mac: latest.files.mac?.url,
     }
   } catch {
     return {}
@@ -55,17 +50,17 @@ const getLatestDownloadUrls = async (): Promise<DownloadUrls> => {
 }
 
 export default async function LandingPage() {
-  const { apple, intel } = await getLatestDownloadUrls()
+  const { mac } = await getLatestDownloadUrls()
 
   return (
     <main className="min-h-screen bg-background">
-      <LandingNav downloadUrlApple={apple} />
-      <HeroSection downloadUrlApple={apple} downloadUrlIntel={intel} />
+      <LandingNav downloadUrlMac={mac} />
+      <HeroSection downloadUrlMac={mac} />
       <ProblemSection />
       <SolutionSection />
       <ConceptsSection />
       <BenefitsSection />
-      <FinalCtaSection downloadUrlApple={apple} downloadUrlIntel={intel} />
+      <FinalCtaSection downloadUrlMac={mac} />
     </main>
   )
 }

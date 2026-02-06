@@ -1227,9 +1227,8 @@ pnpm --filter coworker-app build:mac
 pnpm --filter coworker-app build:win
 pnpm --filter coworker-app build:linux
 
-# Package macOS per-arch after a build
-pnpm --filter coworker-app package:mac:arm64
-pnpm --filter coworker-app package:mac:x64
+# Package macOS universal after a build
+pnpm --filter coworker-app package:mac
 ```
 
 ### Scripts Reference
@@ -1246,9 +1245,8 @@ pnpm --filter coworker-app package:mac:x64
 | `lint` | Run ESLint |
 | `format` | Format code with Prettier |
 | `typecheck` | Run TypeScript checks |
-| `build:mac` | Build macOS application (single build + dual-arch packaging) |
-| `package:mac:arm64` | Package macOS arm64 from existing build |
-| `package:mac:x64` | Package macOS x64 from existing build |
+| `build:mac` | Build macOS application (single build + universal packaging) |
+| `package:mac` | Package macOS universal from existing build |
 | `build:win` | Build Windows application |
 | `build:linux` | Build Linux application |
 

@@ -13,8 +13,8 @@ We keep all project scripts in the `scripts/` folder. Each script should feel li
 
 ## Distribution Scripts
 
-- `pnpm dist:upload:mac` uploads the macOS DMGs in `coworker-app/dist/` to Vercel
-  Blob, uploads OTA update artifacts, and updates the public
+- `pnpm dist:upload:mac` uploads the macOS universal DMG in `coworker-app/dist/`
+  to Vercel Blob, uploads OTA update artifacts, and updates the public
   `downloads/releases.json` manifest used by the Pilot landing page.
 
 ## Using `common.sh`

@@ -41,13 +41,6 @@ const getBlobBaseUrl = async (): Promise<string> => {
   return new URL(blob.url).origin;
 };
 
-const resolveArch = (): "arm64" | "x64" => {
-  const raw = process.argv.find((arg) => arg === "arm64" || arg === "x64");
-  if (raw === "arm64" || raw === "x64") return raw;
-  throw new Error(
-    "Missing arch argument. Use: pnpm dist:set-updates-url -- arm64|x64",
-  );
-};
 
 const setEnvValue = (contents: string, key: string, value: string): string => {
   const lines = contents.split(/\r?\n/);
@@ -68,8 +61,7 @@ const setEnvValue = (contents: string, key: string, value: string): string => {
 
 const main = async (): Promise<void> => {
   const baseUrl = await getBlobBaseUrl();
-  const arch = resolveArch();
-  const updatesUrl = `${baseUrl}/updates/macos/stable/${arch}`;
+  const updatesUrl = `${baseUrl}/updates/macos/stable`;
 
   const envRaw = readFileSync(envPath, "utf-8");
   const updated = setEnvValue(envRaw, "COWORKER_UPDATES_URL", updatesUrl);

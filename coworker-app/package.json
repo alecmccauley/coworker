@@ -27,11 +27,8 @@
     "postinstall": "electron-builder install-app-deps && npm run rebuild",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "dotenv -e .env.production -- npm run build && electron-builder --win",
-    "package:mac:arm64": "pnpm -w dist:set-updates-url -- arm64 && dotenv -e .env.production -- electron-builder --mac --arm64 && pnpm -w dist:rename-latest-mac-yml -- arm64",
-    "package:mac:x64": "pnpm -w dist:set-updates-url -- x64 && dotenv -e .env.production -- electron-builder --mac --x64 && pnpm -w dist:rename-latest-mac-yml -- x64",
-    "build:mac:arm64": "pnpm --filter coworker-app build:prod && pnpm --filter coworker-app package:mac:arm64",
-    "build:mac:x64": "pnpm --filter coworker-app build:prod && pnpm --filter coworker-app package:mac:x64",
-    "build:mac": "pnpm -w build:shared && pnpm --filter coworker-app build:prod && pnpm --filter coworker-app package:mac:arm64 && pnpm --filter coworker-app package:mac:x64",
+    "package:mac": "pnpm -w dist:set-updates-url && dotenv -e .env.production -- electron-builder --mac",
+    "build:mac": "rm -rf ./dist && pnpm -w build:shared && pnpm --filter coworker-app build:prod && pnpm --filter coworker-app package:mac",
     "build:mac:dev": "dotenv -e .env -- npm run build && dotenv -e .env -- electron-builder --mac",
     "build:linux": "dotenv -e .env.production -- npm run build && electron-builder --linux"
   },
