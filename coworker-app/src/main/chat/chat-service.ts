@@ -361,7 +361,10 @@ export async function gatherRagContext(
     { scopeType: "workspace" },
     { scopeType: "channel", scopeId: channelId },
     { scopeType: "thread", scopeId: threadId },
-    ...coworkerIds.map((id) => ({ scopeType: "coworker", scopeId: id })),
+    ...coworkerIds.map((id) => ({
+      scopeType: "coworker" as const,
+      scopeId: id,
+    })),
   ];
 
   const scopedResults = await Promise.all(
