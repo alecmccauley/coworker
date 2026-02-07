@@ -253,6 +253,8 @@ Channel views now provide a full conversation experience:
 - Composer for sending messages as the user
 - Sources panel for thread-specific attachments (files, links, notes)
 - First message auto-names new conversations via AI tool call
+- Co-worker replies are orchestrated and streamed as separate coworker messages
+- Activity updates appear in the thread header and inside streaming coworker bubbles
 - Manual rename available from the thread header and thread list menu (title required)
 
 Primary components:

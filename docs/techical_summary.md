@@ -129,10 +129,10 @@ This keeps network access and secrets out of the renderer, while preserving end-
 We support a streaming chat pipeline for thread conversations:
 
 - Renderer calls `window.api.chat.sendMessage()`.
-- Main process gathers RAG context from local workspace sources, composes the system prompt, and streams via the SDK.
-- API route `/api/v1/chat` proxies to the model provider and returns a streaming response.
-- Renderer updates message content incrementally from IPC events.
-- The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render inside the streaming assistant bubble.
+- Main process gathers RAG context from local workspace sources, composes the orchestrator system prompt, and streams via the SDK.
+- API route `/api/v1/chat` runs a tool-orchestrated loop that selects coworkers and generates each reply via subordinate calls.
+- Renderer updates coworker messages incrementally from IPC events.
+- The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.
 - Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
 
 #### Data Flow (RAG in Main Process)
@@ -148,12 +148,12 @@ sequenceDiagram
   Renderer->>Preload: window.api.chat.sendMessage()
   Preload->>Main: chat:sendMessage
   Main->>Main: searchKnowledgeSources (local RAG)
-  Main->>Main: buildSystemPrompt + Context (Untrusted)
+  Main->>Main: buildOrchestratorSystemPrompt + Context (Untrusted)
   Main->>API: POST /api/v1/chat
-  API->>Model: streamText()
-  Model-->>API: data stream
+  API->>Model: streamText() tool loop
+  Model-->>API: tool calls + data stream
   API-->>Main: streaming response
-  Main-->>Preload: chat:chunk/chat:status/chat:complete
+  Main-->>Preload: chat:messageCreated/chat:chunk/chat:status/chat:complete
   Preload-->>Renderer: update UI
 ```
 

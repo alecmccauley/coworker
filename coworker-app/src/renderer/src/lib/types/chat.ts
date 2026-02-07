@@ -1,3 +1,5 @@
+import type { Message } from "./message";
+
 export interface ChatChunkPayload {
   messageId: string;
   text: string;
@@ -15,7 +17,13 @@ export interface ChatErrorPayload {
 }
 
 export interface ChatStatusPayload {
-  messageId: string;
+  threadId: string;
+  messageId?: string;
   label: string;
   phase?: "streaming" | "done" | "error";
+}
+
+export interface ChatMessageCreatedPayload {
+  threadId: string;
+  message: Message;
 }

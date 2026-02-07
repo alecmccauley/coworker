@@ -7,6 +7,7 @@
     ChatChunkPayload,
     ChatCompletePayload,
     ChatErrorPayload,
+    ChatMessageCreatedPayload,
     ChatStatusPayload,
     Coworker,
     Message,
@@ -30,8 +31,19 @@
   let isLoading = $state(false)
   let error = $state<string | null>(null)
   let isSourcesOpen = $state(false)
-  let streamingMessageId = $state<string | null>(null)
+  let streamingMessageIds = $state<string[]>([])
+  let threadActivityLabel = $state<string | null>(null)
   let activityByMessageId = $state<Record<string, string>>({})
+
+  function addStreamingMessage(id: string): void {
+    if (!streamingMessageIds.includes(id)) {
+      streamingMessageIds = [...streamingMessageIds, id]
+    }
+  }
+
+  function removeStreamingMessage(id: string): void {
+    streamingMessageIds = streamingMessageIds.filter((item) => item !== id)
+  }
 
   function setActivity(messageId: string, label: string): void {
     activityByMessageId = { ...activityByMessageId, [messageId]: label }
@@ -48,6 +60,18 @@
   })
 
   $effect(() => {
+    const cleanupCreated = window.api.chat.onMessageCreated(
+      (payload: ChatMessageCreatedPayload) => {
+        if (payload.threadId !== thread?.id) return
+        if (!messages.find((message) => message.id === payload.message.id)) {
+          messages = [...messages, payload.message]
+        }
+        if (payload.message.status === 'streaming') {
+          addStreamingMessage(payload.message.id)
+        }
+      }
+    )
+
     const cleanupChunk = window.api.chat.onChunk((payload: ChatChunkPayload) => {
       messages = messages.map((message) =>
         message.id === payload.messageId
@@ -63,10 +87,8 @@
             ? { ...message, contentShort: payload.content, status: 'complete' }
             : message
         )
+        removeStreamingMessage(payload.messageId)
         clearActivity(payload.messageId)
-        if (streamingMessageId === payload.messageId) {
-          streamingMessageId = null
-        }
       }
     )
 
@@ -76,26 +98,29 @@
           ? { ...message, status: 'error' }
           : message
       )
+      removeStreamingMessage(payload.messageId)
       clearActivity(payload.messageId)
-      if (streamingMessageId === payload.messageId) {
-        streamingMessageId = null
-      }
       error = payload.error
     })
 
     const cleanupStatus = window.api.chat.onStatus(
       (payload: ChatStatusPayload) => {
+        if (payload.threadId !== thread?.id) return
         if (payload.phase === 'done' || payload.phase === 'error') {
-          clearActivity(payload.messageId)
+          threadActivityLabel = null
           return
         }
-        if (payload.label) {
+        if (!payload.label) return
+        if (payload.messageId) {
           setActivity(payload.messageId, payload.label)
+          return
         }
+        threadActivityLabel = payload.label
       }
     )
 
     return () => {
+      cleanupCreated()
       cleanupChunk()
       cleanupComplete()
       cleanupError()
@@ -108,6 +133,8 @@
     isLoading = true
     error = null
     messages = []
+    streamingMessageIds = []
+    threadActivityLabel = null
     activityByMessageId = {}
     try {
       messages = await window.api.message.list(thread.id)
@@ -122,8 +149,7 @@
   async function handleSend(input: { content: string }): Promise<void> {
     try {
       const result = await window.api.chat.sendMessage(thread.id, input.content)
-      messages = [...messages, result.userMessage, result.assistantMessage]
-      streamingMessageId = result.assistantMessage.id
+      messages = [...messages, result.userMessage]
     } catch (err) {
       console.error('Failed to send message:', err)
       error = 'Something went wrong while sending. Please try again.'
@@ -141,6 +167,11 @@
         <h3 class="font-serif text-xl font-medium text-foreground">
           {thread.title || 'Untitled conversation'}
         </h3>
+        {#if threadActivityLabel}
+          <p class="mt-1 text-xs text-muted-foreground">
+            {threadActivityLabel}
+          </p>
+        {/if}
       </div>
       <div class="flex items-center gap-2">
         <Button
@@ -191,7 +222,7 @@
       onSend={handleSend}
       coworkers={channelCoworkers}
       channelId={thread.channelId}
-      disabled={streamingMessageId !== null}
+      disabled={streamingMessageIds.length > 0}
     />
   </div>
 

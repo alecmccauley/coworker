@@ -1,17 +1,21 @@
 import { ipcMain, type WebContents } from "electron";
-import type { ChatCompletionRequest, CoworkerSdk } from "@coworker/shared-services";
+import type {
+  ChatCompletionRequest,
+  CoworkerSdk,
+} from "@coworker/shared-services";
 import {
   createMessage,
   updateMessage,
   getThreadMessageCount,
 } from "../message";
 import {
-  buildSystemPrompt,
+  buildOrchestratorSystemPrompt,
   convertThreadToChatMessages,
+  extractMentionedCoworkerIds,
   gatherRagContext,
   getThreadContext,
-  getCoworkerContext,
-  resolvePrimaryCoworker,
+  mapCoworkerToContext,
+  normalizeMentionsForLlm,
 } from "./chat-service";
 import { listChannelCoworkers } from "../channel";
 import { updateThread } from "../thread";
@@ -33,14 +37,20 @@ interface ChatErrorPayload {
 }
 
 interface ChatStatusPayload {
-  messageId: string;
+  threadId: string;
+  messageId?: string;
   label: string;
   phase?: "streaming" | "done" | "error";
 }
 
+interface ChatMessageCreatedPayload {
+  threadId: string;
+  message: Awaited<ReturnType<typeof createMessage>>;
+}
+
 interface SendMessageResult {
   userMessage: Awaited<ReturnType<typeof createMessage>>;
-  assistantMessage: Awaited<ReturnType<typeof createMessage>>;
+  responseId: string;
 }
 
 const activeStreams = new Map<string, AbortController>();
@@ -92,6 +102,62 @@ function normalizeStatusLabel(label: string): string {
     return "";
   }
   return trimmed.length > 120 ? trimmed.slice(0, 120).trim() : trimmed;
+}
+
+function extractCoworkerIdFromInputText(inputText: string): string {
+  const trimmed = inputText.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as { coworkerId?: unknown };
+    if (parsed && typeof parsed.coworkerId === "string") {
+      return parsed.coworkerId;
+    }
+  } catch {
+    // Best-effort parsing for partial JSON.
+  }
+
+  const quotedMatch = /"coworkerId"\s*:\s*"([^"]+)"/.exec(trimmed);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  return trimmed
+    .replace(/[{}[\]]/g, "")
+    .replace(/\"/g, "")
+    .replace(/\s*coworkerId\s*:\s*/i, "")
+    .replace(/,$/, "")
+    .trim();
+}
+
+function extractContentFromInputText(inputText: string): string {
+  const trimmed = inputText.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as { content?: unknown };
+    if (parsed && typeof parsed.content === "string") {
+      return parsed.content;
+    }
+  } catch {
+    // Best-effort parsing for partial JSON.
+  }
+
+  const quotedMatch = /"content"\s*:\s*"([^"]*)/s.exec(trimmed);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  return trimmed
+    .replace(/[{}[\]]/g, "")
+    .replace(/\"/g, "")
+    .replace(/\s*content\s*:\s*/i, "")
+    .replace(/,$/, "")
+    .trim();
 }
 
 function extractTitleFromInputText(inputText: string): string {
@@ -158,8 +224,7 @@ async function streamChatResponse(
   sender: WebContents,
   threadId: string,
   content: string,
-  assistantMessageId: string,
-  coworkerId: string | null,
+  responseId: string,
   shouldAutoTitle: boolean,
 ): Promise<void> {
   if (!getSdk) {
@@ -167,22 +232,32 @@ async function streamChatResponse(
   }
 
   const controller = new AbortController();
-  activeStreams.set(assistantMessageId, controller);
+  activeStreams.set(responseId, controller);
 
-  let fullContent = "";
-  let pending = "";
-  let lastPersist = Date.now();
   let statusClosed = false;
   const statusBuffers = new Map<string, string>();
   const titleBuffers = new Map<string, string>();
   let titleApplied = false;
+  const coworkerBuffers = new Map<
+    string,
+    {
+      rawInput: string;
+      coworkerId?: string;
+      messageId?: string;
+      content: string;
+      lastPersist: number;
+    }
+  >();
+  const responseMessageByCoworker = new Map<string, string>();
+  let activeMessageId: string | null = null;
 
   const emitStatus = (label: string, phase: ChatStatusPayload["phase"]): void => {
     if (statusClosed) {
       return;
     }
     safeSend<ChatStatusPayload>(sender, "chat:status", {
-      messageId: assistantMessageId,
+      threadId,
+      messageId: activeMessageId ?? undefined,
       label,
       phase,
     });
@@ -201,19 +276,40 @@ async function streamChatResponse(
 
   try {
     const threadContext = await getThreadContext(threadId);
-    const coworker = await getCoworkerContext(coworkerId);
-    const systemPrompt = buildSystemPrompt({
-      ...threadContext,
-      coworker,
-      autoTitle: shouldAutoTitle,
-    });
-
     const channelCoworkers = await listChannelCoworkers(
       threadContext.channelId,
     );
+    if (channelCoworkers.length === 0) {
+      const systemMessage = await createMessage({
+        threadId,
+        authorType: "system",
+        contentShort:
+          "No co-workers are assigned to this channel yet. Add one to start collaborating.",
+        status: "complete",
+      });
+      safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+        threadId,
+        message: systemMessage,
+      });
+      finalizeStatus("done");
+      return;
+    }
+
+    emitStatus("Selecting co-workers...", "streaming");
+
+    const normalizedContent = normalizeMentionsForLlm(content);
+    const maxCoworkerResponses = 3;
+    const systemPrompt = buildOrchestratorSystemPrompt(
+      threadContext,
+      maxCoworkerResponses,
+      shouldAutoTitle,
+    );
     const coworkerIds = channelCoworkers.map((coworker) => coworker.id);
+    const coworkerNameById = new Map(
+      channelCoworkers.map((coworker) => [coworker.id, coworker.name]),
+    );
     const ragContext = await gatherRagContext(
-      content,
+      normalizedContent,
       threadId,
       threadContext.channelId,
       coworkerIds,
@@ -221,13 +317,18 @@ async function streamChatResponse(
     const priorMessages = await convertThreadToChatMessages(threadId);
     const messages = [
       ...priorMessages,
-      { role: "user", content },
+      { role: "user", content: normalizedContent },
     ] as ChatCompletionRequest["messages"];
+    const mentionedCoworkerIds = extractMentionedCoworkerIds(content);
 
     const request: ChatCompletionRequest = {
       messages,
       systemPrompt,
       ragContext,
+      threadContext,
+      channelCoworkers: channelCoworkers.map(mapCoworkerToContext),
+      mentionedCoworkerIds,
+      maxCoworkerResponses,
     };
 
     const stream = (await getSdk()).chat.stream(request, {
@@ -236,33 +337,21 @@ async function streamChatResponse(
 
     for await (const event of stream) {
       if (event.type === "chunk") {
-        fullContent += event.text;
-        pending += event.text;
-        safeSend<ChatChunkPayload>(sender, "chat:chunk", {
-          messageId: assistantMessageId,
-          text: event.text,
-          fullContent,
-        });
-
-        const shouldPersist =
-          Date.now() - lastPersist >= 250 || pending.length >= 50;
-        if (shouldPersist) {
-          await persistStreamingContent(
-            assistantMessageId,
-            fullContent,
-            "streaming",
-          );
-          pending = "";
-          lastPersist = Date.now();
-        }
+        continue;
       }
 
-      if (event.type === "tool-input-start" && event.toolName === "report_status") {
+      if (
+        event.type === "tool-input-start" &&
+        event.toolName === "report_status"
+      ) {
         statusBuffers.set(event.toolCallId, "");
         continue;
       }
 
-      if (event.type === "tool-input-delta" && event.toolName === "report_status") {
+      if (
+        event.type === "tool-input-delta" &&
+        event.toolName === "report_status"
+      ) {
         const existing = statusBuffers.get(event.toolCallId) ?? "";
         const next = `${existing}${event.inputTextDelta}`;
         statusBuffers.set(event.toolCallId, next);
@@ -345,42 +434,297 @@ async function streamChatResponse(
         continue;
       }
 
+      if (
+        event.type === "tool-input-start" &&
+        event.toolName === "generate_coworker_response"
+      ) {
+        coworkerBuffers.set(event.toolCallId, {
+          rawInput: "",
+          content: "",
+          lastPersist: Date.now(),
+        });
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-delta" &&
+        event.toolName === "generate_coworker_response"
+      ) {
+        const existing =
+          coworkerBuffers.get(event.toolCallId) ?? {
+            rawInput: "",
+            content: "",
+            lastPersist: Date.now(),
+          };
+        const nextInput = `${existing.rawInput}${event.inputTextDelta}`;
+        const coworkerId =
+          existing.coworkerId || extractCoworkerIdFromInputText(nextInput);
+        const updated = {
+          ...existing,
+          rawInput: nextInput,
+          coworkerId: coworkerId || existing.coworkerId,
+        };
+        coworkerBuffers.set(event.toolCallId, updated);
+
+        if (updated.coworkerId && !responseMessageByCoworker.has(updated.coworkerId)) {
+          const created = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: updated.coworkerId,
+            contentShort: "",
+            status: "streaming",
+          });
+          responseMessageByCoworker.set(updated.coworkerId, created.id);
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: created,
+          });
+          const name = coworkerNameById.get(updated.coworkerId);
+          if (name) {
+            safeSend<ChatStatusPayload>(sender, "chat:status", {
+              threadId,
+              messageId: created.id,
+              label: `${name} is thinking...`,
+              phase: "streaming",
+            });
+          }
+        }
+
+        if (updated.coworkerId) {
+          activeMessageId = responseMessageByCoworker.get(updated.coworkerId) ?? null;
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "generate_coworker_response"
+      ) {
+        const existing = coworkerBuffers.get(event.toolCallId);
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { coworkerId?: unknown })
+            : null;
+        const coworkerId =
+          (input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : existing?.coworkerId) ?? "";
+        if (existing?.coworkerId) {
+          activeMessageId = responseMessageByCoworker.get(existing.coworkerId) ?? null;
+        }
+        if (coworkerId) {
+          activeMessageId = responseMessageByCoworker.get(coworkerId) ?? null;
+          const name = coworkerNameById.get(coworkerId);
+          if (name) {
+            emitStatus(`${name} is responding...`, "streaming");
+          }
+        }
+        coworkerBuffers.delete(event.toolCallId);
+        continue;
+      }
+
+      if (
+        event.type === "tool-output-available" &&
+        event.toolName === "generate_coworker_response"
+      ) {
+        const output =
+          event.output && typeof event.output === "object"
+            ? (event.output as { coworkerId?: unknown })
+            : null;
+        const coworkerId =
+          output?.coworkerId && typeof output.coworkerId === "string"
+            ? output.coworkerId
+            : "";
+        if (coworkerId) {
+          activeMessageId = responseMessageByCoworker.get(coworkerId) ?? null;
+          const name = coworkerNameById.get(coworkerId);
+          if (name) {
+            emitStatus(`${name} is responding...`, "streaming");
+          }
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-start" &&
+        event.toolName === "emit_coworker_message"
+      ) {
+        coworkerBuffers.set(event.toolCallId, {
+          rawInput: "",
+          content: "",
+          lastPersist: Date.now(),
+        });
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-delta" &&
+        event.toolName === "emit_coworker_message"
+      ) {
+        const existing =
+          coworkerBuffers.get(event.toolCallId) ?? {
+            rawInput: "",
+            content: "",
+            lastPersist: Date.now(),
+          };
+        const nextInput = `${existing.rawInput}${event.inputTextDelta}`;
+        const coworkerId =
+          existing.coworkerId || extractCoworkerIdFromInputText(nextInput);
+        const contentValue = extractContentFromInputText(nextInput);
+        const previousContent = existing.content;
+        const updated = {
+          ...existing,
+          rawInput: nextInput,
+          coworkerId: coworkerId || existing.coworkerId,
+          content: contentValue || existing.content,
+        };
+        coworkerBuffers.set(event.toolCallId, updated);
+
+        if (updated.coworkerId) {
+          activeMessageId =
+            responseMessageByCoworker.get(updated.coworkerId) ??
+            updated.messageId ??
+            null;
+        }
+
+        if (!updated.messageId && updated.coworkerId) {
+          const existingMessageId = responseMessageByCoworker.get(
+            updated.coworkerId,
+          );
+          if (existingMessageId) {
+            updated.messageId = existingMessageId;
+            coworkerBuffers.set(event.toolCallId, updated);
+          }
+        }
+
+        if (!updated.messageId && updated.coworkerId) {
+          const created = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: updated.coworkerId,
+            contentShort: updated.content,
+            status: "streaming",
+          });
+          updated.messageId = created.id;
+          coworkerBuffers.set(event.toolCallId, updated);
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: created,
+          });
+          const name = coworkerNameById.get(updated.coworkerId);
+          if (name) {
+            safeSend<ChatStatusPayload>(sender, "chat:status", {
+              threadId,
+              messageId: created.id,
+              label: `${name} is thinking...`,
+              phase: "streaming",
+            });
+          }
+        }
+
+        if (updated.messageId && updated.content) {
+          const delta =
+            updated.content.startsWith(previousContent)
+              ? updated.content.slice(previousContent.length)
+              : "";
+          safeSend<ChatChunkPayload>(sender, "chat:chunk", {
+            messageId: updated.messageId,
+            text: delta,
+            fullContent: updated.content,
+          });
+
+          const shouldPersist =
+            Date.now() - updated.lastPersist >= 250 ||
+            updated.content.length >= 50;
+          if (shouldPersist) {
+            await persistStreamingContent(
+              updated.messageId,
+              updated.content,
+              "streaming",
+            );
+            updated.lastPersist = Date.now();
+            coworkerBuffers.set(event.toolCallId, updated);
+          }
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "emit_coworker_message"
+      ) {
+        const existing = coworkerBuffers.get(event.toolCallId);
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { coworkerId?: unknown; content?: unknown })
+            : null;
+        const coworkerId =
+          (input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : existing?.coworkerId) ?? "";
+        const contentValue =
+          (input?.content && typeof input.content === "string"
+            ? input.content
+            : existing?.content) ?? "";
+
+        let messageId = existing?.messageId;
+        if (!messageId && coworkerId) {
+          const existingMessageId = responseMessageByCoworker.get(coworkerId);
+          if (existingMessageId) {
+            messageId = existingMessageId;
+          }
+        }
+
+        if (!messageId && coworkerId) {
+          const created = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: coworkerId,
+            contentShort: contentValue,
+            status: "streaming",
+          });
+          messageId = created.id;
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: created,
+          });
+        }
+
+        if (messageId) {
+          await persistStreamingContent(messageId, contentValue, "complete");
+          safeSend<ChatCompletePayload>(sender, "chat:complete", {
+            messageId,
+            content: contentValue,
+          });
+        }
+        coworkerBuffers.delete(event.toolCallId);
+        continue;
+      }
+
       if (event.type === "done") {
         finalizeStatus("done");
-        await persistStreamingContent(
-          assistantMessageId,
-          fullContent,
-          "complete",
-        );
-        safeSend<ChatCompletePayload>(sender, "chat:complete", {
-          messageId: assistantMessageId,
-          content: fullContent,
-        });
         return;
       }
     }
-
-    await persistStreamingContent(
-      assistantMessageId,
-      fullContent,
-      "complete",
-    );
-    finalizeStatus("done");
-    safeSend<ChatCompletePayload>(sender, "chat:complete", {
-      messageId: assistantMessageId,
-      content: fullContent,
-    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to stream response";
-    await persistStreamingContent(assistantMessageId, fullContent, "error");
+    for (const buffer of coworkerBuffers.values()) {
+      if (buffer.messageId) {
+        await persistStreamingContent(buffer.messageId, buffer.content, "error");
+        safeSend<ChatErrorPayload>(sender, "chat:error", {
+          messageId: buffer.messageId,
+          error: controller.signal.aborted ? "Message canceled" : message,
+        });
+      }
+    }
     finalizeStatus("error");
     safeSend<ChatErrorPayload>(sender, "chat:error", {
-      messageId: assistantMessageId,
+      messageId: responseId,
       error: controller.signal.aborted ? "Message canceled" : message,
     });
   } finally {
-    activeStreams.delete(assistantMessageId);
+    activeStreams.delete(responseId);
   }
 }
 
@@ -398,9 +742,6 @@ export function registerChatIpcHandlers(): void {
       const isDefaultTitle =
         normalizedTitle.length === 0 || normalizedTitle === "New conversation";
       const shouldAutoTitle = messageCount === 0 && isDefaultTitle;
-      const primaryCoworker = await resolvePrimaryCoworker(
-        threadContext.channelId,
-      );
 
       const userMessage = await createMessage({
         threadId,
@@ -409,31 +750,22 @@ export function registerChatIpcHandlers(): void {
         status: "complete",
       });
 
-      const assistantMessage = await createMessage({
-        threadId,
-        authorType: "coworker",
-        authorId: primaryCoworker?.id,
-        contentShort: "",
-        status: "streaming",
-      });
-
       void streamChatResponse(
         event.sender,
         threadId,
         content,
-        assistantMessage.id,
-        primaryCoworker?.id ?? null,
+        userMessage.id,
         shouldAutoTitle,
       );
 
-      return { userMessage, assistantMessage };
+      return { userMessage, responseId: userMessage.id };
     },
   );
 
   ipcMain.handle(
     "chat:cancelMessage",
-    async (_event, messageId: string): Promise<void> => {
-      const controller = activeStreams.get(messageId);
+    async (_event, responseId: string): Promise<void> => {
+      const controller = activeStreams.get(responseId);
       if (!controller) {
         return;
       }

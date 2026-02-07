@@ -717,9 +717,20 @@ const api = {
         "chat:sendMessage",
         threadId,
         content,
-      ) as Promise<{ userMessage: Message; assistantMessage: Message }>,
+      ) as Promise<{ userMessage: Message; responseId: string }>,
     cancelMessage: (messageId: string) =>
       ipcRenderer.invoke("chat:cancelMessage", messageId) as Promise<void>,
+    onMessageCreated: (
+      handler: (payload: { threadId: string; message: Message }) => void,
+    ): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as { threadId: string; message: Message });
+      };
+      ipcRenderer.on("chat:messageCreated", listener);
+      return () => {
+        ipcRenderer.removeListener("chat:messageCreated", listener);
+      };
+    },
     onChunk: (handler: (payload: ChatChunkPayload) => void): (() => void) => {
       const listener = (_event: unknown, payload: unknown): void => {
         handler(payload as ChatChunkPayload);
