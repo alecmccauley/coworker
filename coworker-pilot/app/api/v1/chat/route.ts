@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { streamText } from "ai";
+import { z } from "zod";
 import {
   chatCompletionRequestSchema,
   type ChatCompletionRequest,
@@ -15,8 +16,18 @@ export const dynamic = "force-dynamic";
 const DEFAULT_MODEL = "openai/gpt-4.1";
 
 function buildContextBlock(request: ChatCompletionRequest): string {
+  const activityInstruction = [
+    "Use report_status to share short, user-safe activity updates (no internal reasoning).",
+    "Never reveal chain-of-thought or internal reasoning.",
+    "Keep labels concise and conversational.",
+  ].join("\n");
+
+  const systemPrompt = [request.systemPrompt.trim(), "", activityInstruction].join(
+    "\n",
+  );
+
   if (!request.ragContext || request.ragContext.length === 0) {
-    return request.systemPrompt.trim();
+    return systemPrompt;
   }
 
   const contextLines = request.ragContext.map((item) => {
@@ -26,12 +37,7 @@ function buildContextBlock(request: ChatCompletionRequest): string {
     return `[${scopeLabel}] ${item.sourceName}\n${item.text}`;
   });
 
-  return [
-    request.systemPrompt.trim(),
-    "",
-    "Context (Untrusted):",
-    ...contextLines,
-  ].join("\n");
+  return [systemPrompt, "", "Context (Untrusted):", ...contextLines].join("\n");
 }
 
 async function handlePost(
@@ -64,6 +70,16 @@ async function handlePost(
       ],
       temperature: data.temperature ?? 0.2,
       maxTokens: data.maxTokens,
+      tools: {
+        report_status: {
+          description:
+            "Share short, user-safe activity updates during generation. Do not reveal internal reasoning.",
+          inputSchema: z.object({
+            label: z.string().min(1).max(120),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+      },
     });
 
     return aiResult.toUIMessageStreamResponse() as NextResponse;

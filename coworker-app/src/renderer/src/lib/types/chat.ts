@@ -13,3 +13,9 @@ export interface ChatErrorPayload {
   messageId: string;
   error: string;
 }
+
+export interface ChatStatusPayload {
+  messageId: string;
+  label: string;
+  phase?: "streaming" | "done" | "error";
+}

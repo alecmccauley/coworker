@@ -319,6 +319,12 @@ export interface ChatErrorPayload {
   error: string;
 }
 
+export interface ChatStatusPayload {
+  messageId: string;
+  label: string;
+  phase?: "streaming" | "done" | "error";
+}
+
 // Blob types
 export interface Blob {
   id: string;
@@ -732,6 +738,17 @@ const api = {
       ipcRenderer.on("chat:error", listener);
       return () => {
         ipcRenderer.removeListener("chat:error", listener);
+      };
+    },
+    onStatus: (
+      handler: (payload: ChatStatusPayload) => void,
+    ): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as ChatStatusPayload);
+      };
+      ipcRenderer.on("chat:status", listener);
+      return () => {
+        ipcRenderer.removeListener("chat:status", listener);
       };
     },
   },

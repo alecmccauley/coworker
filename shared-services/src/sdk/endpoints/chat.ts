@@ -14,7 +14,40 @@ export interface ChatStreamDone {
   finishReason?: string;
 }
 
-export type ChatStreamEvent = ChatStreamChunk | ChatStreamDone;
+export interface ChatStreamToolInputStart {
+  type: "tool-input-start";
+  toolCallId: string;
+  toolName: string;
+}
+
+export interface ChatStreamToolInputDelta {
+  type: "tool-input-delta";
+  toolCallId: string;
+  toolName: string;
+  inputTextDelta: string;
+}
+
+export interface ChatStreamToolInputAvailable {
+  type: "tool-input-available";
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+}
+
+export interface ChatStreamToolOutputAvailable {
+  type: "tool-output-available";
+  toolCallId: string;
+  toolName: string;
+  output: unknown;
+}
+
+export type ChatStreamEvent =
+  | ChatStreamChunk
+  | ChatStreamDone
+  | ChatStreamToolInputStart
+  | ChatStreamToolInputDelta
+  | ChatStreamToolInputAvailable
+  | ChatStreamToolOutputAvailable;
 
 /**
  * Chat endpoint for streaming AI responses
@@ -69,22 +102,27 @@ export class ChatEndpoint {
           continue;
         }
 
-        if (
-          typeof payload === "object" &&
-          payload &&
-          "type" in payload &&
-          (payload as { type: string }).type === "text-delta"
-        ) {
-          const delta =
-            "delta" in payload && typeof (payload as { delta: string }).delta === "string"
-              ? (payload as { delta: string }).delta
-              : "textDelta" in payload && typeof (payload as { textDelta: string }).textDelta === "string"
-                ? (payload as { textDelta: string }).textDelta
-                : "";
-          if (delta) {
-            yield { type: "chunk", text: delta };
+        if (typeof payload === "object" && payload && "type" in payload) {
+          const payloadType = (payload as { type: string }).type;
+
+          if (payloadType === "text-start" || payloadType === "text-end") {
+            continue;
           }
-          continue;
+
+          if (payloadType === "text-delta" || payloadType === "text") {
+            const delta =
+              "delta" in payload && typeof (payload as { delta: string }).delta === "string"
+                ? (payload as { delta: string }).delta
+                : "textDelta" in payload && typeof (payload as { textDelta: string }).textDelta === "string"
+                  ? (payload as { textDelta: string }).textDelta
+                  : "text" in payload && typeof (payload as { text: string }).text === "string"
+                    ? (payload as { text: string }).text
+                    : "";
+            if (delta) {
+              yield { type: "chunk", text: delta };
+            }
+            continue;
+          }
         }
 
         if (
@@ -115,6 +153,77 @@ export class ChatEndpoint {
                 ? (payload as { error: string }).error
                 : "AI stream error";
           throw new ServerSdkError(errorMessage, response.status);
+        }
+
+        if (typeof payload === "object" && payload && "type" in payload) {
+          const payloadType = (payload as { type: string }).type;
+          const toolCallId =
+            "toolCallId" in payload && typeof (payload as { toolCallId: string }).toolCallId === "string"
+              ? (payload as { toolCallId: string }).toolCallId
+              : null;
+          const toolName =
+            "toolName" in payload && typeof (payload as { toolName: string }).toolName === "string"
+              ? (payload as { toolName: string }).toolName
+              : null;
+
+          if (
+            (payloadType === "tool-input-start" || payloadType === "tool-call-streaming-start") &&
+            toolCallId &&
+            toolName
+          ) {
+            yield { type: "tool-input-start", toolCallId, toolName };
+            continue;
+          }
+
+          if (
+            (payloadType === "tool-input-delta" || payloadType === "tool-call-delta") &&
+            toolCallId &&
+            toolName
+          ) {
+            const inputTextDelta =
+              "inputTextDelta" in payload &&
+              typeof (payload as { inputTextDelta: string }).inputTextDelta === "string"
+                ? (payload as { inputTextDelta: string }).inputTextDelta
+                : "argsTextDelta" in payload &&
+                  typeof (payload as { argsTextDelta: string }).argsTextDelta === "string"
+                  ? (payload as { argsTextDelta: string }).argsTextDelta
+                : "";
+            if (inputTextDelta) {
+              yield {
+                type: "tool-input-delta",
+                toolCallId,
+                toolName,
+                inputTextDelta,
+              };
+            }
+            continue;
+          }
+
+          if (payloadType === "tool-input-available" && toolCallId && toolName) {
+            const input = "input" in payload ? (payload as { input: unknown }).input : undefined;
+            yield {
+              type: "tool-input-available",
+              toolCallId,
+              toolName,
+              input,
+            };
+            continue;
+          }
+
+          if (
+            (payloadType === "tool-output-available" || payloadType === "tool-result") &&
+            toolCallId &&
+            toolName
+          ) {
+            const output = "output" in payload ? (payload as { output: unknown }).output : undefined;
+            yield {
+              type: "tool-output-available",
+              toolCallId,
+              toolName,
+              output,
+            };
+            continue;
+          }
         }
       }
     }

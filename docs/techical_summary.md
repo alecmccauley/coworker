@@ -132,6 +132,7 @@ We support a streaming chat pipeline for thread conversations:
 - Main process gathers RAG context from local workspace sources, composes the system prompt, and streams via the SDK.
 - API route `/api/v1/chat` proxies to the model provider and returns a streaming response.
 - Renderer updates message content incrementally from IPC events.
+- The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render inside the streaming assistant bubble.
 - Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
 
 #### Data Flow (RAG in Main Process)
@@ -152,7 +153,7 @@ sequenceDiagram
   API->>Model: streamText()
   Model-->>API: data stream
   API-->>Main: streaming response
-  Main-->>Preload: chat:chunk/chat:complete
+  Main-->>Preload: chat:chunk/chat:status/chat:complete
   Preload-->>Renderer: update UI
 ```
 

@@ -27,6 +27,12 @@ interface ChatErrorPayload {
   error: string;
 }
 
+interface ChatStatusPayload {
+  messageId: string;
+  label: string;
+  phase?: "streaming" | "done" | "error";
+}
+
 interface SendMessageResult {
   userMessage: Awaited<ReturnType<typeof createMessage>>;
   assistantMessage: Awaited<ReturnType<typeof createMessage>>;
@@ -45,6 +51,42 @@ function safeSend<T>(sender: WebContents, channel: string, payload: T): void {
     return;
   }
   sender.send(channel, payload);
+}
+
+function extractStatusLabelFromInputText(inputText: string): string {
+  const trimmed = inputText.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as { label?: unknown };
+    if (parsed && typeof parsed.label === "string") {
+      return parsed.label;
+    }
+  } catch {
+    // Best-effort parsing for partial JSON.
+  }
+
+  const quotedMatch = /"label"\s*:\s*"([^"]+)"/.exec(trimmed);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  return trimmed
+    .replace(/[{}[\]]/g, "")
+    .replace(/\"/g, "")
+    .replace(/\s*label\s*:\s*/i, "")
+    .replace(/,$/, "")
+    .trim();
+}
+
+function normalizeStatusLabel(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.length > 120 ? trimmed.slice(0, 120).trim() : trimmed;
 }
 
 async function persistStreamingContent(
@@ -75,6 +117,30 @@ async function streamChatResponse(
   let fullContent = "";
   let pending = "";
   let lastPersist = Date.now();
+  let statusClosed = false;
+  const statusBuffers = new Map<string, string>();
+
+  const emitStatus = (label: string, phase: ChatStatusPayload["phase"]): void => {
+    if (statusClosed) {
+      return;
+    }
+    safeSend<ChatStatusPayload>(sender, "chat:status", {
+      messageId: assistantMessageId,
+      label,
+      phase,
+    });
+    if (phase && phase !== "streaming") {
+      statusClosed = true;
+    }
+  };
+
+  const finalizeStatus = (phase: "done" | "error"): void => {
+    if (statusClosed) {
+      return;
+    }
+    statusBuffers.clear();
+    emitStatus("", phase);
+  };
 
   try {
     const threadContext = await getThreadContext(threadId);
@@ -133,7 +199,46 @@ async function streamChatResponse(
         }
       }
 
+      if (event.type === "tool-input-start" && event.toolName === "report_status") {
+        statusBuffers.set(event.toolCallId, "");
+        continue;
+      }
+
+      if (event.type === "tool-input-delta" && event.toolName === "report_status") {
+        const existing = statusBuffers.get(event.toolCallId) ?? "";
+        const next = `${existing}${event.inputTextDelta}`;
+        statusBuffers.set(event.toolCallId, next);
+        const label = normalizeStatusLabel(extractStatusLabelFromInputText(next));
+        if (label) {
+          emitStatus(label, "streaming");
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "report_status"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { label?: unknown })
+            : null;
+        const label =
+          input && typeof input.label === "string"
+            ? normalizeStatusLabel(input.label)
+            : normalizeStatusLabel(
+                extractStatusLabelFromInputText(
+                  statusBuffers.get(event.toolCallId) ?? "",
+                ),
+              );
+        if (label) {
+          emitStatus(label, "streaming");
+        }
+        continue;
+      }
+
       if (event.type === "done") {
+        finalizeStatus("done");
         await persistStreamingContent(
           assistantMessageId,
           fullContent,
@@ -152,6 +257,7 @@ async function streamChatResponse(
       fullContent,
       "complete",
     );
+    finalizeStatus("done");
     safeSend<ChatCompletePayload>(sender, "chat:complete", {
       messageId: assistantMessageId,
       content: fullContent,
@@ -160,6 +266,7 @@ async function streamChatResponse(
     const message =
       error instanceof Error ? error.message : "Failed to stream response";
     await persistStreamingContent(assistantMessageId, fullContent, "error");
+    finalizeStatus("error");
     safeSend<ChatErrorPayload>(sender, "chat:error", {
       messageId: assistantMessageId,
       error: controller.signal.aborted ? "Message canceled" : message,

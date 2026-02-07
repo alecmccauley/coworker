@@ -8,9 +8,16 @@
     authorLabel: string
     isOwn?: boolean
     highlight?: boolean
+    activityLabel?: string
   }
 
-  let { message, authorLabel, isOwn = false, highlight = false }: Props = $props()
+  let {
+    message,
+    authorLabel,
+    isOwn = false,
+    highlight = false,
+    activityLabel
+  }: Props = $props()
 
   const content = $derived(
     message.contentShort ??
@@ -33,8 +40,8 @@
     )}
   >
     {#if isStreaming && !content}
-      <span class="text-xs uppercase tracking-wide text-muted-foreground">
-        Typing...
+      <span class="text-xs text-muted-foreground">
+        {activityLabel || 'Thinking...'}
       </span>
     {:else}
       {#if content}

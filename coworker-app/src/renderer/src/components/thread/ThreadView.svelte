@@ -6,6 +6,7 @@
     ChatChunkPayload,
     ChatCompletePayload,
     ChatErrorPayload,
+    ChatStatusPayload,
     Coworker,
     Message,
     Thread
@@ -27,6 +28,17 @@
   let error = $state<string | null>(null)
   let isSourcesOpen = $state(false)
   let streamingMessageId = $state<string | null>(null)
+  let activityByMessageId = $state<Record<string, string>>({})
+
+  function setActivity(messageId: string, label: string): void {
+    activityByMessageId = { ...activityByMessageId, [messageId]: label }
+  }
+
+  function clearActivity(messageId: string): void {
+    const next = { ...activityByMessageId }
+    delete next[messageId]
+    activityByMessageId = next
+  }
 
   $effect(() => {
     void loadMessages()
@@ -48,6 +60,7 @@
             ? { ...message, contentShort: payload.content, status: 'complete' }
             : message
         )
+        clearActivity(payload.messageId)
         if (streamingMessageId === payload.messageId) {
           streamingMessageId = null
         }
@@ -60,16 +73,30 @@
           ? { ...message, status: 'error' }
           : message
       )
+      clearActivity(payload.messageId)
       if (streamingMessageId === payload.messageId) {
         streamingMessageId = null
       }
       error = payload.error
     })
 
+    const cleanupStatus = window.api.chat.onStatus(
+      (payload: ChatStatusPayload) => {
+        if (payload.phase === 'done' || payload.phase === 'error') {
+          clearActivity(payload.messageId)
+          return
+        }
+        if (payload.label) {
+          setActivity(payload.messageId, payload.label)
+        }
+      }
+    )
+
     return () => {
       cleanupChunk()
       cleanupComplete()
       cleanupError()
+      cleanupStatus()
     }
   })
 
@@ -78,6 +105,7 @@
     isLoading = true
     error = null
     messages = []
+    activityByMessageId = {}
     try {
       messages = await window.api.message.list(thread.id)
     } catch (err) {
@@ -140,7 +168,13 @@
       </div>
     {/if}
 
-    <MessageList {messages} {coworkers} isLoading={isLoading} />
+    <MessageList
+      {messages}
+      {coworkers}
+      {activityByMessageId}
+      scrollKey={thread?.id ?? null}
+      isLoading={isLoading}
+    />
     <MessageInput onSend={handleSend} disabled={streamingMessageId !== null} />
   </div>
 
