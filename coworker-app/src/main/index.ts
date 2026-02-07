@@ -17,6 +17,7 @@ import { registerChannelIpcHandlers } from "./channel";
 import { registerThreadIpcHandlers } from "./thread";
 import { registerMessageIpcHandlers } from "./message";
 import { registerKnowledgeIpcHandlers } from "./knowledge";
+import { registerMemoryIpcHandlers } from "./memory";
 import { isIndexingInProgress } from "./knowledge/indexing/indexing-service";
 import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
@@ -309,6 +310,7 @@ app.whenReady().then(() => {
   registerThreadIpcHandlers();
   registerMessageIpcHandlers();
   registerKnowledgeIpcHandlers();
+  registerMemoryIpcHandlers();
   registerBlobIpcHandlers();
   registerTemplateIpcHandlers();
   registerModelIpcHandlers();

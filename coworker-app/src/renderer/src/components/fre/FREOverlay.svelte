@@ -46,12 +46,18 @@
 
   <!-- Background layer with warm overlay -->
   <div
-    class={`absolute inset-0 ${transparentBackdrop ? 'bg-transparent' : 'bg-background'}`}
+    class="absolute inset-0 bg-background transition-opacity duration-300 ease-in-out"
+    class:opacity-100={!transparentBackdrop}
+    class:opacity-0={transparentBackdrop}
     aria-hidden="true"
   ></div>
 
   <!-- Ambient decorations -->
-  <div class="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+  <div
+    class="pointer-events-none fixed inset-0 overflow-hidden transition-opacity duration-300"
+    class:opacity-0={transparentBackdrop}
+    aria-hidden="true"
+  >
     <!-- Top-right warm glow -->
     <div
       class="absolute -right-32 -top-32 h-96 w-96 rounded-full opacity-0 blur-3xl transition-opacity duration-[3000ms]"

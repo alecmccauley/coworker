@@ -53,7 +53,8 @@
   async function loadSources(): Promise<void> {
     isLoading = true
     try {
-      sources = await window.api.knowledge.listSources(scopeType, scopeId)
+      const loaded = await window.api.knowledge.listSources(scopeType, scopeId)
+      sources = loaded.filter((source) => source.kind !== 'memory')
     } catch (error) {
       console.error('Failed to load sources:', error)
     } finally {

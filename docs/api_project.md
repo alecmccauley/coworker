@@ -437,9 +437,10 @@ Chat streaming supports model tool calls. Current tools:
 
 - `report_status` — Emits short activity labels during streaming.
 - `set_conversation_title` — Emits a concise conversation title for first-message auto-naming.
-- `list_channel_coworkers` — Returns channel coworker context and mention hints for orchestration.
+- `list_channel_coworkers` — Returns channel coworker context, mention hints, and coworker summaries (id, name, description) for orchestration.
 - `generate_coworker_response` — Runs a subordinate model to generate a coworker-specific reply.
 - `emit_coworker_message` — Emits a coworker reply payload for the client to render.
+- `save_memory` — Stores durable preferences/facts as memories linked to one or more coworkers.
 
 Chat request payload includes orchestration context:
 

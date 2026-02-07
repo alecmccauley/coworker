@@ -10,7 +10,7 @@
     onBack: () => void
     onEdit: (coworker: Coworker) => void
     onArchive: (coworker: Coworker) => void
-    onCreateCoworker: () => void
+    onCreateCoworker: (channelId?: string) => void
   }
 
   let { coworkers, onBack, onEdit, onArchive, onCreateCoworker }: Props =

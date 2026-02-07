@@ -21,7 +21,7 @@
     thread: Thread
     coworkers: Coworker[]
     channelCoworkers: Coworker[]
-    onCreateCoworker: () => void
+    onCreateCoworker: (channelId?: string) => void
     onRenameThread?: (thread: Thread) => void
   }
 
@@ -198,7 +198,7 @@
           {/if}
         </Button>
         {#if coworkers.length === 0}
-          <Button size="sm" onclick={onCreateCoworker} class="gap-2">
+          <Button size="sm" onclick={() => onCreateCoworker(thread.channelId)} class="gap-2">
             Add a Co-worker
           </Button>
         {/if}
@@ -222,7 +222,7 @@
       onSend={handleSend}
       coworkers={channelCoworkers}
       channelId={thread.channelId}
-      disabled={streamingMessageIds.length > 0}
+      disabled={streamingMessageIds.length > 0 || channelCoworkers.length === 0}
     />
   </div>
 

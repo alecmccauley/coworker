@@ -37,7 +37,7 @@
         window.api.channel.list(),
         window.api.coworker.list()
       ])
-      sources = loadedSources
+      sources = loadedSources.filter((source) => source.kind !== 'memory')
       channels = loadedChannels
       coworkers = loadedCoworkers
     } catch (error) {

@@ -314,12 +314,12 @@ export async function getChannelById(id: string): Promise<Channel | null> {
 export async function createDefaultChannels(): Promise<Channel[]> {
   const defaultChannels = [
     {
-      name: "Inbox",
-      purpose: "General inbox and quick tasks",
+      name: "general",
+      purpose: "Announcements, updates, and shared context",
       isDefault: true,
     },
-    { name: "Ideas", purpose: "Brainstorming and idea capture" },
-    { name: "Active", purpose: "Currently active work" },
+    { name: "planning", purpose: "Planning work and priorities" },
+    { name: "operations", purpose: "Ops tasks, workflows, and status" },
   ];
 
   const created: Channel[] = [];

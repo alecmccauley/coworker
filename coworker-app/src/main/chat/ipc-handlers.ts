@@ -19,6 +19,7 @@ import {
 } from "./chat-service";
 import { listChannelCoworkers } from "../channel";
 import { updateThread } from "../thread";
+import { addMemory } from "../memory";
 
 interface ChatChunkPayload {
   messageId: string;
@@ -430,6 +431,28 @@ async function streamChatResponse(
           const updated = await updateThread(threadId, { title });
           safeSend(sender, "thread:updated", updated);
           titleApplied = true;
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "save_memory"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { content?: unknown; coworkerIds?: unknown })
+            : null;
+        const content =
+          input && typeof input.content === "string" ? input.content : "";
+        const coworkerIds =
+          input && Array.isArray(input.coworkerIds)
+            ? input.coworkerIds.filter((id): id is string => typeof id === "string")
+            : [];
+        if (content.trim().length > 0 && coworkerIds.length > 0) {
+          void addMemory({ content, coworkerIds }).catch((error) => {
+            console.error("[Memory] Failed to save memory:", error);
+          });
         }
         continue;
       }

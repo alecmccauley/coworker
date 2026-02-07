@@ -93,9 +93,34 @@ export async function indexKnowledgeSource(
     }
 
   const current = source[0];
+  const notesBlock = buildNotesBlock(current.notes);
 
     if (!current.blobId) {
-      await updateIndexStatus(sourceId, "ready", undefined);
+      if (!notesBlock) {
+        await clearIndexedData(db, sqlite, workspace.manifest.id, sourceId);
+        await updateIndexStatus(sourceId, "ready", undefined);
+        return;
+      }
+
+      await updateIndexStatus(sourceId, "processing", undefined, "chunking");
+
+      const chunks = chunkText(notesBlock, {
+        chunkTokens: DEFAULT_CHUNK_TOKENS,
+        overlapTokens: DEFAULT_OVERLAP_TOKENS,
+      });
+
+      await updateIndexStatus(sourceId, "processing", undefined, "embedding");
+
+      const chunkRows = persistIndexedText(db, sqlite, workspace.manifest.id, sourceId, {
+        text: notesBlock,
+        richText: null,
+        warningsJson: null,
+        chunks,
+      });
+
+      insertVectorEmbeddings(sqlite, chunkRows);
+
+      await updateIndexStatus(sourceId, "ready", undefined, "complete");
       return;
     }
 
@@ -143,95 +168,34 @@ export async function indexKnowledgeSource(
     filename: parsedMetadata?.filename ?? current.name ?? undefined,
   });
 
-    if (!extracted.text.trim()) {
+  const extractedText = extracted.text.trim();
+    if (!extractedText && !notesBlock) {
       await updateIndexStatus(sourceId, "error", "No text could be extracted.");
       return;
     }
 
     await updateIndexStatus(sourceId, "processing", undefined, "chunking");
 
-    const chunks = chunkText(extracted.text, {
+  const combinedText = [extractedText, notesBlock].filter(Boolean).join("\n\n");
+
+    const chunks = chunkText(combinedText, {
       chunkTokens: DEFAULT_CHUNK_TOKENS,
       overlapTokens: DEFAULT_OVERLAP_TOKENS,
     });
 
     await updateIndexStatus(sourceId, "processing", undefined, "embedding");
 
-    sqlite.transaction(() => {
-      db.delete(sourceChunks)
-        .where(
-          and(
-            eq(sourceChunks.sourceId, sourceId),
-            eq(sourceChunks.workspaceId, workspace.manifest.id),
-          ),
-        )
-        .run();
+  const chunkRows = persistIndexedText(db, sqlite, workspace.manifest.id, sourceId, {
+    text: combinedText,
+    richText: notesBlock ? null : extracted.richText ?? null,
+    warningsJson:
+      extracted.warnings.length > 0
+        ? JSON.stringify(extracted.warnings)
+        : null,
+    chunks,
+  });
 
-      try {
-        sqlite
-          .prepare("DELETE FROM source_chunks_vec WHERE source_id = ?")
-          .run(sourceId);
-      } catch {
-        // sqlite-vec not available or table missing
-      }
-
-      const now = new Date();
-      db.insert(sourceText)
-        .values({
-          sourceId,
-          workspaceId: workspace.manifest.id,
-          text: extracted.text,
-          richText: extracted.richText ?? null,
-          extractionVersion: EXTRACTION_VERSION,
-          warningsJson:
-            extracted.warnings.length > 0
-              ? JSON.stringify(extracted.warnings)
-              : null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: sourceText.sourceId,
-          set: {
-            text: extracted.text,
-            richText: extracted.richText ?? null,
-            extractionVersion: EXTRACTION_VERSION,
-            warningsJson:
-              extracted.warnings.length > 0
-                ? JSON.stringify(extracted.warnings)
-                : null,
-            updatedAt: now,
-          },
-        })
-        .run();
-
-      if (chunks.length > 0) {
-        const chunkRows: SourceChunk[] = chunks.map((chunk, index) => ({
-          id: createId(),
-          workspaceId: workspace.manifest.id,
-          sourceId,
-          chunkIndex: index,
-          text: chunk.text,
-          startChar: null,
-          endChar: null,
-          tokenCount: chunk.tokenCount,
-        }));
-
-        db.insert(sourceChunks).values(chunkRows).run();
-
-        try {
-          const insertVec = sqlite.prepare(
-            "INSERT INTO source_chunks_vec(embedding, chunk_id, source_id) VALUES (?, ?, ?)",
-          );
-          for (const row of chunkRows) {
-            const vector = embedText(row.text);
-            insertVec.run(serializeEmbedding(vector), row.id, row.sourceId);
-          }
-        } catch {
-          // sqlite-vec not available or insertion failed
-        }
-      }
-    })();
+  insertVectorEmbeddings(sqlite, chunkRows);
 
     await db
       .update(knowledgeSources)
@@ -268,6 +232,142 @@ export async function indexKnowledgeSource(
   }
 }
 
+function buildNotesBlock(notes?: string | null): string {
+  const trimmed = notes?.trim();
+  return trimmed ? `Notes:\n${trimmed}` : "";
+}
+
+function clearIndexedData(
+  db: NonNullable<ReturnType<typeof getCurrentDatabase>>,
+  sqlite: NonNullable<ReturnType<typeof getCurrentSqlite>>,
+  workspaceId: string,
+  sourceId: string,
+): void {
+  sqlite.transaction(() => {
+    db.delete(sourceChunks)
+      .where(
+        and(
+          eq(sourceChunks.sourceId, sourceId),
+          eq(sourceChunks.workspaceId, workspaceId),
+        ),
+      )
+      .run();
+
+    try {
+      sqlite
+        .prepare("DELETE FROM source_chunks_vec WHERE source_id = ?")
+        .run(sourceId);
+    } catch {
+      // sqlite-vec not available or table missing
+    }
+
+    db.delete(sourceText)
+      .where(
+        and(
+          eq(sourceText.sourceId, sourceId),
+          eq(sourceText.workspaceId, workspaceId),
+        ),
+      )
+      .run();
+  })();
+}
+
+function persistIndexedText(
+  db: NonNullable<ReturnType<typeof getCurrentDatabase>>,
+  sqlite: NonNullable<ReturnType<typeof getCurrentSqlite>>,
+  workspaceId: string,
+  sourceId: string,
+  payload: {
+    text: string;
+    richText: string | null;
+    warningsJson: string | null;
+    chunks: Array<{ text: string; tokenCount: number }>;
+  },
+): SourceChunk[] {
+  let chunkRows: SourceChunk[] = [];
+
+  sqlite.transaction(() => {
+    db.delete(sourceChunks)
+      .where(
+        and(
+          eq(sourceChunks.sourceId, sourceId),
+          eq(sourceChunks.workspaceId, workspaceId),
+        ),
+      )
+      .run();
+
+    try {
+      sqlite
+        .prepare("DELETE FROM source_chunks_vec WHERE source_id = ?")
+        .run(sourceId);
+    } catch {
+      // sqlite-vec not available or table missing
+    }
+
+    const now = new Date();
+    db.insert(sourceText)
+      .values({
+        sourceId,
+        workspaceId,
+        text: payload.text,
+        richText: payload.richText,
+        extractionVersion: EXTRACTION_VERSION,
+        warningsJson: payload.warningsJson,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: sourceText.sourceId,
+        set: {
+          text: payload.text,
+          richText: payload.richText,
+          extractionVersion: EXTRACTION_VERSION,
+          warningsJson: payload.warningsJson,
+          updatedAt: now,
+        },
+      })
+      .run();
+
+    if (payload.chunks.length > 0) {
+      chunkRows = payload.chunks.map((chunk, index) => ({
+        id: createId(),
+        workspaceId,
+        sourceId,
+        chunkIndex: index,
+        text: chunk.text,
+        startChar: null,
+        endChar: null,
+        tokenCount: chunk.tokenCount,
+      }));
+
+      db.insert(sourceChunks).values(chunkRows).run();
+    }
+  })();
+
+  return chunkRows;
+}
+
+function insertVectorEmbeddings(
+  sqlite: NonNullable<ReturnType<typeof getCurrentSqlite>>,
+  chunkRows: SourceChunk[],
+): void {
+  if (chunkRows.length === 0) {
+    return;
+  }
+
+  try {
+    const insertVec = sqlite.prepare(
+      "INSERT INTO source_chunks_vec(embedding, chunk_id, source_id) VALUES (?, ?, ?)",
+    );
+    for (const row of chunkRows) {
+      const vector = embedText(row.text);
+      insertVec.run(serializeEmbedding(vector), row.id, row.sourceId);
+    }
+  } catch {
+    // sqlite-vec not available or insertion failed
+  }
+}
+
 async function updateIndexStatus(
   sourceId: string,
   status: IndexStatus,
@@ -281,13 +381,16 @@ async function updateIndexStatus(
     throw new Error("No workspace is currently open");
   }
 
+  const updates = {
+    indexStatus: status,
+    indexError: errorMessage ?? null,
+    updatedAt: new Date(),
+    ...(status === "ready" ? { indexedAt: new Date() } : {}),
+  };
+
   await db
     .update(knowledgeSources)
-    .set({
-      indexStatus: status,
-      indexError: errorMessage ?? null,
-      updatedAt: new Date(),
-    })
+    .set(updates)
     .where(
       and(
         eq(knowledgeSources.id, sourceId),

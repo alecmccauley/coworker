@@ -12,6 +12,7 @@
   let showDot = $state(false)
   let showGlow = $state(false)
   let showHello = $state(false)
+  let helloExiting = $state(false)
   let showWorkspaceName = $state(false)
   let showSubtitle = $state(false)
   let showLine = $state(false)
@@ -22,13 +23,12 @@
     setTimeout(() => (showDot = true), 500)
     setTimeout(() => (showGlow = true), 1500)
     setTimeout(() => (showHello = true), 1800)
-    setTimeout(() => {
-      showHello = false
-      showWorkspaceName = true
-    }, 4000)
-    setTimeout(() => (showSubtitle = true), 5000)
-    setTimeout(() => (showLine = true), 5800)
-    setTimeout(() => (showContinue = true), 6500)
+    // Slide "Hello." up and out, then slide workspace name in (no crossfade)
+    setTimeout(() => (helloExiting = true), 4000)
+    setTimeout(() => (showWorkspaceName = true), 4600)
+    setTimeout(() => (showSubtitle = true), 5600)
+    setTimeout(() => (showLine = true), 6400)
+    setTimeout(() => (showContinue = true), 7100)
   })
 </script>
 
@@ -76,22 +76,23 @@
 
   <!-- "Hello." text -->
   <h1
-    class="absolute font-serif text-8xl font-medium tracking-tight text-foreground transition-all duration-1000 ease-out md:text-9xl"
-    class:opacity-100={showHello}
-    class:opacity-0={!showHello}
-    class:translate-y-0={showHello}
-    class:translate-y-8={!showHello}
+    class="absolute font-serif text-8xl font-medium tracking-tight text-foreground transition-all duration-700 ease-out md:text-9xl"
+    class:opacity-100={showHello && !helloExiting}
+    class:opacity-0={!showHello || helloExiting}
+    class:translate-y-0={showHello && !helloExiting}
+    class:translate-y-8={!showHello && !helloExiting}
+    class:-translate-y-12={helloExiting}
   >
     Hello.
   </h1>
 
   <!-- Workspace name -->
   <div
-    class="transition-all duration-1000 ease-out"
+    class="transition-all duration-700 ease-out"
     class:opacity-100={showWorkspaceName}
     class:opacity-0={!showWorkspaceName}
     class:translate-y-0={showWorkspaceName}
-    class:translate-y-6={!showWorkspaceName}
+    class:translate-y-8={!showWorkspaceName}
   >
     <!-- Overline -->
     <p class="mb-4 font-sans text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground">

@@ -47,7 +47,7 @@ export interface UpdateKnowledgeItemInput {
 export interface AddKnowledgeSourceInput {
   scopeType: SourceScopeType;
   scopeId?: string;
-  kind: "text" | "file" | "url";
+  kind: "text" | "file" | "url" | "memory";
   name?: string;
   blobId?: string;
   extractedTextRef?: string;
@@ -450,7 +450,8 @@ export async function addKnowledgeSource(
   const id = createId();
   const now = new Date();
   const hasBlob = Boolean(input.blobId);
-  const indexStatus = hasBlob ? "pending" : "ready";
+  const hasNotes = Boolean(input.notes && input.notes.trim().length > 0);
+  const indexStatus = hasBlob || hasNotes ? "pending" : "ready";
 
   const payload: KnowledgeSourceAddedPayload = {
     scopeType: input.scopeType,
@@ -462,7 +463,7 @@ export async function addKnowledgeSource(
     contentHash: undefined,
     indexStatus,
     indexError: null,
-    indexedAt: hasBlob ? null : now.toISOString(),
+    indexedAt: hasBlob || hasNotes ? null : now.toISOString(),
     metadata: input.metadata,
     notes: input.notes,
   };
@@ -484,7 +485,7 @@ export async function addKnowledgeSource(
         contentHash: null,
         indexStatus,
         indexError: null,
-        indexedAt: hasBlob ? null : now,
+        indexedAt: hasBlob || hasNotes ? null : now,
         metadata: input.metadata ?? null,
         notes: input.notes ?? null,
         createdAt: now,

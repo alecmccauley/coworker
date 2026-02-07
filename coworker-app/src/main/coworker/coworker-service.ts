@@ -5,7 +5,14 @@ import {
   getCurrentDatabase,
   getCurrentSqlite,
 } from "../workspace";
-import { events, coworkers, type Coworker, type NewEvent } from "../database";
+import {
+  events,
+  coworkers,
+  channels,
+  type Coworker,
+  type NewEvent,
+} from "../database";
+import { addCoworkerToChannel } from "../channel";
 
 /**
  * Input for creating a coworker
@@ -163,7 +170,28 @@ export async function createCoworker(
   // Return the created coworker
   const result = await db.select().from(coworkers).where(eq(coworkers.id, id));
 
-  return result[0];
+  const createdCoworker = result[0];
+
+  try {
+    const defaultChannel = await db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspace.manifest.id),
+          eq(channels.isDefault, true),
+          isNull(channels.archivedAt),
+        ),
+      );
+
+    if (defaultChannel.length > 0) {
+      await addCoworkerToChannel(defaultChannel[0].id, createdCoworker.id);
+    }
+  } catch (error) {
+    console.error("Failed to assign coworker to default channel:", error);
+  }
+
+  return createdCoworker;
 }
 
 /**

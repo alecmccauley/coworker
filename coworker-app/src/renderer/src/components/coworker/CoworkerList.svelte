@@ -8,7 +8,7 @@
     onEdit: (coworker: Coworker) => void
     onDelete: (coworker: Coworker) => void
     onSelect?: (coworker: Coworker) => void
-    onCreateCoworker: () => void
+    onCreateCoworker: (channelId?: string) => void
   }
 
   let { coworkers, onEdit, onDelete, onSelect, onCreateCoworker }: Props = $props()

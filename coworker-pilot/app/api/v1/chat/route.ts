@@ -360,6 +360,11 @@ async function handlePost(
           inputSchema: z.object({}),
           execute: async () => ({
             coworkers: data.channelCoworkers,
+            coworkerSummaries: data.channelCoworkers.map((coworker) => ({
+              id: coworker.id,
+              name: coworker.name,
+              description: coworker.description ?? null,
+            })),
             mentionedCoworkerIds: data.mentionedCoworkerIds,
           }),
         },
@@ -411,6 +416,15 @@ async function handlePost(
           inputSchema: z.object({
             coworkerId: z.string().min(1),
             content: z.string().min(1),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        save_memory: {
+          description:
+            "Save a durable preference or fact as memory for one or more coworkers.",
+          inputSchema: z.object({
+            content: z.string().min(1).max(500),
+            coworkerIds: z.array(z.string().min(1)).min(1),
           }),
           execute: async () => ({ ok: true }),
         },

@@ -25,7 +25,7 @@ export interface KnowledgeItem {
 /**
  * Knowledge source types
  */
-export type KnowledgeSourceKind = "text" | "file" | "url";
+export type KnowledgeSourceKind = "text" | "file" | "url" | "memory";
 export type IndexStatus = "pending" | "processing" | "ready" | "error";
 
 /**

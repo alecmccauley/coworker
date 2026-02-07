@@ -17,7 +17,7 @@
     onSelectChannel: (channel: Channel) => void
     onSelectCoworker: (coworker: Coworker) => void
     onCreateChannel: () => void
-    onCreateCoworker: () => void
+    onCreateCoworker: (channelId?: string) => void
     onOpenSettings: () => void
     onOpenWorkersSettings?: () => void
   }

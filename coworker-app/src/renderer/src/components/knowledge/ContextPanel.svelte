@@ -30,7 +30,8 @@
   async function loadSources(): Promise<void> {
     isLoadingSources = true
     try {
-      sources = await window.api.knowledge.listSources('workspace')
+      const loaded = await window.api.knowledge.listSources('workspace')
+      sources = loaded.filter((source) => source.kind !== 'memory')
     } catch (error) {
       console.error('Failed to load knowledge sources:', error)
     } finally {

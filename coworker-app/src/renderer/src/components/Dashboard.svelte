@@ -77,6 +77,7 @@
   let showDeleteDialog = $state(false)
   let deletingCoworker = $state<Coworker | null>(null)
   let showChannelDialog = $state(false)
+  let pendingCoworkerAssignChannelId = $state<string | null>(null)
 
   // First-run experience state
   let showFRE = $state(false)
@@ -381,7 +382,8 @@
   }
 
   // Coworker handlers
-  function handleCreateCoworker(): void {
+  function handleCreateCoworker(channelId?: string): void {
+    pendingCoworkerAssignChannelId = channelId ?? null
     showCreateCoworkerDialog = true
   }
 
@@ -396,7 +398,15 @@
   }
 
   async function handleCreateCoworkerSave(input: CreateCoworkerInput): Promise<void> {
-    await window.api.coworker.create(input)
+    const coworker = await window.api.coworker.create(input)
+    if (pendingCoworkerAssignChannelId) {
+      try {
+        await window.api.channel.addCoworker(pendingCoworkerAssignChannelId, coworker.id)
+      } catch (error) {
+        console.error('Failed to assign coworker to channel:', error)
+      }
+    }
+    pendingCoworkerAssignChannelId = null
     await loadCoworkers()
   }
 
@@ -617,7 +627,10 @@
 <!-- Dialogs -->
 <CreateCoworkerDialog
   bind:open={showCreateCoworkerDialog}
-  onClose={() => (showCreateCoworkerDialog = false)}
+  onClose={() => {
+    showCreateCoworkerDialog = false
+    pendingCoworkerAssignChannelId = null
+  }}
   onSave={handleCreateCoworkerSave}
 />
 

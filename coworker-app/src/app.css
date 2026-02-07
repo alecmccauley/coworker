@@ -233,6 +233,13 @@
     outline: 2px solid oklch(0.65 0.14 25);
     outline-offset: 2px;
   }
+
+  /* Dialogs: prevent tall content from clipping on small windows */
+  [data-slot="dialog-content"] {
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 @layer utilities {

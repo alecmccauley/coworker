@@ -330,6 +330,10 @@ pnpm dlx shadcn@latest add card --cwd coworker-app
 
 Components are installed to `src/renderer/src/lib/components/ui/`.
 
+### Dialog Behavior
+
+Dialogs cap their height to the viewport and scroll internally when content is taller than the window.
+
 ---
 
 ## Glass Effect & Vibrancy

@@ -3,8 +3,9 @@
   import { Input } from '$lib/components/ui/input'
   import { Textarea } from '$lib/components/ui/textarea'
   import { cn } from '$lib/utils.js'
+  import { renderMarkdown } from '$lib/markdown.js'
   import ScopedSources from '../knowledge/ScopedSources.svelte'
-  import type { Channel, Coworker, KnowledgeItem, Thread } from '$lib/types'
+  import type { Channel, Coworker, KnowledgeItem, MemoryItem, Thread } from '$lib/types'
 
   interface Props {
     coworker: Coworker
@@ -15,10 +16,11 @@
 
   let { coworker, channels, onEdit, onArchive }: Props = $props()
 
-  type TabId = 'about' | 'knowledge' | 'history'
+  type TabId = 'about' | 'knowledge' | 'memories' | 'history'
   const tabs: { id: TabId; label: string }[] = [
     { id: 'about', label: 'About' },
     { id: 'knowledge', label: 'Knowledge' },
+    { id: 'memories', label: 'Memories' },
     { id: 'history', label: 'History' }
   ]
 
@@ -28,6 +30,9 @@
   let knowledgeTitle = $state('')
   let knowledgeSummary = $state('')
   let isAddingKnowledge = $state(false)
+
+  let memories = $state<MemoryItem[]>([])
+  let isLoadingMemories = $state(false)
 
   let historyThreads = $state<{ thread: Thread; channelName: string }[]>([])
   let isLoadingHistory = $state(false)
@@ -41,6 +46,12 @@
   $effect(() => {
     if (activeTab === 'history') {
       void loadHistory()
+    }
+  })
+
+  $effect(() => {
+    if (activeTab === 'memories') {
+      void loadMemories()
     }
   })
 
@@ -101,6 +112,28 @@
     }
   }
 
+  async function loadMemories(): Promise<void> {
+    isLoadingMemories = true
+    try {
+      memories = await window.api.memory.list(coworker.id)
+    } catch (error) {
+      console.error('Failed to load coworker memories:', error)
+    } finally {
+      isLoadingMemories = false
+    }
+  }
+
+  async function handleForgetMemory(memoryId: string): Promise<void> {
+    const confirmed = window.confirm('Forget this memory for this co-worker?')
+    if (!confirmed) return
+    try {
+      await window.api.memory.forget(memoryId, coworker.id)
+      await loadMemories()
+    } catch (error) {
+      console.error('Failed to forget memory:', error)
+    }
+  }
+
   function formatDate(value: Date | string): string {
     const date = typeof value === 'string' ? new Date(value) : value
     return date.toLocaleDateString()
@@ -128,6 +161,8 @@
   const aboutDescription = $derived(
     coworker.templateDescription || coworker.description || null
   )
+
+  const aboutDescriptionHtml = $derived(aboutDescription ? renderMarkdown(aboutDescription) : '')
 </script>
 
 <div class="flex flex-1 flex-col px-8 py-6">
@@ -168,9 +203,9 @@
         <div class="rounded-xl border border-border bg-card p-6">
           <h3 class="font-serif text-lg font-medium text-foreground">About this co-worker</h3>
           {#if aboutDescription}
-            <p class="mt-3 leading-relaxed text-muted-foreground">
-              {aboutDescription}
-            </p>
+            <div class="markdown-content prose prose-sm max-w-none mt-3 text-muted-foreground">
+              {@html aboutDescriptionHtml}
+            </div>
           {:else}
             <p class="mt-3 text-muted-foreground/70 italic">
               No description yet. Edit this co-worker to add one.
@@ -254,6 +289,39 @@
             </Button>
           </div>
         </div>
+      </div>
+    {:else if activeTab === 'memories'}
+      <div class="rounded-xl border border-border bg-card p-6">
+        <h3 class="text-lg font-semibold text-foreground">Memories</h3>
+        {#if isLoadingMemories}
+          <p class="mt-3 text-sm text-muted-foreground">Loading memories...</p>
+        {:else if memories.length === 0}
+          <p class="mt-3 text-sm text-muted-foreground">
+            No memories yet. We'll save key facts and preferences here.
+          </p>
+        {:else}
+          <div class="mt-4 space-y-3">
+            {#each memories as memory (memory.id)}
+              <div class="rounded-lg border border-border/70 bg-card/70 p-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-foreground">{memory.content}</p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      Added {formatDate(memory.addedAt)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onclick={() => handleForgetMemory(memory.id)}
+                  >
+                    Forget
+                  </Button>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     {:else if activeTab === 'history'}
       <div class="rounded-xl border border-border bg-card p-6">

@@ -260,7 +260,8 @@ export function registerKnowledgeIpcHandlers(): void {
       input: AddKnowledgeSourceInput,
     ): Promise<KnowledgeSource> => {
       const source = await addKnowledgeSource(input);
-      if (source.blobId) {
+      const hasNotes = Boolean(source.notes && source.notes.trim().length > 0);
+      if (source.blobId || hasNotes) {
         void indexKnowledgeSource(source.id).catch((error) => {
           console.error("[Knowledge] Indexing failed:", error);
         });
@@ -277,7 +278,16 @@ export function registerKnowledgeIpcHandlers(): void {
       id: string,
       input: UpdateKnowledgeSourceInput,
     ): Promise<KnowledgeSource> => {
-      return updateKnowledgeSource(id, input);
+      const existing = await getKnowledgeSourceById(id);
+      const updated = await updateKnowledgeSource(id, input);
+      const previousNotes = existing?.notes?.trim() ?? "";
+      const nextNotes = updated.notes?.trim() ?? "";
+      if (previousNotes !== nextNotes) {
+        void indexKnowledgeSource(updated.id, { force: true }).catch((error) => {
+          console.error("[Knowledge] Indexing failed:", error);
+        });
+      }
+      return updated;
     },
   );
 

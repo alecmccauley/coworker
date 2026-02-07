@@ -133,6 +133,7 @@ We support a streaming chat pipeline for thread conversations:
 - API route `/api/v1/chat` runs a tool-orchestrated loop that selects coworkers and generates each reply via subordinate calls.
 - Renderer updates coworker messages incrementally from IPC events.
 - The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.
+- The model can emit `save_memory` tool calls; the main process persists memories and links them to coworkers for future retrieval.
 - Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
 - Coworker replies use a standardized coworker system prompt block before role prompts and defaults to keep tone and behavior consistent.
 

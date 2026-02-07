@@ -108,7 +108,7 @@ export const knowledgeSources = sqliteTable("knowledge_sources", {
   workspaceId: text("workspace_id").notNull(),
   scopeType: text("scope_type"),
   scopeId: text("scope_id"),
-  kind: text("kind").notNull(), // 'text' | 'file' | 'url'
+  kind: text("kind").notNull(), // 'text' | 'file' | 'url' | 'memory'
   name: text("name"), // Display name
   blobId: text("blob_id"), // Reference to blobs table
   extractedTextRef: text("extracted_text_ref"), // Blob ref for extracted/processed text
@@ -121,6 +121,30 @@ export const knowledgeSources = sqliteTable("knowledge_sources", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
   notes: text("notes"),
   archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+});
+
+/**
+ * Memories projection table - durable conversational facts/preferences
+ */
+export const memories = sqliteTable("memories", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+});
+
+/**
+ * Memory-Coworker relationship table
+ */
+export const memoryCoworkers = sqliteTable("memory_coworkers", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  memoryId: text("memory_id").notNull(),
+  coworkerId: text("coworker_id").notNull(),
+  sourceId: text("source_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
 /**
@@ -203,6 +227,14 @@ export type NewKnowledgeItem = typeof knowledgeItems.$inferInsert;
 export type KnowledgeSource = typeof knowledgeSources.$inferSelect;
 export type NewKnowledgeSource = typeof knowledgeSources.$inferInsert;
 
+// Type exports - Memories
+export type Memory = typeof memories.$inferSelect;
+export type NewMemory = typeof memories.$inferInsert;
+
+// Type exports - Memory Coworkers
+export type MemoryCoworker = typeof memoryCoworkers.$inferSelect;
+export type NewMemoryCoworker = typeof memoryCoworkers.$inferInsert;
+
 // Type exports - Source Text
 export type SourceText = typeof sourceText.$inferSelect;
 export type NewSourceText = typeof sourceText.$inferInsert;
@@ -227,6 +259,8 @@ export type EntityType =
   | "message"
   | "knowledge"
   | "knowledge_source"
+  | "memory"
+  | "memory_coworker"
   | "blob";
 
 // Scope type for knowledge items

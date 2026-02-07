@@ -266,6 +266,13 @@ Channel views now provide a full conversation experience:
 - Activity updates appear in the thread header and inside streaming coworker bubbles
 - Manual rename available from the thread header and thread list menu (title required)
 
+Channel setup rules:
+
+- New workspaces default to `#general`, `#planning`, `#operations`.
+- A channel must have at least one assigned co-worker before starting new work.
+- If a channel has zero co-workers but already contains threads, those threads remain readable while new threads and messaging are disabled.
+- Every newly created co-worker is automatically assigned to `#general`. If created from a channel view, they are also assigned to that channel.
+
 Primary components:
 
 - `src/renderer/src/components/thread/ThreadView.svelte`
@@ -286,11 +293,28 @@ Knowledge is managed at different levels with dedicated locations:
 | **Thread** | Sources panel only | Attached files/links/notes for this conversation |
 
 Sources can be text notes, links, or file attachments (PDF, DOCX, Markdown). Each source supports a display label, optional notes, and delete/rename actions.
+
+The **Add Knowledge Source** dialog uses a card-based source type selector:
+
+- **Primary row** (2-column grid): File (default) and Text — larger cards with icon, label, and description. The selected card shows an accent border and check icon.
+- **Secondary row** (3-column grid): Link, Google Drive, and OneDrive — compact cards with "Coming soon" badges. Link is selectable (with an info banner noting indexing is not yet live). Google Drive and OneDrive are visually muted and disabled.
+
+The dialog defaults to **File** when opened and is sized at `sm:max-w-xl` (576px) to accommodate the card grid.
 Sources panels also accept drag-and-drop for supported files; dropping files imports them directly into the current scope with inline progress feedback.
 On macOS, drag-and-drop may require granting access to Documents and Downloads; after granting, re-drop the file to attach it.
 
 Workspace Settings includes an **Indexing** tab that shows the live indexing status for all sources across the workspace. It updates in real time as files are extracted, chunked, and embedded.
 Workspace Settings also includes an **Updates** tab that surfaces the auto-update status and controls for downloading and installing new versions.
+
+## Memories
+
+Memories are durable facts or preferences captured during conversations. They are saved via a tool call and linked to one or more co-workers. Memories are:
+
+- **Visible** in the co-worker profile under the **Memories** tab.
+- **Dated** with the time they were added for that co-worker.
+- **Forgettable** (removes the link for that co-worker) but not editable.
+
+Memories are indexed through the same retrieval pipeline as knowledge sources, but they do not appear in the Knowledge Sources UI.
 
 ### Knowledge Components
 
@@ -306,7 +330,7 @@ Workspace Settings also includes an **Updates** tab that surfaces the auto-updat
 - **Workspace Settings > Updates**: Shows current version, update status, auto-download toggle, and restart-to-install action when an update is ready.
 - **Channel Settings Panel** (`components/channel/ChannelSettingsPanel.svelte`): Right panel in ChannelView (can be opened even while a thread is selected). Manages channel-specific knowledge.
 - **Thread Sources Panel** (`components/thread/ThreadSourcesPanel.svelte`): Right panel in ThreadView. Shows only attached sources for the conversation.
-- **Co-worker Profile** (`components/coworker/CoworkerProfile.svelte`): Knowledge tab includes co-worker specific sources and notes.
+- **Co-worker Profile** (`components/coworker/CoworkerProfile.svelte`): Knowledge tab includes co-worker specific sources and notes. Memories tab lists saved memories with a forget action.
 
 ## First-Run Experience (FRE)
 

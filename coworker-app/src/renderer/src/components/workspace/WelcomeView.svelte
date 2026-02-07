@@ -60,7 +60,7 @@
 
     <!-- Subtitle -->
     <p class="mb-10 text-lg text-muted-foreground">
-      Start by opening a workspace
+      Start by creating a new workspace or opening an existing one
     </p>
 
     <!-- Action buttons -->

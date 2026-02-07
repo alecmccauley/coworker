@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 /**
  * Run all migrations on a workspace database
@@ -53,6 +53,9 @@ export function runMigrations(sqlite: Database.Database): void {
     }
     if (currentVersion < 7) {
       runMigrationV7(sqlite);
+    }
+    if (currentVersion < 8) {
+      runMigrationV8(sqlite);
     }
 
     // Update schema version
@@ -516,5 +519,54 @@ function runMigrationV7(sqlite: Database.Database): void {
 
   sqlite.exec(`
     ALTER TABLE coworkers ADD COLUMN model TEXT
+  `);
+}
+
+/**
+ * Migration V8: Add memories and memory_coworkers
+ */
+function runMigrationV8(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V8: Add memories");
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      archived_at INTEGER
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_memories_workspace
+    ON memories (workspace_id, archived_at)
+  `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS memory_coworkers (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      memory_id TEXT NOT NULL,
+      coworker_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_memory_coworkers_memory
+    ON memory_coworkers (memory_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_memory_coworkers_coworker
+    ON memory_coworkers (coworker_id)
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_coworkers_unique
+    ON memory_coworkers (memory_id, coworker_id)
   `);
 }

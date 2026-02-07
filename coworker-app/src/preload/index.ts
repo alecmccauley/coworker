@@ -156,7 +156,7 @@ export interface UpdateMessageInput {
 // Knowledge types
 export type ScopeType = "workspace" | "channel" | "coworker";
 export type SourceScopeType = "workspace" | "channel" | "coworker" | "thread";
-export type KnowledgeSourceKind = "text" | "file" | "url";
+export type KnowledgeSourceKind = "text" | "file" | "url" | "memory";
 export type IndexStatus = "pending" | "processing" | "ready" | "error";
 
 export interface KnowledgeItem {
@@ -210,6 +210,13 @@ export interface KnowledgeSource {
   createdAt: Date;
   updatedAt: Date | null;
   archivedAt: Date | null;
+}
+
+export interface MemoryItem {
+  id: string;
+  content: string;
+  addedAt: Date;
+  sourceId: string;
 }
 
 export interface AddKnowledgeSourceInput {
@@ -705,6 +712,12 @@ const api = {
         ipcRenderer.removeListener("knowledge:indexingProgress", listener);
       };
     },
+  },
+  memory: {
+    list: (coworkerId: string) =>
+      ipcRenderer.invoke("memory:list", coworkerId) as Promise<MemoryItem[]>,
+    forget: (memoryId: string, coworkerId: string) =>
+      ipcRenderer.invoke("memory:forget", memoryId, coworkerId) as Promise<void>,
   },
   blob: {
     add: (input: AddBlobInput) =>

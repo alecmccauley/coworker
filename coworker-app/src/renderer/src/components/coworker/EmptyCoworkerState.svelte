@@ -4,7 +4,7 @@
   import PlusIcon from '@lucide/svelte/icons/plus'
 
   interface Props {
-    onCreateCoworker: () => void
+    onCreateCoworker: (channelId?: string) => void
   }
 
   let { onCreateCoworker }: Props = $props()

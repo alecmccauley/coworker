@@ -152,8 +152,8 @@ Projections are tables that mirror “current state” and are updated when even
 | `threads` | Conversation sessions within channels. |
 | `messages` | Thread messages, with content refs for large content. |
 | `knowledge_items` | Scoped pinned notes and summaries. |
-| `knowledge_sources` | Raw inputs (text, links, files) scoped to workspace/channel/coworker/thread with optional notes, file metadata, and blob references. Drag-and-drop is supported in the app UI for file sources. |
-| `source_text` | Extracted plain/rich text for sources, with extraction versioning and warnings. |
+| `knowledge_sources` | Raw inputs (text, links, files) scoped to workspace/channel/coworker/thread with optional notes, file metadata, and blob references. Drag-and-drop is supported in the app UI for file sources. Notes are indexed alongside source text for retrieval. |
+| `source_text` | Extracted plain/rich text for sources, with extraction versioning and warnings. Notes are appended as labeled text for indexing and retrieval. |
 | `source_chunks` | Chunked text for retrieval, indexed by FTS5 and (optional) sqlite-vec embeddings. |
 | `blobs` | Blob metadata (path, mime, size, sha256) for files in `blobs/`. |
 

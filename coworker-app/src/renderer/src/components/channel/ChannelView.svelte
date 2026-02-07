@@ -11,11 +11,12 @@
   import ThreadView from '../thread/ThreadView.svelte'
   import ChannelSettingsPanel from './ChannelSettingsPanel.svelte'
   import ThreadRenameDialog from '../thread/ThreadRenameDialog.svelte'
+  import ChannelNoCoworkersState from './ChannelNoCoworkersState.svelte'
 
   interface Props {
     channel: Channel
     coworkers: Coworker[]
-    onCreateCoworker: () => void
+    onCreateCoworker: (channelId?: string) => void
     openSettingsPanel?: boolean
   }
 
@@ -26,6 +27,7 @@
   let selectedThread = $state<Thread | null>(null)
   let isSettingsPanelOpen = $state(false)
   let channelCoworkers = $state<Coworker[]>([])
+  let isLoadingCoworkers = $state(false)
   let isRenameOpen = $state(false)
   let renameTarget = $state<Thread | null>(null)
   let renameError = $state<string | null>(null)
@@ -36,6 +38,12 @@
     if (channel) {
       selectedThread = null
       loadThreads()
+      loadChannelCoworkers()
+    }
+  })
+
+  $effect(() => {
+    if (channel && coworkers.length >= 0) {
       loadChannelCoworkers()
     }
   })
@@ -73,11 +81,14 @@
   }
 
   async function loadChannelCoworkers(): Promise<void> {
+    isLoadingCoworkers = true
     try {
       channelCoworkers = await window.api.channel.listCoworkers(channel.id)
     } catch (error) {
       console.error('Failed to load channel coworkers:', error)
       channelCoworkers = []
+    } finally {
+      isLoadingCoworkers = false
     }
   }
 
@@ -160,7 +171,11 @@
         <SettingsIcon class="h-4 w-4" />
         {isSettingsPanelOpen ? 'Hide settings' : 'Settings'}
       </Button>
-      <Button onclick={handleCreateThread} class="gap-2">
+      <Button
+        onclick={handleCreateThread}
+        class="gap-2"
+        disabled={!isLoadingCoworkers && channelCoworkers.length === 0}
+      >
         <PlusIcon class="h-4 w-4" />
         New Thread
       </Button>
@@ -169,6 +184,17 @@
 
   <!-- Content -->
   <div class="flex flex-1 overflow-hidden">
+    {#if !isLoadingCoworkers && channelCoworkers.length === 0 && threads.length === 0}
+      <div class="flex flex-1 items-center justify-center p-8">
+        <ChannelNoCoworkersState
+          {channel}
+          {coworkers}
+          onCreateCoworker={onCreateCoworker}
+          onAssignmentsUpdated={loadChannelCoworkers}
+          variant="full"
+        />
+      </div>
+    {:else}
     <!-- Thread List -->
     <div class="w-80 flex-shrink-0 overflow-y-auto border-r border-border">
       {#if isLoading}
@@ -184,7 +210,12 @@
           <p class="mt-1 text-sm text-muted-foreground">
             Start a new thread to begin collaborating
           </p>
-          <Button onclick={handleCreateThread} class="mt-4 gap-2" size="sm">
+          <Button
+            onclick={handleCreateThread}
+            class="mt-4 gap-2"
+            size="sm"
+            disabled={!isLoadingCoworkers && channelCoworkers.length === 0}
+          >
             <PlusIcon class="h-4 w-4" />
             Start Conversation
           </Button>
@@ -240,12 +271,21 @@
 
     <!-- Conversation View -->
     <div class="flex flex-1 flex-col">
+      {#if !isLoadingCoworkers && channelCoworkers.length === 0 && threads.length > 0}
+        <ChannelNoCoworkersState
+          {channel}
+          {coworkers}
+          onCreateCoworker={onCreateCoworker}
+          onAssignmentsUpdated={loadChannelCoworkers}
+          variant="banner"
+        />
+      {/if}
       {#if selectedThread}
         <ThreadView
           thread={selectedThread}
           {coworkers}
           channelCoworkers={channelCoworkers}
-          {onCreateCoworker}
+          onCreateCoworker={() => onCreateCoworker(channel.id)}
           onRenameThread={openRename}
         />
       {:else}
@@ -260,6 +300,7 @@
         </div>
       {/if}
     </div>
+    {/if}
 
     <!-- Channel Settings Panel -->
   <ChannelSettingsPanel

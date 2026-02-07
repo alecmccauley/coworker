@@ -123,6 +123,9 @@ export function buildOrchestratorSystemPrompt(
     "- Generate responses sequentially in your chosen order.",
     "- For each response: call `generate_coworker_response`, then `emit_coworker_message`.",
     "- Use `report_status` to share concise, user-safe progress updates.",
+    "- When you learn a durable preference or fact that should persist, call `save_memory`.",
+    "- Keep memories short, specific, and safe. Do not store secrets.",
+    "- Attach memories to all relevant coworkers by id.",
     "- Never output normal assistant text in your final response.",
   );
 
@@ -413,11 +416,19 @@ export async function gatherRagContext(
   );
 
   const contextItems: RagContextItem[] = [];
+  const seenMemoryIds = new Set<string>();
 
   for (const item of deduped.values()) {
     const source = sourceMap.get(item.sourceId);
+    const memoryId = extractMemoryIdFromSource(source?.metadata ?? null);
+    if (memoryId) {
+      if (seenMemoryIds.has(memoryId)) {
+        continue;
+      }
+      seenMemoryIds.add(memoryId);
+    }
     const sourceName =
-      source?.name?.trim() ||
+      (memoryId ? "Memory" : source?.name?.trim()) ||
       (source ? `Source ${source.id.slice(0, 6)}` : `Source ${item.sourceId.slice(0, 6)}`);
     const scopeType =
       source?.scopeType && ["workspace", "channel", "thread", "coworker"].includes(source.scopeType)
@@ -438,6 +449,18 @@ export async function gatherRagContext(
   }
 
   return contextItems;
+}
+
+function extractMemoryIdFromSource(metadata: string | null): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = JSON.parse(metadata) as { memoryId?: unknown };
+    return typeof parsed.memoryId === "string" && parsed.memoryId.trim().length > 0
+      ? parsed.memoryId
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function mapMessageRole(message: Message): ChatMessage["role"] | null {

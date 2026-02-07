@@ -5,6 +5,7 @@ export * from "./thread";
 export * from "./message";
 export * from "./chat";
 export * from "./knowledge";
+export * from "./memory";
 export * from "./blob";
 export * from "./events";
 export * from "./updates";

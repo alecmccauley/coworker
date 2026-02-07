@@ -32,11 +32,12 @@
     onTourStateChange?.(false)
   })
 
-  const TOUR_FADE_MS = 300
+  const CONTENT_EXIT_MS = 400
+  const BACKDROP_FADE_MS = 300
 
   function startTour(): void {
     tourStarted = true
-    onTourStateChange?.(true)
+    // Don't call onTourStateChange yet — backdrop stays solid while content exits
 
     const steps: DriveStep[] = [
       {
@@ -78,10 +79,6 @@
     ]
 
     const overlayOpacity = 0.2
-    // #region agent log
-    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-    fetch('http://127.0.0.1:7242/ingest/110516fa-2f6a-4c88-8d7b-9639e803203f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'UIOrientationSection.svelte:driverConfig', message: 'FRE tour driver config', data: { overlayOpacity, isDark }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3,H4' }) }).catch(() => {})
-    // #endregion
 
     driverInstance = driver({
       showProgress: true,
@@ -99,20 +96,15 @@
       }
     })
 
-    // Start spotlight after "Let's look around" fades out for a smooth handoff
+    // Phase 2: after content exits, fade the backdrop
+    setTimeout(() => {
+      onTourStateChange?.(true)
+    }, CONTENT_EXIT_MS)
+
+    // Phase 3: after backdrop fades, start driver.js
     setTimeout(() => {
       driverInstance?.drive()
-    }, TOUR_FADE_MS)
-
-    // #region agent log
-    setTimeout(() => {
-      const overlay = document.querySelector('.driver-overlay')
-      const stage = document.querySelector('.driver-stage')
-      const overlayStyle = overlay ? getComputedStyle(overlay) : null
-      const stageStyle = stage ? getComputedStyle(stage) : null
-      fetch('http://127.0.0.1:7242/ingest/110516fa-2f6a-4c88-8d7b-9639e803203f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'UIOrientationSection.svelte:computedStyles', message: 'FRE Driver overlay/stage computed styles', data: { overlayBackground: overlayStyle?.background ?? overlayStyle?.backgroundColor, overlayOpacity: overlayStyle?.opacity, stageBoxShadow: stageStyle?.boxShadow, stageBackground: stageStyle?.backgroundColor }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H1,H2,H5' }) }).catch(() => {})
-    }, 400)
-    // #endregion
+    }, CONTENT_EXIT_MS + BACKDROP_FADE_MS)
   }
 
   function handleContinue(): void {
@@ -134,15 +126,15 @@
   - Settings button
 -->
 <div
-  class="flex w-full max-w-2xl flex-col items-center justify-center text-center transition-all duration-700"
+  class="flex w-full max-w-2xl flex-col items-center justify-center text-center transition-all ease-out"
   class:opacity-100={showContent && !(tourStarted && !tourCompleted)}
   class:opacity-0={!showContent || (tourStarted && !tourCompleted)}
-  class:translate-y-0={showContent}
+  class:translate-y-0={showContent && !(tourStarted && !tourCompleted)}
   class:translate-y-8={!showContent}
+  class:-translate-y-12={tourStarted && !tourCompleted}
   class:pointer-events-none={tourStarted && !tourCompleted}
-  class:duration-300={(tourStarted || tourCompleted)}
+  class:duration-400={tourStarted || tourCompleted}
   class:duration-700={!tourStarted && !tourCompleted}
-  class:ease-out={(tourStarted || tourCompleted)}
 >
   <!-- Header (hidden during spotlight tour so only Driver popover + highlighted UI show) -->
   <div class="mb-12">

@@ -81,8 +81,8 @@
     isCreatingChannel = true
     try {
       const channel = await window.api.channel.create({
-        name: 'General',
-        purpose: 'A place for general discussions'
+        name: 'general',
+        purpose: 'Announcements, updates, and shared context'
       })
       onChannelCreated(channel)
       selectedChannel = channel
@@ -133,7 +133,7 @@
   FirstValueSection: Interactive section to create first channel, coworker, and acknowledge thread
 
   Steps:
-  1. Channel - Select existing or create "General"
+  1. Channel - Select existing or create "general"
   2. Co-worker - Select existing or create a default assistant
   3. Thread - Acknowledge understanding of conversations
 -->
@@ -269,8 +269,10 @@
                 <HashIcon class="h-5 w-5 text-accent" />
               </div>
               <div class="text-left">
-                <p class="font-medium">Create "General" channel</p>
-                <p class="text-sm text-muted-foreground">A place for general discussions</p>
+                <p class="font-medium">Create "general" channel</p>
+                <p class="text-sm text-muted-foreground">
+                  Announcements, updates, and shared context
+                </p>
               </div>
             {/if}
           </Button>
@@ -331,7 +333,7 @@
             <div class="text-left">
               <p class="font-medium text-foreground">Ready to chat</p>
               <p class="text-sm text-muted-foreground">
-                In #{selectedChannel?.name ?? 'General'} with {selectedCoworker?.name ?? 'your co-worker'}
+                In #{selectedChannel?.name ?? 'general'} with {selectedCoworker?.name ?? 'your co-worker'}
               </p>
             </div>
           </div>
