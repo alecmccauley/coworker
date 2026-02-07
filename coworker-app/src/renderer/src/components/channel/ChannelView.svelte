@@ -3,10 +3,14 @@
   import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import MessageSquareIcon from '@lucide/svelte/icons/message-square'
   import SettingsIcon from '@lucide/svelte/icons/settings'
+  import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal'
+  import PencilIcon from '@lucide/svelte/icons/pencil'
+  import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
   import { Button } from '$lib/components/ui/button'
   import type { Channel, Thread, Coworker } from '$lib/types'
   import ThreadView from '../thread/ThreadView.svelte'
   import ChannelSettingsPanel from './ChannelSettingsPanel.svelte'
+  import ThreadRenameDialog from '../thread/ThreadRenameDialog.svelte'
 
   interface Props {
     channel: Channel
@@ -21,6 +25,10 @@
   let isLoading = $state(false)
   let selectedThread = $state<Thread | null>(null)
   let isSettingsPanelOpen = $state(false)
+  let isRenameOpen = $state(false)
+  let renameTarget = $state<Thread | null>(null)
+  let renameError = $state<string | null>(null)
+  let isRenaming = $state(false)
 
   $effect(() => {
     // Reload threads when channel changes
@@ -33,6 +41,21 @@
   $effect(() => {
     if (openSettingsPanel) {
       isSettingsPanelOpen = true
+    }
+  })
+
+  $effect(() => {
+    const cleanup = window.api.thread.onUpdated((updated) => {
+      threads = threads.map((thread) =>
+        thread.id === updated.id ? updated : thread
+      )
+      if (selectedThread?.id === updated.id) {
+        selectedThread = updated
+      }
+    })
+
+    return () => {
+      cleanup()
     }
   })
 
@@ -57,6 +80,37 @@
       selectedThread = thread
     } catch (error) {
       console.error('Failed to create thread:', error)
+    }
+  }
+
+  function openRename(thread: Thread): void {
+    renameTarget = thread
+    renameError = null
+    isRenameOpen = true
+  }
+
+  function closeRename(): void {
+    isRenameOpen = false
+    renameTarget = null
+    renameError = null
+    isRenaming = false
+  }
+
+  async function handleRenameSave(title: string): Promise<void> {
+    if (!renameTarget) return
+    isRenaming = true
+    renameError = null
+    try {
+      const updated = await window.api.thread.update(renameTarget.id, { title })
+      threads = threads.map((thread) => (thread.id === updated.id ? updated : thread))
+      if (selectedThread?.id === updated.id) {
+        selectedThread = updated
+      }
+      closeRename()
+    } catch (error) {
+      console.error('Failed to rename thread:', error)
+      renameError = 'Unable to rename this conversation.'
+      isRenaming = false
     }
   }
 
@@ -127,19 +181,47 @@
       {:else}
         <div class="p-2">
           {#each threads as thread (thread.id)}
-            <button
-              onclick={() => (selectedThread = thread)}
-              class="flex w-full flex-col gap-1 rounded-lg p-3 text-left transition-colors"
+            <div
+              class="group flex items-start justify-between gap-2 rounded-lg p-3 transition-colors"
               class:bg-accent={selectedThread?.id === thread.id}
               class:hover:bg-muted={selectedThread?.id !== thread.id}
             >
-              <span class="font-medium text-foreground">
-                {thread.title || 'Untitled conversation'}
-              </span>
-              <span class="text-xs text-muted-foreground">
-                {formatRelativeTime(thread.updatedAt)}
-              </span>
-            </button>
+              <button
+                onclick={() => (selectedThread = thread)}
+                class="flex min-w-0 flex-1 flex-col gap-1 text-left"
+              >
+                <span class="truncate font-medium text-foreground">
+                  {thread.title || 'Untitled conversation'}
+                </span>
+                <span class="text-xs text-muted-foreground">
+                  {formatRelativeTime(thread.updatedAt)}
+                </span>
+              </button>
+              <div
+                class="opacity-0 transition-opacity group-hover:opacity-100"
+                onclick={(event) => event.stopPropagation()}
+              >
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger>
+                    {#snippet child({ props })}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        {...props}
+                      >
+                        <MoreHorizontalIcon class="h-4 w-4" />
+                      </Button>
+                    {/snippet}
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content align="end">
+                    <DropdownMenu.Item onclick={() => openRename(thread)}>
+                      <PencilIcon class="mr-2 h-4 w-4" />
+                      Rename
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Root>
+              </div>
+            </div>
           {/each}
         </div>
       {/if}
@@ -152,6 +234,7 @@
           thread={selectedThread}
           {coworkers}
           {onCreateCoworker}
+          onRenameThread={openRename}
         />
       {:else}
         <div class="flex flex-1 flex-col items-center justify-center p-8 text-center">
@@ -167,10 +250,19 @@
     </div>
 
     <!-- Channel Settings Panel -->
-    <ChannelSettingsPanel
-      open={isSettingsPanelOpen}
-      onClose={() => (isSettingsPanelOpen = false)}
-      {channel}
-    />
-  </div>
+  <ChannelSettingsPanel
+    open={isSettingsPanelOpen}
+    onClose={() => (isSettingsPanelOpen = false)}
+    {channel}
+  />
+
+  <ThreadRenameDialog
+    bind:open={isRenameOpen}
+    thread={renameTarget}
+    onClose={closeRename}
+    onSave={handleRenameSave}
+    isSaving={isRenaming}
+    error={renameError}
+  />
+</div>
 </div>

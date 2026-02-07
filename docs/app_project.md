@@ -221,6 +221,8 @@ Channel views now provide a full conversation experience:
 - Markdown rendering for message content (sanitized, linkified)
 - Composer for sending messages as the user
 - Sources panel for thread-specific attachments (files, links, notes)
+- First message auto-names new conversations via AI tool call
+- Manual rename available from the thread header and thread list menu (title required)
 
 Primary components:
 

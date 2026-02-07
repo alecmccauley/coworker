@@ -229,6 +229,33 @@ export async function listMessages(threadId: string): Promise<Message[]> {
 }
 
 /**
+ * Count messages in a thread
+ */
+export async function getThreadMessageCount(
+  threadId: string,
+): Promise<number> {
+  const db = getCurrentDatabase();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const result = db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.workspaceId, workspace.manifest.id),
+        eq(messages.threadId, threadId),
+      ),
+    )
+    .get();
+
+  return (result as { count: number } | undefined)?.count ?? 0;
+}
+
+/**
  * Get a message by ID
  */
 export async function getMessageById(id: string): Promise<Message | null> {

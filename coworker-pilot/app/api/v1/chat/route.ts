@@ -14,6 +14,7 @@ import { withAuth, type AuthenticatedRequest } from "@/lib/auth-middleware";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_MODEL = "openai/gpt-4.1";
+const TITLE_TOOL_NAME = "set_conversation_title";
 
 function buildContextBlock(request: ChatCompletionRequest): string {
   const activityInstruction = [
@@ -70,12 +71,28 @@ async function handlePost(
       ],
       temperature: data.temperature ?? 0.2,
       maxTokens: data.maxTokens,
+      stopWhen: ({ steps }) => {
+        const lastStep = steps[steps.length - 1];
+        const hasTitleToolCall =
+          lastStep?.toolCalls?.some(
+            (toolCall) => toolCall.toolName === TITLE_TOOL_NAME,
+          ) ?? false;
+        return hasTitleToolCall ? steps.length >= 2 : steps.length >= 1;
+      },
       tools: {
         report_status: {
           description:
             "Share short, user-safe activity updates during generation. Do not reveal internal reasoning.",
           inputSchema: z.object({
             label: z.string().min(1).max(120),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        set_conversation_title: {
+          description:
+            "Set a concise, user-visible title for the conversation thread.",
+          inputSchema: z.object({
+            title: z.string().min(1).max(80),
           }),
           execute: async () => ({ ok: true }),
         },

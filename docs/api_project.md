@@ -405,6 +405,11 @@ DELETE /api/v1/users/:id      # Delete user
 POST /api/v1/chat  # Stream AI responses for thread conversations
 ```
 
+Chat streaming supports model tool calls. Current tools:
+
+- `report_status` — Emits short activity labels during streaming.
+- `set_conversation_title` — Emits a concise conversation title for first-message auto-naming.
+
 ## Adding a New API Endpoint
 
 ### 1. Create the route file (Protected)

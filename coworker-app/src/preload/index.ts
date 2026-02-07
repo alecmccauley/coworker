@@ -562,6 +562,15 @@ const api = {
       ipcRenderer.invoke("thread:list", channelId) as Promise<Thread[]>,
     getById: (id: string) =>
       ipcRenderer.invoke("thread:getById", id) as Promise<Thread | null>,
+    onUpdated: (handler: (thread: Thread) => void): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as Thread);
+      };
+      ipcRenderer.on("thread:updated", listener);
+      return () => {
+        ipcRenderer.removeListener("thread:updated", listener);
+      };
+    },
   },
   message: {
     create: (input: CreateMessageInput) =>

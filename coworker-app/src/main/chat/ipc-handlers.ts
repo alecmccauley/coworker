@@ -1,6 +1,10 @@
 import { ipcMain, type WebContents } from "electron";
 import type { ChatCompletionRequest, CoworkerSdk } from "@coworker/shared-services";
-import { createMessage, updateMessage } from "../message";
+import {
+  createMessage,
+  updateMessage,
+  getThreadMessageCount,
+} from "../message";
 import {
   buildSystemPrompt,
   convertThreadToChatMessages,
@@ -10,6 +14,7 @@ import {
   resolvePrimaryCoworker,
 } from "./chat-service";
 import { listChannelCoworkers } from "../channel";
+import { updateThread } from "../thread";
 
 interface ChatChunkPayload {
   messageId: string;
@@ -89,6 +94,55 @@ function normalizeStatusLabel(label: string): string {
   return trimmed.length > 120 ? trimmed.slice(0, 120).trim() : trimmed;
 }
 
+function extractTitleFromInputText(inputText: string): string {
+  const trimmed = inputText.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as { title?: unknown };
+    if (parsed && typeof parsed.title === "string") {
+      return parsed.title;
+    }
+  } catch {
+    // Best-effort parsing for partial JSON.
+  }
+
+  const quotedMatch = /"title"\s*:\s*"([^"]+)"/.exec(trimmed);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  return trimmed
+    .replace(/[{}[\]]/g, "")
+    .replace(/\"/g, "")
+    .replace(/\s*title\s*:\s*/i, "")
+    .replace(/,$/, "")
+    .trim();
+}
+
+function normalizeTitle(rawTitle: string): string {
+  const sanitized = rawTitle
+    .replace(/[.!?;:"'“”‘’()[\]{}]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!sanitized) {
+    return "";
+  }
+
+  const words = sanitized.split(" ").filter(Boolean);
+  const limited = words.slice(0, 6).join(" ");
+
+  if (words.length < 2) {
+    return "";
+  }
+
+  const capped = limited.length > 80 ? limited.slice(0, 80).trim() : limited;
+  return capped.charAt(0).toUpperCase() + capped.slice(1);
+}
+
 async function persistStreamingContent(
   messageId: string,
   content: string,
@@ -106,6 +160,7 @@ async function streamChatResponse(
   content: string,
   assistantMessageId: string,
   coworkerId: string | null,
+  shouldAutoTitle: boolean,
 ): Promise<void> {
   if (!getSdk) {
     throw new Error("Chat SDK is not initialized");
@@ -119,6 +174,8 @@ async function streamChatResponse(
   let lastPersist = Date.now();
   let statusClosed = false;
   const statusBuffers = new Map<string, string>();
+  const titleBuffers = new Map<string, string>();
+  let titleApplied = false;
 
   const emitStatus = (label: string, phase: ChatStatusPayload["phase"]): void => {
     if (statusClosed) {
@@ -148,6 +205,7 @@ async function streamChatResponse(
     const systemPrompt = buildSystemPrompt({
       ...threadContext,
       coworker,
+      autoTitle: shouldAutoTitle,
     });
 
     const channelCoworkers = await listChannelCoworkers(
@@ -237,6 +295,56 @@ async function streamChatResponse(
         continue;
       }
 
+      if (
+        event.type === "tool-input-start" &&
+        event.toolName === "set_conversation_title"
+      ) {
+        titleBuffers.set(event.toolCallId, "");
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-delta" &&
+        event.toolName === "set_conversation_title"
+      ) {
+        const existing = titleBuffers.get(event.toolCallId) ?? "";
+        const next = `${existing}${event.inputTextDelta}`;
+        titleBuffers.set(event.toolCallId, next);
+        if (shouldAutoTitle && !titleApplied) {
+          const title = normalizeTitle(extractTitleFromInputText(next));
+          if (title) {
+            const updated = await updateThread(threadId, { title });
+            safeSend(sender, "thread:updated", updated);
+            titleApplied = true;
+          }
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "set_conversation_title"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { title?: unknown })
+            : null;
+        const title =
+          input && typeof input.title === "string"
+            ? normalizeTitle(input.title)
+            : normalizeTitle(
+                extractTitleFromInputText(
+                  titleBuffers.get(event.toolCallId) ?? "",
+                ),
+              );
+        if (shouldAutoTitle && !titleApplied && title) {
+          const updated = await updateThread(threadId, { title });
+          safeSend(sender, "thread:updated", updated);
+          titleApplied = true;
+        }
+        continue;
+      }
+
       if (event.type === "done") {
         finalizeStatus("done");
         await persistStreamingContent(
@@ -285,6 +393,11 @@ export function registerChatIpcHandlers(): void {
       content: string,
     ): Promise<SendMessageResult> => {
       const threadContext = await getThreadContext(threadId);
+      const messageCount = await getThreadMessageCount(threadId);
+      const normalizedTitle = threadContext.threadTitle?.trim() ?? "";
+      const isDefaultTitle =
+        normalizedTitle.length === 0 || normalizedTitle === "New conversation";
+      const shouldAutoTitle = messageCount === 0 && isDefaultTitle;
       const primaryCoworker = await resolvePrimaryCoworker(
         threadContext.channelId,
       );
@@ -310,6 +423,7 @@ export function registerChatIpcHandlers(): void {
         content,
         assistantMessage.id,
         primaryCoworker?.id ?? null,
+        shouldAutoTitle,
       );
 
       return { userMessage, assistantMessage };

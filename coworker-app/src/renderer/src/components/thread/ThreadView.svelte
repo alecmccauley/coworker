@@ -2,6 +2,7 @@
   import PanelRightOpenIcon from '@lucide/svelte/icons/panel-right-open'
   import PanelRightCloseIcon from '@lucide/svelte/icons/panel-right-close'
   import { Button } from '$lib/components/ui/button'
+  import PencilIcon from '@lucide/svelte/icons/pencil'
   import type {
     ChatChunkPayload,
     ChatCompletePayload,
@@ -19,9 +20,10 @@
     thread: Thread
     coworkers: Coworker[]
     onCreateCoworker: () => void
+    onRenameThread?: (thread: Thread) => void
   }
 
-  let { thread, coworkers, onCreateCoworker }: Props = $props()
+  let { thread, coworkers, onCreateCoworker, onRenameThread }: Props = $props()
 
   let messages = $state<Message[]>([])
   let isLoading = $state(false)
@@ -140,6 +142,15 @@
         </h3>
       </div>
       <div class="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          class="gap-2"
+          onclick={() => onRenameThread?.(thread)}
+        >
+          <PencilIcon class="h-4 w-4" />
+          Rename
+        </Button>
         <Button
           variant="outline"
           size="sm"
