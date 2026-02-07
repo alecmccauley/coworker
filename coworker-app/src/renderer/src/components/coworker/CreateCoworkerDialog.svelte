@@ -8,7 +8,7 @@
   import UserIcon from '@lucide/svelte/icons/user'
   import CheckIcon from '@lucide/svelte/icons/check'
   import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left'
-  import type { CreateCoworkerInput } from '$lib/types'
+  import type { AiModel, CreateCoworkerInput } from '$lib/types'
 
   interface Template {
     id: string
@@ -40,11 +40,14 @@
   let templates = $state<Template[]>([])
   let selectedTemplate = $state<Template | null>(null)
   let isLoadingTemplates = $state(true)
+  let models = $state<AiModel[]>([])
+  let isLoadingModels = $state(true)
 
   // Form state
   let name = $state('')
   let isSubmitting = $state(false)
   let error = $state('')
+  let modelValue = $state('')
 
   // Load templates when dialog opens
   $effect(() => {
@@ -52,9 +55,11 @@
       currentStep = 'template'
       selectedTemplate = null
       name = ''
+      modelValue = ''
       error = ''
       isSubmitting = false
       loadTemplates()
+      loadModels()
     }
   })
 
@@ -66,6 +71,18 @@
       console.error('Failed to load templates:', err)
     } finally {
       isLoadingTemplates = false
+    }
+  }
+
+  async function loadModels(): Promise<void> {
+    isLoadingModels = true
+    try {
+      models = (await window.api.models.list()) as AiModel[]
+    } catch (err) {
+      console.error('Failed to load models:', err)
+      models = []
+    } finally {
+      isLoadingModels = false
     }
   }
 
@@ -116,6 +133,10 @@
         input.templateId = selectedTemplate.id
         input.templateVersion = selectedTemplate.version
         input.templateDescription = selectedTemplate.description ?? undefined
+      }
+
+      if (modelValue.trim()) {
+        input.model = modelValue.trim()
       }
 
       await onSave(input)
@@ -243,6 +264,46 @@
             disabled={isSubmitting}
             class={error && !name.trim() ? 'border-destructive' : ''}
           />
+        </div>
+
+        <div class="rounded-xl border border-border bg-card p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-foreground">Advanced settings</p>
+              <p class="text-xs text-muted-foreground">
+                Customize which model this co-worker uses for responses.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 space-y-2">
+            <Label for="coworker-model">Model</Label>
+            <select
+              id="coworker-model"
+              bind:value={modelValue}
+              class="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+              disabled={isSubmitting || isLoadingModels || models.length === 0}
+            >
+              {#if isLoadingModels}
+                <option value="">Loading models...</option>
+              {:else}
+                <option value="">
+                  {#if models.find((model) => model.isDefault)}
+                    Use default model ({models.find((model) => model.isDefault)?.title})
+                  {:else}
+                    Use default model
+                  {/if}
+                </option>
+                {#each models as model (model.id)}
+                  <option value={model.value}>{model.title}</option>
+                {/each}
+              {/if}
+            </select>
+            {#if !isLoadingModels && models.length === 0}
+              <p class="text-xs text-muted-foreground">
+                No models are available yet. Ask an admin to configure one.
+              </p>
+            {/if}
+          </div>
         </div>
 
         {#if error}

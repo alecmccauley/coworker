@@ -15,6 +15,7 @@ export interface CreateCoworkerInput {
   description?: string;
   rolePrompt?: string;
   defaultsJson?: string;
+  model?: string;
   templateId?: string;
   templateVersion?: number;
   templateDescription?: string;
@@ -28,6 +29,7 @@ export interface UpdateCoworkerInput {
   description?: string;
   rolePrompt?: string;
   defaultsJson?: string;
+  model?: string | null;
 }
 
 /**
@@ -38,6 +40,7 @@ interface CoworkerCreatedPayload {
   description?: string;
   rolePrompt?: string;
   defaultsJson?: string;
+  model?: string;
   templateId?: string;
   templateVersion?: number;
   templateDescription?: string;
@@ -48,6 +51,7 @@ interface CoworkerUpdatedPayload {
   description?: string;
   rolePrompt?: string;
   defaultsJson?: string;
+  model?: string | null;
 }
 
 interface CoworkerArchivedPayload {
@@ -127,6 +131,7 @@ export async function createCoworker(
     description: input.description,
     rolePrompt: input.rolePrompt,
     defaultsJson: input.defaultsJson,
+    model: input.model,
     templateId: input.templateId,
     templateVersion: input.templateVersion,
     templateDescription: input.templateDescription,
@@ -145,6 +150,7 @@ export async function createCoworker(
         description: input.description ?? null,
         rolePrompt: input.rolePrompt ?? null,
         defaultsJson: input.defaultsJson ?? null,
+        model: input.model ?? null,
         templateId: input.templateId ?? null,
         templateVersion: input.templateVersion ?? null,
         templateDescription: input.templateDescription ?? null,
@@ -201,6 +207,7 @@ export async function updateCoworker(
   if (input.rolePrompt !== undefined) payload.rolePrompt = input.rolePrompt;
   if (input.defaultsJson !== undefined)
     payload.defaultsJson = input.defaultsJson;
+  if (input.model !== undefined) payload.model = input.model;
 
   // Build update data
   const updates: Partial<Coworker> = {
@@ -211,6 +218,7 @@ export async function updateCoworker(
   if (input.rolePrompt !== undefined) updates.rolePrompt = input.rolePrompt;
   if (input.defaultsJson !== undefined)
     updates.defaultsJson = input.defaultsJson;
+  if (input.model !== undefined) updates.model = input.model ?? null;
 
   // Atomic transaction: append event + update projection
   sqlite.transaction(() => {

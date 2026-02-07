@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 /**
  * Run all migrations on a workspace database
@@ -50,6 +50,9 @@ export function runMigrations(sqlite: Database.Database): void {
 
     if (currentVersion < 6) {
       runMigrationV6(sqlite);
+    }
+    if (currentVersion < 7) {
+      runMigrationV7(sqlite);
     }
 
     // Update schema version
@@ -502,5 +505,16 @@ function runMigrationV6(sqlite: Database.Database): void {
   sqlite.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_coworkers_unique
     ON channel_coworkers (channel_id, coworker_id)
+  `);
+}
+
+/**
+ * Migration V7: Add model to coworkers
+ */
+function runMigrationV7(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V7: Add model to coworkers");
+
+  sqlite.exec(`
+    ALTER TABLE coworkers ADD COLUMN model TEXT
   `);
 }

@@ -486,5 +486,6 @@ export function mapCoworkerToContext(
     templateId: coworker.templateId ?? null,
     templateVersion: coworker.templateVersion ?? null,
     templateDescription: coworker.templateDescription ?? null,
+    model: coworker.model ?? null,
   };
 }

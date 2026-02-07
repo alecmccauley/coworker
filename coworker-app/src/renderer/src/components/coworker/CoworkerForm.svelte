@@ -5,7 +5,7 @@
   import { Label } from '$lib/components/ui/label'
   import { Textarea } from '$lib/components/ui/textarea'
   import Loader2Icon from '@lucide/svelte/icons/loader-2'
-  import type { Coworker, CreateCoworkerInput, UpdateCoworkerInput } from '$lib/types'
+  import type { AiModel, Coworker, CreateCoworkerInput, UpdateCoworkerInput } from '$lib/types'
 
   interface Props {
     open: boolean
@@ -21,6 +21,9 @@
   let description = $state('')
   let isSubmitting = $state(false)
   let error = $state('')
+  let models = $state<AiModel[]>([])
+  let isLoadingModels = $state(true)
+  let modelValue = $state('')
 
   // Computed
   const isEditMode = $derived(coworker !== null)
@@ -32,10 +35,24 @@
     if (open) {
       name = coworker?.name ?? ''
       description = coworker?.description ?? ''
+      modelValue = coworker?.model ?? ''
       error = ''
       isSubmitting = false
+      loadModels()
     }
   })
+
+  async function loadModels(): Promise<void> {
+    isLoadingModels = true
+    try {
+      models = (await window.api.models.list()) as AiModel[]
+    } catch (err) {
+      console.error('Failed to load models:', err)
+      models = []
+    } finally {
+      isLoadingModels = false
+    }
+  }
 
   async function handleSubmit(e: Event): Promise<void> {
     e.preventDefault()
@@ -52,6 +69,12 @@
       const input: CreateCoworkerInput | UpdateCoworkerInput = {
         name: name.trim(),
         description: description.trim() || undefined
+      }
+
+      if (modelValue.trim()) {
+        input.model = modelValue.trim()
+      } else {
+        input.model = null
       }
 
       await onSave(input)
@@ -106,6 +129,49 @@
           rows={3}
           disabled={isSubmitting}
         />
+      </div>
+
+      <div class="rounded-xl border border-border bg-card p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-foreground">Advanced settings</p>
+            <p class="text-xs text-muted-foreground">
+              Customize which model this co-worker uses for responses.
+            </p>
+          </div>
+        </div>
+        <div class="mt-4 space-y-2">
+          <Label for="coworker-model">Model</Label>
+          <select
+            id="coworker-model"
+            bind:value={modelValue}
+            class="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+            disabled={isSubmitting || isLoadingModels || models.length === 0}
+          >
+            {#if isLoadingModels}
+              <option value="">Loading models...</option>
+            {:else}
+              <option value="">
+                {#if models.find((model) => model.isDefault)}
+                  Use default model ({models.find((model) => model.isDefault)?.title})
+                {:else}
+                  Use default model
+                {/if}
+              </option>
+              {#if modelValue && !models.find((model) => model.value === modelValue)}
+                <option value={modelValue}>Unavailable ({modelValue})</option>
+              {/if}
+              {#each models as model (model.id)}
+                <option value={model.value}>{model.title}</option>
+              {/each}
+            {/if}
+          </select>
+          {#if !isLoadingModels && models.length === 0}
+            <p class="text-xs text-muted-foreground">
+              No models are available yet. Ask an admin to configure one.
+            </p>
+          {/if}
+        </div>
       </div>
 
       <!-- Error message -->

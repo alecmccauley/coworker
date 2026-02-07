@@ -68,3 +68,17 @@ model CoworkerTemplate {
   @@index([slug])
   @@map("coworker_templates")
 }
+
+model AiModel {
+  id        String   @id @default(cuid())
+  title     String
+  value     String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([isDefault])
+  @@map("ai_models")
+}

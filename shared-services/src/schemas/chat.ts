@@ -34,6 +34,7 @@ export const chatCoworkerContextSchema = z.object({
   templateId: z.string().nullable(),
   templateVersion: z.number().int().nullable(),
   templateDescription: z.string().nullable(),
+  model: z.string().min(1).nullable(),
 });
 
 export const chatCompletionRequestSchema = z.object({

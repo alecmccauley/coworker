@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateText, streamText } from "ai";
+import { prisma } from "@coworker/shared-services/db";
 import { z } from "zod";
 import {
   chatCompletionRequestSchema,
@@ -15,7 +16,6 @@ import { withAuth, type AuthenticatedRequest } from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_MODEL = "openai/gpt-4.1";
 const TITLE_TOOL_NAME = "set_conversation_title";
 const MAX_COWORKER_RESPONSES = 10;
 
@@ -291,7 +291,22 @@ async function handlePost(
   }
 
   const data = result.data as ChatCompletionRequest;
-  const modelName = data.model ?? process.env.AI_MODEL ?? DEFAULT_MODEL;
+
+  const activeModels = await prisma.aiModel.findMany({
+    where: { isActive: true },
+    orderBy: [{ isDefault: "desc" }, { title: "asc" }],
+  });
+
+  const defaultModel = activeModels.find((model) => model.isDefault) ?? null;
+  if (!defaultModel) {
+    return errorResponse("No default AI model is configured", 500);
+  }
+
+  const activeModelValues = new Set(activeModels.map((model) => model.value));
+  const requestedModel =
+    data.model && activeModelValues.has(data.model)
+      ? data.model
+      : defaultModel.value;
   const maxCoworkerResponses = Math.min(
     Math.max(data.maxCoworkerResponses ?? 1, 1),
     MAX_COWORKER_RESPONSES,
@@ -300,7 +315,7 @@ async function handlePost(
   try {
     const finalSystemPrompt = buildContextBlock(data);
     const aiResult = await streamText({
-      model: modelName,
+      model: requestedModel,
       messages: [
         { role: "system", content: finalSystemPrompt },
         ...data.messages,
@@ -371,8 +386,12 @@ async function handlePost(
               coworkerPrompt,
               data,
             );
+            const coworkerModel =
+              coworker.model && activeModelValues.has(coworker.model)
+                ? coworker.model
+                : defaultModel.value;
             const response = await generateText({
-              model: modelName,
+              model: coworkerModel,
               messages: [
                 { role: "system", content: systemPrompt },
                 ...data.messages,

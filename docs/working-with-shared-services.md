@@ -11,6 +11,14 @@ The `@coworker/shared-services` package provides:
 - **SDK**: A type-safe client for making API requests
 - **Database**: Prisma client for database access
 
+## AI Models
+
+Shared-services includes a centralized AI model contract for multi-model routing:
+
+- **Types:** `AiModel`, `AiModelPublic`, `CreateAiModelInput`, `UpdateAiModelInput`
+- **Schemas:** `createAiModelSchema`, `updateAiModelSchema`
+- **SDK:** `sdk.models` (`list`, `adminList`, `adminGetById`, `create`, `update`, `delete`)
+
 ## Package Structure
 
 ```

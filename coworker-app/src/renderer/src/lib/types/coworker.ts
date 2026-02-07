@@ -8,6 +8,7 @@ export interface Coworker {
   description: string | null;
   rolePrompt: string | null;
   defaultsJson: string | null;
+  model: string | null;
   templateId: string | null;
   templateVersion: number | null;
   templateDescription: string | null;
@@ -24,6 +25,7 @@ export interface CreateCoworkerInput {
   description?: string;
   rolePrompt?: string;
   defaultsJson?: string;
+  model?: string;
   templateId?: string;
   templateVersion?: number;
   templateDescription?: string;
@@ -37,4 +39,5 @@ export interface UpdateCoworkerInput {
   description?: string;
   rolePrompt?: string;
   defaultsJson?: string;
+  model?: string | null;
 }

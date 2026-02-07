@@ -243,6 +243,15 @@ Screens shown after authentication (e.g. Dashboard) use the shared **AppShell** 
 The dashboard renders a dismissible error banner for workspace and coworker
 actions so failures are visible to users instead of only appearing in logs.
 
+## Model Selection (Advanced Settings)
+
+Each co-worker can optionally pin an AI model override in **Advanced settings**.
+If a coworker does not specify a model, the system default model is used.
+
+- **Create flow:** `CreateCoworkerDialog.svelte` loads available models from `window.api.models.list()`.
+- **Edit flow:** `CoworkerForm.svelte` exposes the same model picker.
+- The dropdown includes a “Use default model” option that stores `null` in the coworker record.
+
 ## Conversation UI
 
 Channel views now provide a full conversation experience:

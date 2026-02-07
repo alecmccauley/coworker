@@ -102,6 +102,25 @@ ADMIN_USERS=alec.mccauley@me.com,ops@coworker.ai
 - Shows current user info and a logout button.
 - Placeholder cards for future admin features (users, database, settings).
 
+## Models Administration
+
+Coworker maintains a centralized catalog of AI models in Pilot.
+
+### Admin UI (`/admin/models`)
+
+Admins can:
+
+- Create and edit models (title + gateway value).
+- Activate/deactivate models (inactive models are hidden from the app).
+- Set the default model (required for chat requests).
+- Delete models (blocked if it would remove the only default).
+
+### Default Model Rules
+
+- Only one model can be the default at a time.
+- Setting a model as default automatically marks it active.
+- Attempting to deactivate or delete the only default model returns a `409` response.
+
 ## File Structure
 
 ```

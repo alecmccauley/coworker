@@ -214,6 +214,34 @@ return conflictResponse("Email already exists");
 return noContentResponse();
 ```
 
+## Models API
+
+Coworker supports multiple AI models via a centralized catalog managed in Pilot.
+
+### Public Endpoint
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/models` | None | List active models available to the app. |
+
+Response includes `id`, `title`, `value`, `isDefault`.
+
+### Admin Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/admin/models` | Admin | List all models. |
+| `POST` | `/api/v1/admin/models` | Admin | Create a model. |
+| `GET` | `/api/v1/admin/models/:id` | Admin | Get a model by ID. |
+| `PATCH` | `/api/v1/admin/models/:id` | Admin | Update a model. |
+| `DELETE` | `/api/v1/admin/models/:id` | Admin | Delete a model. |
+
+### Default Model Behavior
+
+- Exactly one model should be marked as default.
+- Chat requests use the default model when no model is provided.
+- If no default model is configured, the chat endpoint returns an error.
+
 ## Machine-Key Authorization
 
 Some endpoints are designed for server-to-server automation and must be protected by a machine key instead of user auth. This pattern is enforced by `withMachineKey()` in `lib/machine-key-middleware.ts`.

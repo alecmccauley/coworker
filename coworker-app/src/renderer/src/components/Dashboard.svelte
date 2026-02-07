@@ -5,7 +5,7 @@
   import LogOutIcon from '@lucide/svelte/icons/log-out'
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
   import type { AuthUser } from '@coworker/shared-services'
-  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput, UpdateState } from '$lib/types'
+  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput, UpdateCoworkerInput, UpdateState } from '$lib/types'
 
   // Workspace components
   import WelcomeView from './workspace/WelcomeView.svelte'
@@ -400,9 +400,7 @@
     await loadCoworkers()
   }
 
-  async function handleEditCoworkerSave(
-    input: { name: string; description?: string }
-  ): Promise<void> {
+  async function handleEditCoworkerSave(input: UpdateCoworkerInput): Promise<void> {
     if (editingCoworker) {
       await window.api.coworker.update(editingCoworker.id, input)
     }

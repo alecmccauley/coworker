@@ -27,6 +27,7 @@ export const coworkers = sqliteTable("coworkers", {
   description: text("description"),
   rolePrompt: text("role_prompt"), // Core behavioral prompt
   defaultsJson: text("defaults_json"), // JSON with tone, formatting, guardrails
+  model: text("model"), // AI model identifier (optional override)
   templateId: text("template_id"), // Cloud template reference
   templateVersion: integer("template_version"), // Version of template when created
   templateDescription: text("template_description"), // Snapshot of template description at creation time

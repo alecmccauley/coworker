@@ -20,6 +20,7 @@ import { registerKnowledgeIpcHandlers } from "./knowledge";
 import { isIndexingInProgress } from "./knowledge/indexing/indexing-service";
 import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
+import { registerModelIpcHandlers, setModelSdkGetter } from "./models";
 import { registerChatIpcHandlers, setChatSdkGetter } from "./chat";
 import { buildApplicationMenu, setChannelSettingsEnabled } from "./menu";
 import {
@@ -310,10 +311,12 @@ app.whenReady().then(() => {
   registerKnowledgeIpcHandlers();
   registerBlobIpcHandlers();
   registerTemplateIpcHandlers();
+  registerModelIpcHandlers();
   registerChatIpcHandlers();
 
   // Set SDK getter for templates
   setTemplateSdkGetter(getSdk);
+  setModelSdkGetter(getSdk);
   setChatSdkGetter(getSdk);
 
   // Build application menu
