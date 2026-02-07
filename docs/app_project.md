@@ -118,6 +118,37 @@ The app uses Electron's context isolation for security:
 
 See [Authentication Documentation](./authentication.md) for complete auth details.
 
+## Message Composer Mentions
+
+The message composer supports @mentions of channel-assigned co-workers with a
+tokenized, chip-based input. Mentions are rendered as inline chips in the
+composer while the stored message content remains plain text with a deterministic
+token format for backend parsing.
+
+### Mention token format
+
+Mentions are serialized as:
+
+```
+@{coworker:ID|Name}
+```
+
+Example:
+
+```
+@{coworker:ckv9j2x1e0001|Alex}
+```
+
+### Mention picker behavior
+
+- Triggered by typing `@` at a word boundary.
+- Suggestions are limited to co-workers assigned to the active channel.
+- Keyboard controls:
+  - `ArrowUp`/`ArrowDown` move selection
+  - `Enter` or `Tab` inserts the selected mention
+  - `Escape` closes the picker
+- Shift+Enter inserts a newline in the composer.
+
 ## Main Process
 
 ### Entry Point (`src/main/index.ts`)

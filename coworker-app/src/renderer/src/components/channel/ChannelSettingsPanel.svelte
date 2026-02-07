@@ -10,9 +10,10 @@
     open: boolean
     onClose: () => void
     channel: Channel
+    onCoworkersUpdated?: () => void
   }
 
-  let { open = $bindable(), onClose, channel }: Props = $props()
+  let { open = $bindable(), onClose, channel, onCoworkersUpdated }: Props = $props()
 </script>
 
 {#if open}
@@ -44,7 +45,10 @@
       </div>
 
       <!-- Channel Co-workers -->
-      <ChannelCoworkers channelId={channel.id} />
+      <ChannelCoworkers
+        channelId={channel.id}
+        onAssignmentsUpdated={onCoworkersUpdated}
+      />
 
       <!-- Channel Knowledge -->
       <ScopedNotes

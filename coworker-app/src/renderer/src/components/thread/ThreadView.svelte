@@ -19,11 +19,12 @@
   interface Props {
     thread: Thread
     coworkers: Coworker[]
+    channelCoworkers: Coworker[]
     onCreateCoworker: () => void
     onRenameThread?: (thread: Thread) => void
   }
 
-  let { thread, coworkers, onCreateCoworker, onRenameThread }: Props = $props()
+  let { thread, coworkers, channelCoworkers, onCreateCoworker, onRenameThread }: Props = $props()
 
   let messages = $state<Message[]>([])
   let isLoading = $state(false)
@@ -186,7 +187,12 @@
       scrollKey={thread?.id ?? null}
       isLoading={isLoading}
     />
-    <MessageInput onSend={handleSend} disabled={streamingMessageId !== null} />
+    <MessageInput
+      onSend={handleSend}
+      coworkers={channelCoworkers}
+      channelId={thread.channelId}
+      disabled={streamingMessageId !== null}
+    />
   </div>
 
   <ThreadSourcesPanel

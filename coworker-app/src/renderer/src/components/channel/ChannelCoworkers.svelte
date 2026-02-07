@@ -10,9 +10,10 @@
 
   interface Props {
     channelId: string
+    onAssignmentsUpdated?: () => void
   }
 
-  let { channelId }: Props = $props()
+  let { channelId, onAssignmentsUpdated }: Props = $props()
 
   let assignedCoworkers = $state<Coworker[]>([])
   let allCoworkers = $state<Coworker[]>([])
@@ -56,6 +57,7 @@
     try {
       await window.api.channel.addCoworker(channelId, coworkerId)
       await loadData()
+      onAssignmentsUpdated?.()
       showAddDialog = false
     } catch (error) {
       console.error('Failed to add coworker:', error)
@@ -69,6 +71,7 @@
     try {
       await window.api.channel.removeCoworker(channelId, coworkerId)
       await loadData()
+      onAssignmentsUpdated?.()
     } catch (error) {
       console.error('Failed to remove coworker:', error)
     } finally {

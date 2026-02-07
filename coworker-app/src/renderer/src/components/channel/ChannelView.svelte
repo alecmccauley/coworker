@@ -25,6 +25,7 @@
   let isLoading = $state(false)
   let selectedThread = $state<Thread | null>(null)
   let isSettingsPanelOpen = $state(false)
+  let channelCoworkers = $state<Coworker[]>([])
   let isRenameOpen = $state(false)
   let renameTarget = $state<Thread | null>(null)
   let renameError = $state<string | null>(null)
@@ -35,6 +36,7 @@
     if (channel) {
       selectedThread = null
       loadThreads()
+      loadChannelCoworkers()
     }
   })
 
@@ -67,6 +69,15 @@
       console.error('Failed to load threads:', error)
     } finally {
       isLoading = false
+    }
+  }
+
+  async function loadChannelCoworkers(): Promise<void> {
+    try {
+      channelCoworkers = await window.api.channel.listCoworkers(channel.id)
+    } catch (error) {
+      console.error('Failed to load channel coworkers:', error)
+      channelCoworkers = []
     }
   }
 
@@ -233,6 +244,7 @@
         <ThreadView
           thread={selectedThread}
           {coworkers}
+          channelCoworkers={channelCoworkers}
           {onCreateCoworker}
           onRenameThread={openRename}
         />
@@ -254,6 +266,7 @@
     open={isSettingsPanelOpen}
     onClose={() => (isSettingsPanelOpen = false)}
     {channel}
+    onCoworkersUpdated={loadChannelCoworkers}
   />
 
   <ThreadRenameDialog
