@@ -531,6 +531,11 @@ const api = {
       ipcRenderer.on("menu:updates:open", handler);
       return () => ipcRenderer.removeListener("menu:updates:open", handler);
     },
+    onOpenLegal: (callback: () => void) => {
+      const handler = (): void => callback();
+      ipcRenderer.on("menu:legal:open", handler);
+      return () => ipcRenderer.removeListener("menu:legal:open", handler);
+    },
     setChannelSettingsEnabled: (enabled: boolean): void => {
       ipcRenderer.send("menu:setChannelSettingsEnabled", enabled);
     },

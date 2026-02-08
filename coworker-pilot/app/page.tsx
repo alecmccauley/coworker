@@ -6,6 +6,7 @@ import {
   BenefitsSection,
   FinalCtaSection,
   LandingNav,
+  Footer,
 } from "@/components/landing"
 
 type ReleaseManifest = {
@@ -61,6 +62,7 @@ export default async function LandingPage() {
       <ConceptsSection />
       <BenefitsSection />
       <FinalCtaSection downloadUrlMac={mac} />
+      <Footer />
     </main>
   )
 }

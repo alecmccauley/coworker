@@ -367,6 +367,8 @@ function StepAccount({
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
 }) {
+  const [agreed, setAgreed] = useState(false);
+
   return (
     <section className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6">
       <div className="w-full max-w-md animate-fade-in-up">
@@ -424,6 +426,31 @@ function StepAccount({
             />
           </div>
 
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-input accent-accent"
+            />
+            <span className="text-sm font-sans text-muted-foreground leading-relaxed">
+              I agree to the{" "}
+              <a
+                href="/terms"
+                className="text-accent underline-offset-4 hover:underline"
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="/privacy"
+                className="text-accent underline-offset-4 hover:underline"
+              >
+                Privacy Policy
+              </a>
+            </span>
+          </label>
+
           {error && (
             <p className="text-sm text-destructive animate-fade-in-up">
               {error}
@@ -432,7 +459,7 @@ function StepAccount({
 
           <button
             type="submit"
-            disabled={isLoading || !name.trim() || !email.trim()}
+            disabled={isLoading || !name.trim() || !email.trim() || !agreed}
             className="mt-2 w-full rounded-full bg-foreground px-8 py-4 font-sans text-sm font-semibold text-background shadow-lg shadow-foreground/15 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
           >
             {isLoading ? (

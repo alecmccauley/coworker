@@ -8,6 +8,7 @@
   import Dashboard from './components/Dashboard.svelte'
   import UpdatesDialog from './components/updates/UpdatesDialog.svelte'
   import FeedbackDialog from './components/feedback/FeedbackDialog.svelte'
+  import LegalDialog from './components/legal/LegalDialog.svelte'
 
   // App navigation state
   type AppState = 'loading' | 'splash' | 'auth' | 'dashboard'
@@ -15,9 +16,11 @@
   let currentUser = $state<AuthUser | null>(null)
   let showUpdatesDialog = $state(false)
   let showFeedbackDialog = $state(false)
+  let showLegalDialog = $state(false)
   let updateState = $state<UpdateState | null>(null)
   let cleanupMenuUpdates: (() => void) | null = null
   let cleanupMenuFeedback: (() => void) | null = null
+  let cleanupMenuLegal: (() => void) | null = null
   let cleanupUpdatesListener: (() => void) | null = null
 
   onMount(async () => {
@@ -26,6 +29,9 @@
     })
     cleanupMenuFeedback = window.api.feedback.onOpenFeedback(() => {
       showFeedbackDialog = true
+    })
+    cleanupMenuLegal = window.api.settings.onOpenLegal(() => {
+      showLegalDialog = true
     })
 
     try {
@@ -55,6 +61,7 @@
     cleanupMenuUpdates?.()
     cleanupUpdatesListener?.()
     cleanupMenuFeedback?.()
+    cleanupMenuLegal?.()
   })
 
   function handleSignIn(): void {
@@ -123,3 +130,4 @@
 
 <UpdatesDialog bind:open={showUpdatesDialog} />
 <FeedbackDialog bind:open={showFeedbackDialog} user={currentUser} />
+<LegalDialog bind:open={showLegalDialog} />

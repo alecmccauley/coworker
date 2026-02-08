@@ -57,11 +57,17 @@ coworker-pilot/
 │   │           ├── route.ts    # List/create users (protected)
 │   │           └── [id]/
 │   │               └── route.ts # Get/update/delete user (protected)
+│   ├── terms/                 # Terms of Service page
+│   │   └── page.tsx
+│   ├── privacy/               # Privacy Policy page
+│   │   └── page.tsx
 │   ├── globals.css             # Global styles
 │   ├── layout.tsx              # Root layout
 │   └── page.tsx                # Home page (brand guide)
 ├── components/                 # React components
 │   ├── brand-guide/            # Brand guide sections
+│   ├── landing/                # Landing page sections + footer
+│   ├── legal/                  # Legal page layout (shared by /terms and /privacy)
 │   ├── theme-provider.tsx
 │   └── ui/                     # shadcn/ui components
 ├── hooks/                      # Custom React hooks
@@ -416,6 +422,21 @@ pnpm db:migrate
 # Open Prisma Studio
 pnpm db:studio
 ```
+
+## Public Pages
+
+### Legal Pages
+
+The pilot serves Terms of Service and Privacy Policy pages rendered from markdown files in the repository's `content/` directory:
+
+```
+GET /terms     # Terms of Service
+GET /privacy   # Privacy Policy
+```
+
+Both pages use `LegalPageLayout` (`components/legal/legal-page-layout.tsx`), which renders markdown via `react-markdown` with `@tailwindcss/typography` prose styling. The markdown is read from `../content/TERMS_OF_SERVICE.md` and `../content/PRIVACY_POLICY.md` at build time via `fs`.
+
+The landing page footer links to both legal pages, and the insider sign-up flow includes a legal consent checkbox that links to them.
 
 ## Available Endpoints
 

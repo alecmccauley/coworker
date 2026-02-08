@@ -42,7 +42,13 @@
   // Detect macOS for traffic light spacing
   const isMacOS = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
 
+  // API URL for legal links
+  let apiUrl = $state('')
+
   onMount(() => {
+    window.api.config.getApiUrl().then((url) => {
+      apiUrl = url
+    })
     mounted = true
     setTimeout(() => (showContent = true), 100)
   })
@@ -234,6 +240,23 @@
               Continue
             {/if}
           </Button>
+
+          <p class="text-center text-xs text-muted-foreground">
+            By continuing, you agree to our
+            <a
+              href="{apiUrl}/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-accent underline-offset-4 hover:underline"
+            >Terms of Service</a>
+            and
+            <a
+              href="{apiUrl}/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-accent underline-offset-4 hover:underline"
+            >Privacy Policy</a>.
+          </p>
         </form>
       {/if}
 

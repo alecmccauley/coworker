@@ -83,6 +83,10 @@ function buildMenuTemplate(): MenuItemConstructorOptions[] {
         accelerator: "CmdOrCtrl+Shift+F",
         click: handleSendFeedback,
       },
+      {
+        label: "Legal",
+        click: handleOpenLegal,
+      },
       { type: "separator" },
       isMac ? { role: "close" } : { role: "quit" },
     ],
@@ -307,6 +311,16 @@ function handleSendFeedback(): void {
   const window = BrowserWindow.getFocusedWindow();
   if (window) {
     window.webContents.send("menu:feedback:open");
+  }
+}
+
+/**
+ * Handle Legal menu item
+ */
+function handleOpenLegal(): void {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    window.webContents.send("menu:legal:open");
   }
 }
 
