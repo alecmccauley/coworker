@@ -198,6 +198,18 @@ function createWindow(): void {
 - ✅ Store tokens securely using `safeStorage` API
 - ✅ Handle token refresh automatically via SDK callbacks
 
+## Feedback Flow
+
+The native menu includes **File → Send Feedback**, which opens a renderer dialog and submits feedback through the main process SDK:
+
+```
+Menu click → main sends "menu:feedback:open" → renderer opens FeedbackDialog
+FeedbackDialog → window.api.feedback.submit() → ipcMain.handle("feedback:submit")
+Main captures screenshot (optional) → SDK POST /api/v1/feedback
+```
+
+Screenshots are captured in the main process with `webContents.capturePage()` as PNG and sent as base64 when the user opts in. If capture fails, feedback is still submitted without a screenshot.
+
 **DON'T:**
 - ❌ Import renderer/UI code
 - ❌ Perform heavy computation (blocks the app)

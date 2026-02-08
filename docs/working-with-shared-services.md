@@ -88,6 +88,10 @@ pnpm db:studio      # Open Prisma Studio
 pnpm db:seed        # Seed the database
 ```
 
+### Schema notes
+
+- `Feedback` entries optionally relate to `User` records (nullable `userId` with `onDelete: SetNull`).
+
 ## Installation
 
 The package is already linked in the monorepo. After cloning:

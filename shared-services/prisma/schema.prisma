@@ -16,6 +16,8 @@ model User {
   authCodes     AuthCode[]
   refreshTokens RefreshToken[]
   activations   InsiderActivation[]
+  feedback      Feedback[]
+  events        Event[]
 
   @@map("users")
 }
@@ -113,4 +115,47 @@ model AiModel {
   @@index([isActive])
   @@index([isDefault])
   @@map("ai_models")
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  type      String
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  details   Json?    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("events")
+}
+
+enum FeedbackType {
+  bug
+  improvement
+  like
+}
+
+model Feedback {
+  id                   String        @id @default(cuid())
+  userId               String?       @map("user_id")
+  user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type                 FeedbackType
+  message              String        @db.Text
+  canContact           Boolean       @default(true) @map("can_contact")
+  includeScreenshot    Boolean       @default(false) @map("include_screenshot")
+  screenshotBytes      Bytes?        @map("screenshot_bytes")
+  screenshotMime       String?       @map("screenshot_mime")
+  screenshotWidth      Int?          @map("screenshot_width")
+  screenshotHeight     Int?          @map("screenshot_height")
+  screenshotSize       Int?          @map("screenshot_size")
+  screenshotCapturedAt DateTime?     @map("screenshot_captured_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([type])
+  @@map("feedback")
 }

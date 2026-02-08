@@ -20,6 +20,7 @@ import {
   UserCog,
   Cpu,
   KeyRound,
+  MessageSquare,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -156,6 +157,29 @@ export default function AdminDashboard() {
               </p>
               <Button variant="outline" className="mt-4 w-full" asChild>
                 <Link href="/admin/insider-codes">Manage Codes</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Feedback Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+                  <MessageSquare className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Feedback</CardTitle>
+                  <CardDescription>Review user feedback</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Read what users are sending from the app.
+              </p>
+              <Button variant="outline" className="mt-4 w-full" asChild>
+                <Link href="/admin/feedback">View Feedback</Link>
               </Button>
             </CardContent>
           </Card>

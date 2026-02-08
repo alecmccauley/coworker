@@ -354,6 +354,34 @@ export function UserForm({ onSubmit }: { onSubmit: (data: CreateUserSchemaInput)
 4. **Handle loading states** - Disable submit button during submission
 5. **Reset on success** - Call `form.reset()` after successful submission
 
+## Event Logging
+
+The `events` table provides an audit log for user activity. Events are written as fire-and-forget (non-blocking) so they never slow down the request path.
+
+### Event Types
+
+| Type | Trigger | Details |
+|------|---------|---------|
+| `user.sign_in` | Successful code verification in `verify-code` (server-side) | `{ email, name, authCodeId, attempts }` |
+| `workspace.created` | User creates a new workspace (client-side via SDK) | `{ workspaceName }` |
+
+When `workspace.created` is the user's **first** workspace event, a welcome email is sent asynchronously (fire-and-forget) with onboarding guidance on setting up co-workers, adding knowledge sources, and starting conversations. This does not affect API response time.
+
+New event types can be added by extending the `eventTypeEnum` in `shared-services/src/schemas/event.ts`.
+
+### Client-Side Event Tracking
+
+The desktop app tracks events via `POST /api/v1/events` (protected, requires auth). The request body uses `trackEventSchema` — only `type` and optional `details`; the server injects `userId` from the auth token.
+
+The app uses a fire-and-forget utility (`coworker-app/src/renderer/src/lib/track-event.ts`) that catches all errors silently so event tracking never disrupts the user experience.
+
+### Shared Contracts
+
+- **Type:** `Event`, `WorkspaceCreatedEventDetails` in `shared-services/src/types/domain/event.ts`
+- **Schema:** `createEventSchema`, `trackEventSchema`, `eventTypeEnum` in `shared-services/src/schemas/event.ts`
+- **SDK:** `EventsEndpoint` in `shared-services/src/sdk/endpoints/events.ts`
+- **Prisma model:** `Event` in `shared-services/prisma/schema.prisma`
+
 ## Database
 
 ### Prisma Client
@@ -437,6 +465,23 @@ PATCH  /api/v1/users/:id      # Update user
 DELETE /api/v1/users/:id      # Delete user
 ```
 
+### Feedback (Optional Auth)
+
+Authentication is optional. If a valid Bearer token is provided, the feedback is attached to the user.
+
+```
+POST /api/v1/feedback  # Submit feedback
+```
+
+Signed-in submissions trigger a confirmation email to the submitting user with a summary of their feedback (no screenshot included).
+
+### Feedback (Admin)
+
+```
+GET /api/v1/admin/feedback                   # List feedback submissions
+GET /api/v1/admin/feedback/:id/screenshot    # Fetch feedback screenshot
+```
+
 ### Insider Codes (Admin)
 
 ```
@@ -453,6 +498,14 @@ DELETE /api/v1/admin/insider-codes/:id      # Delete insider code
 POST /api/v1/insider/validate-code   # Validate an insider code exists and is active
 POST /api/v1/insider/sign-up         # Create user account via insider preview
 ```
+
+### Events (Protected)
+
+```
+POST /api/v1/events  # Track a client-side event
+```
+
+Body: `{ type: EventType, details?: Record<string, unknown> }`. The server injects `userId` from the auth token.
 
 ### Chat (Protected)
 

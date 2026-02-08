@@ -10,6 +10,7 @@ import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import type { CoworkerSdk } from "@coworker/shared-services";
+import type { CreateFeedbackInput } from "@coworker/shared-services";
 import { authStorage } from "./auth-storage";
 import { openWorkspace, registerWorkspaceIpcHandlers } from "./workspace";
 import { registerCoworkerIpcHandlers } from "./coworker";
@@ -177,6 +178,46 @@ const registerIpcHandlers = (): void => {
   );
   ipcMain.handle("api:users:delete", async (_event, id: string) =>
     (await getSdk()).users.delete(id),
+  );
+
+  // Events handlers
+  ipcMain.handle("api:events:track", async (_event, data) =>
+    (await getSdk()).events.track(data),
+  );
+
+  ipcMain.handle(
+    "feedback:submit",
+    async (_event, payload: CreateFeedbackInput) => {
+      const sdkInstance = await getSdk();
+      let screenshot: CreateFeedbackInput["screenshot"] | undefined;
+      let includeScreenshot = Boolean(payload.includeScreenshot);
+
+      if (includeScreenshot) {
+        try {
+          const window = getPrimaryWindow();
+          const image = await window.webContents.capturePage();
+          const pngBuffer = image.toPNG();
+          const size = image.getSize();
+          screenshot = {
+            dataBase64: pngBuffer.toString("base64"),
+            mime: "image/png",
+            width: size.width,
+            height: size.height,
+            byteSize: pngBuffer.length,
+            capturedAt: new Date().toISOString(),
+          };
+        } catch (error) {
+          console.error("[Feedback] Failed to capture screenshot:", error);
+          includeScreenshot = false;
+        }
+      }
+
+      return sdkInstance.feedback.submit({
+        ...payload,
+        includeScreenshot,
+        screenshot: includeScreenshot ? screenshot : undefined,
+      });
+    },
   );
 };
 

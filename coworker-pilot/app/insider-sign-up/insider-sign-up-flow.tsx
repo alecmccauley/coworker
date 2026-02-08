@@ -16,11 +16,7 @@ const codeClientSchema = z
 
 type Step = "code" | "agreement" | "account" | "welcome";
 
-type InsiderSignUpFlowProps = {
-  downloadUrlMac?: string;
-};
-
-export function InsiderSignUpFlow({ downloadUrlMac }: InsiderSignUpFlowProps) {
+export function InsiderSignUpFlow() {
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -157,9 +153,7 @@ export function InsiderSignUpFlow({ downloadUrlMac }: InsiderSignUpFlowProps) {
             }}
           />
         )}
-        {step === "welcome" && (
-          <StepWelcome name={name} downloadUrlMac={downloadUrlMac} />
-        )}
+        {step === "welcome" && <StepWelcome name={name} />}
       </main>
     </div>
   );
@@ -279,7 +273,7 @@ const agreementCards = [
     icon: FlaskConical,
     title: "Beta software",
     description:
-      "Things may break. When they do, let us know via File > Submit Feedback. Your input shapes the product.",
+      "Things may break. When they do, let us know via File > Send Feedback. Your input shapes the product.",
   },
   {
     icon: Sparkles,
@@ -460,13 +454,7 @@ function StepAccount({
    Step 4: Welcome Screen
    ────────────────────────────────────────────── */
 
-function StepWelcome({
-  name,
-  downloadUrlMac,
-}: {
-  name: string;
-  downloadUrlMac?: string;
-}) {
+function StepWelcome({ name }: { name: string }) {
   const firstName = name.split(" ")[0];
 
   return (
@@ -481,38 +469,27 @@ function StepWelcome({
         </h1>
 
         <p className="mt-6 text-lg font-sans text-muted-foreground leading-relaxed text-pretty max-w-md mx-auto">
-          Your account is ready. Download the app and sign in with your email to
-          get started.
+          Your account is ready. We&apos;ve sent you a welcome email with
+          everything you need to get started.
         </p>
 
-        {downloadUrlMac && (
-          <div className="mt-10 flex flex-col items-center gap-4 animate-fade-in-up [animation-delay:200ms]">
-            <a
-              href={downloadUrlMac}
-              className="group relative inline-flex items-center justify-center gap-3 overflow-hidden rounded-full px-8 py-4 bg-foreground text-background font-sans text-sm font-semibold shadow-lg shadow-foreground/15 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:gap-4 active:scale-[0.98]"
-            >
-              <span className="absolute inset-0 bg-gradient-to-r from-accent/0 via-accent/20 to-accent/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <span
-                className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 group-hover:animate-[download-shine_0.6s_ease-out] group-hover:[animation-fill-mode:forwards]"
-                aria-hidden
-              />
-              <Download className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" />
-              <span className="relative z-10">Download for macOS</span>
-            </a>
-            <p className="text-xs text-muted-foreground/70 font-sans">
-              macOS 13+ required &middot; Windows &amp; Linux coming March 2026
-            </p>
-          </div>
-        )}
-
-        {!downloadUrlMac && (
-          <div className="mt-10 animate-fade-in-up [animation-delay:200ms]">
-            <p className="text-sm text-muted-foreground font-sans">
-              The download link will be available soon. We&apos;ll send you an email
-              when it&apos;s ready.
-            </p>
-          </div>
-        )}
+        <div className="mt-10 flex flex-col items-center gap-4 animate-fade-in-up [animation-delay:200ms]">
+          <a
+            href="/download"
+            className="group relative inline-flex items-center justify-center gap-3 overflow-hidden rounded-full px-8 py-4 bg-foreground text-background font-sans text-sm font-semibold shadow-lg shadow-foreground/15 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:gap-4 active:scale-[0.98]"
+          >
+            <span className="absolute inset-0 bg-gradient-to-r from-accent/0 via-accent/20 to-accent/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <span
+              className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 group-hover:animate-[download-shine_0.6s_ease-out] group-hover:[animation-fill-mode:forwards]"
+              aria-hidden
+            />
+            <Download className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-y-0.5" />
+            <span className="relative z-10">Download Coworkers</span>
+          </a>
+          <p className="text-xs text-muted-foreground/70 font-sans">
+            macOS 13+ required &middot; Windows &amp; Linux coming March 2026
+          </p>
+        </div>
       </div>
     </section>
   );

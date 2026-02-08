@@ -7,6 +7,7 @@ import {
   notFoundResponse,
   conflictResponse,
 } from "@/lib/api-utils";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,13 @@ export async function POST(request: NextRequest) {
     });
 
     return newUser;
+  });
+
+  // Fire-and-forget welcome email (don't block the response)
+  const origin = new URL(request.url).origin;
+  const downloadUrl = `${origin}/download`;
+  sendWelcomeEmail(email, name, downloadUrl).catch((err) => {
+    console.error("[INSIDER] Failed to send welcome email:", err);
   });
 
   return successResponse(

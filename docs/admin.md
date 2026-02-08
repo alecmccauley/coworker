@@ -154,6 +154,26 @@ These endpoints do not require authentication and are used by the public sign-up
 | `POST` | `/api/v1/insider/validate-code` | None | Validate that an insider code exists and is active. |
 | `POST` | `/api/v1/insider/sign-up` | None | Create a new user account via insider preview sign-up. |
 
+## Feedback Administration
+
+The admin dashboard includes a Feedback page at `/admin/feedback` where admins can review user-submitted feedback and view screenshots when provided.
+
+### Admin UI (`/admin/feedback`)
+
+Admins can:
+
+- View recent feedback submissions
+- See feedback type, user identity (or anonymous), and contact permission
+- Open a detail view with the full message
+- Preview screenshots when provided
+
+### Admin API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/admin/feedback` | Admin | List feedback submissions |
+| `GET` | `/api/v1/admin/feedback/:id/screenshot` | Admin | Fetch a feedback screenshot |
+
 ### Database Models
 
 - **InsiderCode** — Stores access codes with title, notes, and active status.

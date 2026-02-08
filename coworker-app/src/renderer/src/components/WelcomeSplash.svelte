@@ -259,6 +259,24 @@
     </div>
   </main>
 
+  <!-- Feedback shortcut footer -->
+  <div
+    class="flex items-center justify-center pb-6 pt-2 transition-all duration-1000 ease-out"
+    class:opacity-100={showSignIn}
+    class:opacity-0={!showSignIn}
+    class:translate-y-0={showSignIn}
+    class:translate-y-2={!showSignIn}
+  >
+    <div class="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+      <span>Any time, send us feedback</span>
+      <div class="flex items-center gap-1.5">
+        <span class="feedback-key">⌘</span>
+        <span class="feedback-key">⇧</span>
+        <span class="feedback-key">F</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Subtle ambient decoration -->
   <div class="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
     <!-- Top-right warm glow -->
@@ -290,5 +308,27 @@
   /* Ensure buttons in the titlebar area are clickable */
   .titlebar-no-drag {
     -webkit-app-region: no-drag;
+  }
+
+  .feedback-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid oklch(0.88 0.01 85);
+    background: oklch(0.99 0.003 85 / 0.7);
+    color: oklch(0.18 0.01 60);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    box-shadow: 0 6px 16px -12px oklch(0.18 0.01 60 / 0.35);
+  }
+
+  :global(.dark) .feedback-key {
+    border-color: oklch(0.3 0.01 60);
+    background: oklch(0.22 0.01 60 / 0.7);
+    color: oklch(0.975 0.005 85);
   }
 </style>

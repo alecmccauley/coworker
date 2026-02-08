@@ -465,6 +465,36 @@ model RefreshToken {
 }
 ```
 
+### Event Model (Audit Log)
+
+```prisma
+model Event {
+  id        String   @id @default(cuid())
+  type      String
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  details   Json?    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("events")
+}
+```
+
+- `userId` is nullable with `onDelete: SetNull` — events survive user deletion as audit records
+- `details` is PostgreSQL JSONB for structured event-specific data
+
+#### Event Types
+
+| Type | Trigger | Details |
+|------|---------|---------|
+| `user.sign_in` | Successful code verification | `{ email, name, authCodeId, attempts }` |
+
+Sign-in events are logged as fire-and-forget (non-blocking) after successful code verification in `verify-code`. The `email` and `name` fields are denormalized snapshots captured at sign-in time. The `attempts` field records how many failed code entries preceded the successful one.
+
 ## Environment Variables
 
 ### coworker-pilot/.env

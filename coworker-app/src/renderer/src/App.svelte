@@ -7,19 +7,25 @@
   import AuthFlow from './components/AuthFlow.svelte'
   import Dashboard from './components/Dashboard.svelte'
   import UpdatesDialog from './components/updates/UpdatesDialog.svelte'
+  import FeedbackDialog from './components/feedback/FeedbackDialog.svelte'
 
   // App navigation state
   type AppState = 'loading' | 'splash' | 'auth' | 'dashboard'
   let currentState = $state<AppState>('loading')
   let currentUser = $state<AuthUser | null>(null)
   let showUpdatesDialog = $state(false)
+  let showFeedbackDialog = $state(false)
   let updateState = $state<UpdateState | null>(null)
   let cleanupMenuUpdates: (() => void) | null = null
+  let cleanupMenuFeedback: (() => void) | null = null
   let cleanupUpdatesListener: (() => void) | null = null
 
   onMount(async () => {
     cleanupMenuUpdates = window.api.settings.onOpenUpdates(() => {
       showUpdatesDialog = true
+    })
+    cleanupMenuFeedback = window.api.feedback.onOpenFeedback(() => {
+      showFeedbackDialog = true
     })
 
     try {
@@ -48,6 +54,7 @@
   onDestroy(() => {
     cleanupMenuUpdates?.()
     cleanupUpdatesListener?.()
+    cleanupMenuFeedback?.()
   })
 
   function handleSignIn(): void {
@@ -115,3 +122,4 @@
 {/if}
 
 <UpdatesDialog bind:open={showUpdatesDialog} />
+<FeedbackDialog bind:open={showFeedbackDialog} user={currentUser} />

@@ -123,7 +123,25 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // 11. Return tokens and user
+  // 11. Log sign-in event (best-effort, non-blocking)
+  prisma.event
+    .create({
+      data: {
+        type: "user.sign_in",
+        userId: user.id,
+        details: {
+          email: user.email,
+          name: user.name,
+          authCodeId: authCode.id,
+          attempts: authCode.attempts,
+        },
+      },
+    })
+    .catch((error) =>
+      console.error("[AUTH] Failed to log sign-in event:", error)
+    );
+
+  // 12. Return tokens and user
   return successResponse({
     accessToken,
     refreshToken: refreshTokenValue,

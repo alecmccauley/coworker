@@ -1,5 +1,7 @@
 export * from "./auth.js";
 export * from "./chat.js";
+export * from "./event.js";
+export * from "./feedback.js";
 export * from "./hello.js";
 export * from "./insider-code.js";
 export * from "./model.js";

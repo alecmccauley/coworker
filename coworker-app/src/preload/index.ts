@@ -4,6 +4,8 @@ import type {
   CoworkerSdk,
   AuthUser,
   AuthStatusResponse,
+  Feedback,
+  CreateFeedbackInput,
 } from "@coworker/shared-services";
 
 // Workspace types (matching main process)
@@ -531,6 +533,19 @@ const api = {
     },
     setChannelSettingsEnabled: (enabled: boolean): void => {
       ipcRenderer.send("menu:setChannelSettingsEnabled", enabled);
+    },
+  },
+  events: {
+    track: (data: { type: string; details?: Record<string, unknown> }) =>
+      ipcRenderer.invoke("api:events:track", data) as Promise<unknown>,
+  },
+  feedback: {
+    submit: (input: CreateFeedbackInput) =>
+      ipcRenderer.invoke("feedback:submit", input) as Promise<Feedback>,
+    onOpenFeedback: (callback: () => void) => {
+      const handler = (): void => callback();
+      ipcRenderer.on("menu:feedback:open", handler);
+      return () => ipcRenderer.removeListener("menu:feedback:open", handler);
     },
   },
   coworker: {

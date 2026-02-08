@@ -6,6 +6,7 @@
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
   import type { AuthUser } from '@coworker/shared-services'
   import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput, UpdateCoworkerInput, UpdateState } from '$lib/types'
+  import { trackEvent } from '$lib/track-event'
 
   // Workspace components
   import WelcomeView from './workspace/WelcomeView.svelte'
@@ -225,6 +226,7 @@
       const workspace = await window.api.workspace.showCreateDialog()
       if (workspace) {
         handleWorkspaceOpened(workspace)
+        trackEvent('workspace.created', { workspaceName: workspace.manifest.name })
       }
     } catch (error) {
       console.error('Failed to create workspace:', error)

@@ -1,6 +1,8 @@
 import { ApiClient, type ApiClientConfig } from "./client.js";
 import { AuthEndpoint } from "./endpoints/auth.js";
 import { ChatEndpoint } from "./endpoints/chat.js";
+import { EventsEndpoint } from "./endpoints/events.js";
+import { FeedbackEndpoint } from "./endpoints/feedback.js";
 import { HelloEndpoint } from "./endpoints/hello.js";
 import { ModelsEndpoint } from "./endpoints/models.js";
 import { TemplatesEndpoint } from "./endpoints/templates.js";
@@ -20,6 +22,8 @@ export class CoworkerSdk {
 
   public readonly auth: AuthEndpoint;
   public readonly chat: ChatEndpoint;
+  public readonly events: EventsEndpoint;
+  public readonly feedback: FeedbackEndpoint;
   public readonly hello: HelloEndpoint;
   public readonly models: ModelsEndpoint;
   public readonly templates: TemplatesEndpoint;
@@ -29,6 +33,8 @@ export class CoworkerSdk {
     this.client = new ApiClient(config);
     this.auth = new AuthEndpoint(this.client);
     this.chat = new ChatEndpoint(this.client);
+    this.events = new EventsEndpoint(this.client);
+    this.feedback = new FeedbackEndpoint(this.client);
     this.hello = new HelloEndpoint(this.client);
     this.models = new ModelsEndpoint(this.client);
     this.templates = new TemplatesEndpoint(this.client);

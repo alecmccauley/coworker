@@ -78,6 +78,11 @@ function buildMenuTemplate(): MenuItemConstructorOptions[] {
         accelerator: "CmdOrCtrl+W",
         click: handleCloseWorkspace,
       },
+      {
+        label: "Send Feedback",
+        accelerator: "CmdOrCtrl+Shift+F",
+        click: handleSendFeedback,
+      },
       { type: "separator" },
       isMac ? { role: "close" } : { role: "quit" },
     ],
@@ -292,6 +297,16 @@ async function handleCloseWorkspace(): Promise<void> {
     }
   } catch (error) {
     console.error("[Menu] Failed to close workspace:", error);
+  }
+}
+
+/**
+ * Handle Send Feedback menu item
+ */
+function handleSendFeedback(): void {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    window.webContents.send("menu:feedback:open");
   }
 }
 
