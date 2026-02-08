@@ -24,10 +24,12 @@ interface Template {
   slug: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string;
   defaultBehaviorsJson: string | null;
   defaultToolsPolicyJson: string | null;
   modelRoutingPolicyJson: string | null;
+  model: string | null;
   version: number;
   isPublished: boolean;
   createdAt: string;
@@ -81,9 +83,9 @@ export function TemplateTable({
             <TableCell>
               <div>
                 <p className="font-medium">{template.name}</p>
-                {template.description && (
+                {(template.shortDescription || template.description) && (
                   <p className="text-sm text-muted-foreground line-clamp-1">
-                    {template.description}
+                    {template.shortDescription ?? template.description}
                   </p>
                 )}
               </div>

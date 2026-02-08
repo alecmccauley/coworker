@@ -15,6 +15,7 @@ model User {
 
   authCodes     AuthCode[]
   refreshTokens RefreshToken[]
+  activations   InsiderActivation[]
 
   @@map("users")
 }
@@ -55,10 +56,12 @@ model CoworkerTemplate {
   slug                   String   @unique
   name                   String
   description            String?
+  shortDescription       String?  @map("short_description")
   rolePrompt             String   @map("role_prompt") @db.Text
   defaultBehaviorsJson   String?  @map("default_behaviors_json") @db.Text
   defaultToolsPolicyJson String?  @map("default_tools_policy_json") @db.Text
   modelRoutingPolicyJson String?  @map("model_routing_policy_json") @db.Text
+  model                  String?  @map("model")
   version                Int      @default(1)
   isPublished            Boolean  @default(false) @map("is_published")
   createdAt              DateTime @default(now()) @map("created_at")
@@ -67,6 +70,35 @@ model CoworkerTemplate {
   @@index([isPublished])
   @@index([slug])
   @@map("coworker_templates")
+}
+
+model InsiderCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  title     String
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  activations InsiderActivation[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("insider_codes")
+}
+
+model InsiderActivation {
+  id            String      @id @default(cuid())
+  insiderCodeId String      @map("insider_code_id")
+  insiderCode   InsiderCode @relation(fields: [insiderCodeId], references: [id], onDelete: Cascade)
+  userId        String      @map("user_id")
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([insiderCodeId])
+  @@index([userId])
+  @@map("insider_activations")
 }
 
 model AiModel {

@@ -29,7 +29,7 @@ export function HeroSection({
         </h1>
 
         <p className="mt-8 md:mt-10 text-lg md:text-xl lg:text-2xl font-sans font-light text-muted-foreground max-w-3xl mx-auto leading-relaxed text-pretty animate-fade-in-up [animation-delay:200ms]">
-          Coworker brings AI into your work the way it should have been from the start—organized, specialized, and always up to speed.
+          Coworkers brings AI into your work the way it should have been from the start—organized, specialized, and always up to speed.
         </p>
 
         {hasAnyDownload && (

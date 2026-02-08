@@ -11,9 +11,16 @@
     onEdit: (coworker: Coworker) => void
     onDelete: (coworker: Coworker) => void
     onSelect?: (coworker: Coworker) => void
+    showDescription?: boolean
   }
 
-  let { coworker, onEdit, onDelete, onSelect }: Props = $props()
+  let {
+    coworker,
+    onEdit,
+    onDelete,
+    onSelect,
+    showDescription = true
+  }: Props = $props()
 
   /**
    * Get initials from coworker name
@@ -35,6 +42,17 @@
     const hue = (id.charCodeAt(0) * 7 + id.charCodeAt(1) * 13) % 360
     return `oklch(0.75 0.12 ${hue})`
   }
+
+  function normalizeDescription(value: string): string {
+    const trimmed = value.trim()
+    return trimmed.length > 160 ? `${trimmed.slice(0, 160).trim()}...` : trimmed
+  }
+
+  const descriptionPreview = $derived(
+    showDescription && coworker.shortDescription
+      ? normalizeDescription(coworker.shortDescription)
+      : ''
+  )
 </script>
 
 <div class="group relative rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:shadow-sm">
@@ -83,11 +101,11 @@
       <h3 class="truncate font-semibold text-foreground">
         {coworker.name}
       </h3>
-      {#if coworker.description}
+      {#if descriptionPreview}
         <p class="mt-1 line-clamp-2 text-sm text-muted-foreground">
-          {coworker.description}
+          {descriptionPreview}
         </p>
-      {:else}
+      {:else if showDescription}
         <p class="mt-1 text-sm italic text-muted-foreground/50">
           No description
         </p>

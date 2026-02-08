@@ -10,7 +10,9 @@
     slug: string
     name: string
     description: string | null
+    shortDescription: string | null
     rolePrompt: string
+    model: string | null
   }
 
   interface Props {
@@ -85,9 +87,9 @@
           </div>
           <div>
             <h3 class="font-medium text-foreground">{template.name}</h3>
-            {#if template.description}
+            {#if template.shortDescription}
               <p class="mt-1 text-sm text-muted-foreground line-clamp-2">
-                {template.description}
+                {template.shortDescription}
               </p>
             {/if}
           </div>

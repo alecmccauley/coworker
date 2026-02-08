@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 /**
  * Run all migrations on a workspace database
@@ -56,6 +56,9 @@ export function runMigrations(sqlite: Database.Database): void {
     }
     if (currentVersion < 8) {
       runMigrationV8(sqlite);
+    }
+    if (currentVersion < 9) {
+      runMigrationV9(sqlite);
     }
 
     // Update schema version
@@ -568,5 +571,16 @@ function runMigrationV8(sqlite: Database.Database): void {
   sqlite.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_coworkers_unique
     ON memory_coworkers (memory_id, coworker_id)
+  `);
+}
+
+/**
+ * Migration V9: Add short_description to coworkers
+ */
+function runMigrationV9(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V9: Add short_description to coworkers");
+
+  sqlite.exec(`
+    ALTER TABLE coworkers ADD COLUMN short_description TEXT
   `);
 }

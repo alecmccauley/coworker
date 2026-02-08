@@ -25,6 +25,7 @@ export const coworkers = sqliteTable("coworkers", {
   workspaceId: text("workspace_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
+  shortDescription: text("short_description"),
   rolePrompt: text("role_prompt"), // Core behavioral prompt
   defaultsJson: text("defaults_json"), // JSON with tone, formatting, guardrails
   model: text("model"), // AI model identifier (optional override)

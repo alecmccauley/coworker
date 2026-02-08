@@ -33,10 +33,12 @@ export interface CoworkerTemplate extends BaseEntity {
   slug: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string;
   defaultBehaviorsJson: string | null;
   defaultToolsPolicyJson: string | null;
   modelRoutingPolicyJson: string | null;
+  model: string | null;
   version: number;
   isPublished: boolean;
 }
@@ -61,9 +63,11 @@ export interface CoworkerTemplatePublic {
   slug: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string;
   defaultBehaviors: CoworkerDefaultBehaviors | null;
   defaultToolsPolicy: CoworkerToolsPolicy | null;
+  model: string | null;
   version: number;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -76,10 +80,12 @@ export interface CreateCoworkerTemplateInput {
   slug: string;
   name: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt: string;
   defaultBehaviors?: CoworkerDefaultBehaviors;
   defaultToolsPolicy?: CoworkerToolsPolicy;
   modelRoutingPolicy?: CoworkerModelRoutingPolicy;
+  model?: string;
   isPublished?: boolean;
 }
 
@@ -90,10 +96,12 @@ export interface UpdateCoworkerTemplateInput {
   slug?: string;
   name?: string;
   description?: string | null;
+  shortDescription?: string | null;
   rolePrompt?: string;
   defaultBehaviors?: CoworkerDefaultBehaviors | null;
   defaultToolsPolicy?: CoworkerToolsPolicy | null;
   modelRoutingPolicy?: CoworkerModelRoutingPolicy | null;
+  model?: string | null;
   isPublished?: boolean;
 }
 

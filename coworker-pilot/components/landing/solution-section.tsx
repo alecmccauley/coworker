@@ -25,7 +25,7 @@ export function SolutionSection() {
               isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             }`}
           >
-            Coworker organizes AI around the way you actually work—with specialized roles, shared context, and projects that build understanding over time.
+            Coworkers organizes AI around the way you actually work—with specialized roles, shared context, and projects that build understanding over time.
           </p>
         </div>
       </div>

@@ -157,9 +157,9 @@
 
   const defaults = $derived(parseDefaults(coworker.defaultsJson))
 
-  // Get the description to show - prefer templateDescription, fall back to description
+  // Get the description to show - prefer coworker description, fall back to template snapshot
   const aboutDescription = $derived(
-    coworker.templateDescription || coworker.description || null
+    coworker.description || coworker.templateDescription || null
   )
 
   const aboutDescriptionHtml = $derived(aboutDescription ? renderMarkdown(aboutDescription) : '')
@@ -170,8 +170,8 @@
     <div>
       <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Co-worker</p>
       <h1 class="font-serif text-3xl font-medium text-foreground">{coworker.name}</h1>
-      {#if coworker.description}
-        <p class="mt-2 text-muted-foreground">{coworker.description}</p>
+      {#if coworker.shortDescription}
+        <p class="mt-2 text-muted-foreground">{coworker.shortDescription}</p>
       {/if}
     </div>
     <div class="flex gap-2">

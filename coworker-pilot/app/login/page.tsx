@@ -44,7 +44,7 @@ export default function LoginPage() {
       {/* Logo/Brand */}
       <div className="mb-8 text-center">
         <h1 className="font-serif text-4xl font-medium text-foreground">
-          Coworker
+          Coworkers
         </h1>
         <p className="mt-2 text-muted-foreground">
           Admin Dashboard

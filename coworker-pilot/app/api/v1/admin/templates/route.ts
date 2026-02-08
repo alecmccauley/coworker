@@ -61,6 +61,7 @@ async function handlePost(request: AuthenticatedRequest): Promise<NextResponse> 
       slug: data.slug,
       name: data.name,
       description: data.description,
+      shortDescription: data.shortDescription,
       rolePrompt: data.rolePrompt,
       defaultBehaviorsJson: data.defaultBehaviors
         ? JSON.stringify(data.defaultBehaviors)
@@ -71,6 +72,7 @@ async function handlePost(request: AuthenticatedRequest): Promise<NextResponse> 
       modelRoutingPolicyJson: data.modelRoutingPolicy
         ? JSON.stringify(data.modelRoutingPolicy)
         : null,
+      model: data.model ?? null,
       isPublished: data.isPublished ?? false,
     },
   });

@@ -19,6 +19,7 @@ import {
   Users,
   UserCog,
   Cpu,
+  KeyRound,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -37,7 +38,7 @@ export default function AdminDashboard() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
             <h1 className="font-serif text-xl font-medium text-foreground">
-              Coworker Admin
+              Coworkers Admin
             </h1>
           </div>
           <div className="flex items-center gap-4">
@@ -61,7 +62,7 @@ export default function AdminDashboard() {
             Welcome back{user?.name ? `, ${user.name}` : ""}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            Manage your Coworker application from here.
+            Manage your Coworkers application from here.
           </p>
         </div>
 
@@ -132,6 +133,29 @@ export default function AdminDashboard() {
               </p>
               <Button variant="outline" className="mt-4 w-full" asChild>
                 <Link href="/admin/models">Manage Models</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Insider Codes Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+                  <KeyRound className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Insider Codes</CardTitle>
+                  <CardDescription>Manage preview access codes</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Create and manage insider access codes for the preview sign-up.
+              </p>
+              <Button variant="outline" className="mt-4 w-full" asChild>
+                <Link href="/admin/insider-codes">Manage Codes</Link>
               </Button>
             </CardContent>
           </Card>

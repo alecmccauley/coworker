@@ -134,8 +134,8 @@
         >
           <div class="min-w-0">
             <p class="truncate text-sm font-medium text-foreground">{coworker.name}</p>
-            {#if coworker.description}
-              <p class="truncate text-xs text-muted-foreground">{coworker.description}</p>
+            {#if coworker.shortDescription}
+              <p class="truncate text-xs text-muted-foreground">{coworker.shortDescription}</p>
             {/if}
           </div>
           <button
@@ -178,8 +178,8 @@
           >
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-foreground">{coworker.name}</p>
-              {#if coworker.description}
-                <p class="truncate text-xs text-muted-foreground">{coworker.description}</p>
+              {#if coworker.shortDescription}
+                <p class="truncate text-xs text-muted-foreground">{coworker.shortDescription}</p>
               {/if}
             </div>
             {#if isAdding}

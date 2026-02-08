@@ -143,6 +143,10 @@ export function buildOrchestratorSystemPrompt(
 
 export function buildSystemPrompt(context: SystemPromptContext): string {
   const lines: string[] = [];
+  const aboutDescription =
+    context.coworker?.description ??
+    context.coworker?.templateDescription ??
+    null;
 
   if (context.coworker?.name) {
   lines.push(
@@ -338,6 +342,10 @@ export function buildSystemPrompt(context: SystemPromptContext): string {
     lines.push("", "Role:", context.coworker.rolePrompt.trim());
   }
 
+  if (aboutDescription) {
+    lines.push("", "About:", aboutDescription.trim());
+  }
+
   const defaults = formatDefaults(context.coworker?.defaultsJson ?? null);
   if (defaults) {
     lines.push("", "Defaults (JSON):", defaults);
@@ -506,7 +514,7 @@ export function mapCoworkerToContext(
   return {
     id: coworker.id,
     name: coworker.name,
-    description: coworker.description ?? null,
+    description: coworker.description ?? coworker.templateDescription ?? null,
     rolePrompt: coworker.rolePrompt ?? null,
     defaultsJson: coworker.defaultsJson ?? null,
     templateId: coworker.templateId ?? null,

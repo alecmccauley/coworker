@@ -62,16 +62,18 @@ function buildCoworkerSystemPrompt(
   context: ChatThreadContext,
 ): string {
   const lines: string[] = [];
+  const aboutDescription =
+    coworker.description ?? coworker.templateDescription ?? null;
 
   lines.push(
-    `You are ${coworker.name}, a helpful coworker in the Coworker workspace.`,
+    `You are ${coworker.name}, a helpful coworker in the Coworkers workspace.`,
     `Workspace: ${context.workspaceName}`,
     `Channel: ${context.channelName}${context.channelPurpose ? ` — ${context.channelPurpose}` : ""}`,
     `Thread: ${context.threadTitle ?? "Untitled conversation"}`,
     "",
-    "Coworker System Prompt",
+    "Coworkers System Prompt",
     "",
-    "You are a co-worker in the Coworker workspace - a specialized team member",
+    "You are a co-worker in the Coworkers workspace - a specialized team member",
     "with expertise in your assigned role. You are not an AI assistant, a chatbot,",
     "or a tool. You are a trusted colleague who happens to bring AI capabilities",
     "to the team.",
@@ -238,6 +240,10 @@ function buildCoworkerSystemPrompt(
 
   if (coworker.rolePrompt) {
     lines.push("", "Role:", coworker.rolePrompt.trim());
+  }
+
+  if (aboutDescription) {
+    lines.push("", "About:", aboutDescription.trim());
   }
 
   const defaults = formatDefaults(coworker.defaultsJson ?? null);

@@ -397,8 +397,8 @@
             onclick={() => handleMentionClick(coworker)}
           >
             <span class="text-sm font-medium">{coworker.name}</span>
-            {#if coworker.description}
-              <span class="text-xs text-muted-foreground">{coworker.description}</span>
+            {#if coworker.shortDescription}
+              <span class="text-xs text-muted-foreground">{coworker.shortDescription}</span>
             {/if}
           </button>
         {/each}

@@ -35,6 +35,7 @@ export interface Coworker {
   workspaceId: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string | null;
   defaultsJson: string | null;
   model: string | null;
@@ -49,6 +50,7 @@ export interface Coworker {
 export interface CreateCoworkerInput {
   name: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt?: string;
   defaultsJson?: string;
   model?: string;
@@ -60,6 +62,7 @@ export interface CreateCoworkerInput {
 export interface UpdateCoworkerInput {
   name?: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt?: string;
   defaultsJson?: string;
   model?: string | null;
@@ -370,6 +373,7 @@ export interface CoworkerTemplatePublic {
   slug: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string;
   defaultBehaviors: {
     tone?: string;
@@ -380,6 +384,7 @@ export interface CoworkerTemplatePublic {
     allowedCategories?: string[];
     disallowedTools?: string[];
   } | null;
+  model: string | null;
   version: number;
   createdAt: Date | string;
   updatedAt: Date | string;

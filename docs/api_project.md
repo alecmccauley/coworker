@@ -39,6 +39,16 @@ coworker-pilot/
 │   │       │   │   └── route.ts
 │   │       │   └── admin-check/
 │   │       │       └── route.ts   # Admin status check (protected)
+│   │       ├── admin/
+│   │       │   └── insider-codes/
+│   │       │       ├── route.ts    # List + create (admin only)
+│   │       │       └── [id]/
+│   │       │           └── route.ts # Get + update + delete (admin only)
+│   │       ├── insider/
+│   │       │   ├── validate-code/
+│   │       │   │   └── route.ts    # Validate insider code (public)
+│   │       │   └── sign-up/
+│   │       │       └── route.ts    # Insider sign-up (public)
 │   │       ├── promote/
 │   │       │   └── route.ts    # Machine-key protected bootstrap endpoint
 │   │       ├── hello/
@@ -425,6 +435,23 @@ POST   /api/v1/users          # Create user
 GET    /api/v1/users/:id      # Get user by ID
 PATCH  /api/v1/users/:id      # Update user
 DELETE /api/v1/users/:id      # Delete user
+```
+
+### Insider Codes (Admin)
+
+```
+GET    /api/v1/admin/insider-codes          # List all insider codes with activation counts
+POST   /api/v1/admin/insider-codes          # Create insider code
+GET    /api/v1/admin/insider-codes/:id      # Get insider code by ID
+PATCH  /api/v1/admin/insider-codes/:id      # Update insider code
+DELETE /api/v1/admin/insider-codes/:id      # Delete insider code
+```
+
+### Insider Preview (Public)
+
+```
+POST /api/v1/insider/validate-code   # Validate an insider code exists and is active
+POST /api/v1/insider/sign-up         # Create user account via insider preview
 ```
 
 ### Chat (Protected)

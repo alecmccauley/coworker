@@ -19,6 +19,7 @@
   // Form state
   let name = $state('')
   let description = $state('')
+  let shortDescription = $state('')
   let isSubmitting = $state(false)
   let error = $state('')
   let models = $state<AiModel[]>([])
@@ -35,6 +36,7 @@
     if (open) {
       name = coworker?.name ?? ''
       description = coworker?.description ?? ''
+      shortDescription = coworker?.shortDescription ?? ''
       modelValue = coworker?.model ?? ''
       error = ''
       isSubmitting = false
@@ -68,7 +70,8 @@
     try {
       const input: CreateCoworkerInput | UpdateCoworkerInput = {
         name: name.trim(),
-        description: description.trim() || undefined
+        description: description.trim() || undefined,
+        shortDescription: shortDescription.trim() || undefined
       }
 
       if (modelValue.trim()) {
@@ -131,6 +134,17 @@
         />
       </div>
 
+      <!-- Short description field -->
+      <div class="space-y-2">
+        <Label for="short-description">Short description (optional)</Label>
+        <Input
+          id="short-description"
+          bind:value={shortDescription}
+          placeholder="A one-line summary for lists"
+          disabled={isSubmitting}
+        />
+      </div>
+
       <div class="rounded-xl border border-border bg-card p-4">
         <div class="flex items-center justify-between">
           <div>
@@ -169,6 +183,12 @@
           {#if !isLoadingModels && models.length === 0}
             <p class="text-xs text-muted-foreground">
               No models are available yet. Ask an admin to configure one.
+            </p>
+          {/if}
+          {#if coworker?.templateId}
+            <p class="text-xs text-muted-foreground">
+              This co-worker was created from a template. We recommend leaving the model
+              unchanged.
             </p>
           {/if}
         </div>

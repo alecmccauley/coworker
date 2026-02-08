@@ -12,7 +12,9 @@
     slug: string
     name: string
     description: string | null
+    shortDescription: string | null
     rolePrompt: string
+    model: string | null
   }
 
   interface Props {

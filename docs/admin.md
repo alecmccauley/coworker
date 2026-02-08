@@ -121,6 +121,49 @@ Admins can:
 - Setting a model as default automatically marks it active.
 - Attempting to deactivate or delete the only default model returns a `409` response.
 
+## Insider Codes Administration
+
+Coworker uses insider access codes to manage sign-ups for the insider preview. Admins can create, edit, activate/deactivate, and delete codes from the admin dashboard.
+
+### Admin UI (`/admin/insider-codes`)
+
+Admins can:
+
+- Create insider codes (lowercase alphanumeric, 6-25 characters) with a title and optional notes.
+- Activate/deactivate codes (inactive codes cannot be used for sign-up).
+- View activation counts (how many users signed up with each code).
+- Search codes by code value, title, or notes.
+- Delete codes (cascade deletes associated activations).
+
+### Admin API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/admin/insider-codes` | Admin | List all insider codes with activation counts. |
+| `POST` | `/api/v1/admin/insider-codes` | Admin | Create a new insider code. |
+| `GET` | `/api/v1/admin/insider-codes/:id` | Admin | Get a single insider code with activation count. |
+| `PATCH` | `/api/v1/admin/insider-codes/:id` | Admin | Update an insider code. |
+| `DELETE` | `/api/v1/admin/insider-codes/:id` | Admin | Delete an insider code (cascades to activations). |
+
+### Public Insider Endpoints
+
+These endpoints do not require authentication and are used by the public sign-up page at `/insider-sign-up`.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/v1/insider/validate-code` | None | Validate that an insider code exists and is active. |
+| `POST` | `/api/v1/insider/sign-up` | None | Create a new user account via insider preview sign-up. |
+
+### Database Models
+
+- **InsiderCode** — Stores access codes with title, notes, and active status.
+- **InsiderActivation** — Links a user to the insider code they used to sign up (one-to-many from InsiderCode, one-to-many from User).
+
+### Shared Services
+
+- **Types:** `InsiderCode`, `InsiderCodeWithCount`, `InsiderActivation`, `CreateInsiderCodeInput`, `UpdateInsiderCodeInput`, `InsiderSignUpInput` in `shared-services/src/types/domain/insider-code.ts`.
+- **Schemas:** `createInsiderCodeSchema`, `updateInsiderCodeSchema`, `validateInsiderCodeSchema`, `insiderSignUpSchema` in `shared-services/src/schemas/insider-code.ts`.
+
 ## File Structure
 
 ```
@@ -128,12 +171,30 @@ coworker-pilot/
 ├── app/
 │   ├── login/
 │   │   └── page.tsx              # Login page (email + code)
+│   ├── insider-sign-up/
+│   │   ├── page.tsx               # Server component (fetches download URL)
+│   │   └── insider-sign-up-flow.tsx # Client component (multi-step form)
 │   ├── admin/
 │   │   ├── layout.tsx             # Protected layout (auth + admin check)
-│   │   └── page.tsx               # Admin dashboard
-│   └── api/v1/auth/
-│       └── admin-check/
-│           └── route.ts           # GET admin-check (withAuth)
+│   │   ├── page.tsx               # Admin dashboard
+│   │   └── insider-codes/
+│   │       ├── page.tsx           # Insider codes management page
+│   │       └── components/
+│   │           ├── InsiderCodeTable.tsx
+│   │           ├── InsiderCodeFormDialog.tsx
+│   │           └── DeleteInsiderCodeDialog.tsx
+│   └── api/v1/
+│       ├── auth/
+│       │   └── admin-check/
+│       │       └── route.ts       # GET admin-check (withAuth)
+│       ├── admin/insider-codes/
+│       │   ├── route.ts           # GET + POST (withAdmin)
+│       │   └── [id]/route.ts      # GET + PATCH + DELETE (withAdmin)
+│       └── insider/
+│           ├── validate-code/
+│           │   └── route.ts       # POST validate code (public)
+│           └── sign-up/
+│               └── route.ts       # POST sign up (public)
 ├── lib/
 │   ├── admin-middleware.ts        # withAdmin(), getAdminEmails(), isAdminEmail()
 │   ├── auth-context.tsx           # AuthProvider, useAuth (isAdmin)

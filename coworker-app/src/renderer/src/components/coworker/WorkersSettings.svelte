@@ -62,6 +62,7 @@
               {coworker}
               onEdit={onEdit}
               onDelete={onArchive}
+              showDescription={true}
             />
           {/each}
         </div>

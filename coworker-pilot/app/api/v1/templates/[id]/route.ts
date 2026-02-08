@@ -13,9 +13,11 @@ function toPublicTemplate(template: {
   slug: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string;
   defaultBehaviorsJson: string | null;
   defaultToolsPolicyJson: string | null;
+  model: string | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -44,9 +46,11 @@ function toPublicTemplate(template: {
     slug: template.slug,
     name: template.name,
     description: template.description,
+    shortDescription: template.shortDescription,
     rolePrompt: template.rolePrompt,
     defaultBehaviors,
     defaultToolsPolicy,
+    model: template.model,
     version: template.version,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
@@ -70,9 +74,11 @@ export async function GET(
       slug: true,
       name: true,
       description: true,
+      shortDescription: true,
       rolePrompt: true,
       defaultBehaviorsJson: true,
       defaultToolsPolicyJson: true,
+      model: true,
       version: true,
       createdAt: true,
       updatedAt: true,

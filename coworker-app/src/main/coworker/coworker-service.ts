@@ -20,6 +20,7 @@ import { addCoworkerToChannel } from "../channel";
 export interface CreateCoworkerInput {
   name: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt?: string;
   defaultsJson?: string;
   model?: string;
@@ -34,6 +35,7 @@ export interface CreateCoworkerInput {
 export interface UpdateCoworkerInput {
   name?: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt?: string;
   defaultsJson?: string;
   model?: string | null;
@@ -45,6 +47,7 @@ export interface UpdateCoworkerInput {
 interface CoworkerCreatedPayload {
   name: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt?: string;
   defaultsJson?: string;
   model?: string;
@@ -56,6 +59,7 @@ interface CoworkerCreatedPayload {
 interface CoworkerUpdatedPayload {
   name?: string;
   description?: string;
+  shortDescription?: string;
   rolePrompt?: string;
   defaultsJson?: string;
   model?: string | null;
@@ -136,6 +140,7 @@ export async function createCoworker(
   const payload: CoworkerCreatedPayload = {
     name: input.name,
     description: input.description,
+    shortDescription: input.shortDescription,
     rolePrompt: input.rolePrompt,
     defaultsJson: input.defaultsJson,
     model: input.model,
@@ -155,6 +160,7 @@ export async function createCoworker(
         workspaceId: workspace.manifest.id,
         name: input.name,
         description: input.description ?? null,
+        shortDescription: input.shortDescription ?? null,
         rolePrompt: input.rolePrompt ?? null,
         defaultsJson: input.defaultsJson ?? null,
         model: input.model ?? null,
@@ -232,6 +238,8 @@ export async function updateCoworker(
   const payload: CoworkerUpdatedPayload = {};
   if (input.name !== undefined) payload.name = input.name;
   if (input.description !== undefined) payload.description = input.description;
+  if (input.shortDescription !== undefined)
+    payload.shortDescription = input.shortDescription;
   if (input.rolePrompt !== undefined) payload.rolePrompt = input.rolePrompt;
   if (input.defaultsJson !== undefined)
     payload.defaultsJson = input.defaultsJson;
@@ -243,6 +251,8 @@ export async function updateCoworker(
   };
   if (input.name !== undefined) updates.name = input.name;
   if (input.description !== undefined) updates.description = input.description;
+  if (input.shortDescription !== undefined)
+    updates.shortDescription = input.shortDescription;
   if (input.rolePrompt !== undefined) updates.rolePrompt = input.rolePrompt;
   if (input.defaultsJson !== undefined)
     updates.defaultsJson = input.defaultsJson;

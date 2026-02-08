@@ -294,8 +294,8 @@
               </div>
               <div>
                 <p class="font-medium text-foreground">{coworker.name}</p>
-                {#if coworker.description}
-                  <p class="text-sm text-muted-foreground">{coworker.description}</p>
+                {#if coworker.shortDescription}
+                  <p class="text-sm text-muted-foreground">{coworker.shortDescription}</p>
                 {/if}
               </div>
             </button>

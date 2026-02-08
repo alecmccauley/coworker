@@ -15,12 +15,14 @@
     slug: string
     name: string
     description: string | null
+    shortDescription: string | null
     rolePrompt: string
     defaultBehaviors: {
       tone?: string
       formatting?: string
       guardrails?: string[]
     } | null
+    model: string | null
     version: number
   }
 
@@ -88,11 +90,13 @@
 
   function handleSelectTemplate(template: Template): void {
     selectedTemplate = template
+    modelValue = template.model ?? ''
   }
 
   function handleContinueWithTemplate(): void {
     if (selectedTemplate) {
       name = selectedTemplate.name
+      modelValue = selectedTemplate.model ?? ''
       currentStep = 'customize'
     }
   }
@@ -130,6 +134,8 @@
         input.defaultsJson = selectedTemplate.defaultBehaviors
           ? JSON.stringify(selectedTemplate.defaultBehaviors)
           : undefined
+        input.description = selectedTemplate.description ?? undefined
+        input.shortDescription = selectedTemplate.shortDescription ?? undefined
         input.templateId = selectedTemplate.id
         input.templateVersion = selectedTemplate.version
         input.templateDescription = selectedTemplate.description ?? undefined
@@ -201,9 +207,9 @@
                 </div>
                 <div>
                   <h3 class="font-medium text-foreground">{template.name}</h3>
-                  {#if template.description}
+                  {#if template.shortDescription}
                     <p class="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                      {template.description}
+                      {template.shortDescription}
                     </p>
                   {/if}
                 </div>
@@ -247,8 +253,10 @@
               </div>
               <div>
                 <p class="text-sm font-medium text-foreground">Based on {selectedTemplate.name}</p>
-                {#if selectedTemplate.description}
-                  <p class="text-xs text-muted-foreground">{selectedTemplate.description}</p>
+                {#if selectedTemplate.shortDescription}
+                  <p class="text-xs text-muted-foreground">
+                    {selectedTemplate.shortDescription}
+                  </p>
                 {/if}
               </div>
             </div>
@@ -268,15 +276,15 @@
 
         <div class="rounded-xl border border-border bg-card p-4">
           <div class="flex items-center justify-between">
-            <div>
-              <p class="text-sm font-medium text-foreground">Advanced settings</p>
-              <p class="text-xs text-muted-foreground">
-                Customize which model this co-worker uses for responses.
-              </p>
+              <div>
+                <p class="text-sm font-medium text-foreground">Advanced settings</p>
+                <p class="text-xs text-muted-foreground">
+                  Customize which model this co-worker uses for responses.
+                </p>
+              </div>
             </div>
-          </div>
-          <div class="mt-4 space-y-2">
-            <Label for="coworker-model">Model</Label>
+            <div class="mt-4 space-y-2">
+              <Label for="coworker-model">Model</Label>
             <select
               id="coworker-model"
               bind:value={modelValue}
@@ -293,18 +301,30 @@
                     Use default model
                   {/if}
                 </option>
+                {#if modelValue && !models.find((model) => model.value === modelValue)}
+                  <option value={modelValue}>Unavailable ({modelValue})</option>
+                {/if}
                 {#each models as model (model.id)}
                   <option value={model.value}>{model.title}</option>
                 {/each}
               {/if}
             </select>
-            {#if !isLoadingModels && models.length === 0}
-              <p class="text-xs text-muted-foreground">
-                No models are available yet. Ask an admin to configure one.
-              </p>
-            {/if}
+              {#if !isLoadingModels && models.length === 0}
+                <p class="text-xs text-muted-foreground">
+                  No models are available yet. Ask an admin to configure one.
+                </p>
+              {/if}
+              {#if selectedTemplate?.model}
+                <p class="text-xs text-muted-foreground">
+                  This template recommends
+                  {models.find((model) => model.value === selectedTemplate?.model)?.title
+                    ? ` ${models.find((model) => model.value === selectedTemplate?.model)?.title}`
+                    : ` ${selectedTemplate.model}`}
+                  . We recommend leaving this unchanged.
+                </p>
+              {/if}
+            </div>
           </div>
-        </div>
 
         {#if error}
           <div class="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2">

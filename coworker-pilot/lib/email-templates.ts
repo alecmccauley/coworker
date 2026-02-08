@@ -1,5 +1,5 @@
 /**
- * Email templates for Coworker authentication
+ * Email templates for Coworkers authentication
  *
  * Uses inline styles for email client compatibility.
  * Brand colors:
@@ -28,7 +28,7 @@ export function getVerificationEmailHtml({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Coworker verification code</title>
+  <title>Your Coworkers verification code</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #FAF8F5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
   <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; background-color: #FAF8F5;">
@@ -39,7 +39,7 @@ export function getVerificationEmailHtml({
           <tr>
             <td style="padding: 40px 40px 24px 40px; text-align: center;">
               <h1 style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 500; color: #2D2A26; letter-spacing: -0.5px;">
-                Coworker
+                Coworkers
               </h1>
             </td>
           </tr>
@@ -80,7 +80,7 @@ export function getVerificationEmailHtml({
           <tr>
             <td style="padding: 24px 40px; border-top: 1px solid #EBE8E3; text-align: center;">
               <p style="margin: 0; font-size: 12px; color: #8A8885;">
-                This email was sent by Coworker
+                This email was sent by Coworkers
               </p>
             </td>
           </tr>
@@ -101,7 +101,7 @@ export function getVerificationEmailText({
   expiresInMinutes,
 }: VerificationEmailParams): string {
   return `
-Your Coworker verification code
+Your Coworkers verification code
 
 Enter this code to sign in to your account:
 
@@ -112,7 +112,7 @@ This code will expire in ${expiresInMinutes} minutes.
 If you didn't request this code, you can safely ignore this email.
 
 —
-Coworker
+Coworkers
 `.trim();
 }
 
@@ -120,5 +120,5 @@ Coworker
  * Get the email subject for verification emails
  */
 export function getVerificationEmailSubject(): string {
-  return "Your Coworker verification code";
+  return "Your Coworkers verification code";
 }

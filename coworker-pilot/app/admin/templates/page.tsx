@@ -25,10 +25,12 @@ interface Template {
   slug: string;
   name: string;
   description: string | null;
+  shortDescription: string | null;
   rolePrompt: string;
   defaultBehaviorsJson: string | null;
   defaultToolsPolicyJson: string | null;
   modelRoutingPolicyJson: string | null;
+  model: string | null;
   version: number;
   isPublished: boolean;
   createdAt: string;
@@ -105,7 +107,8 @@ export default function AdminTemplatesPage() {
           (t) =>
             t.name.toLowerCase().includes(searchLower) ||
             t.slug.toLowerCase().includes(searchLower) ||
-            t.description?.toLowerCase().includes(searchLower)
+            t.description?.toLowerCase().includes(searchLower) ||
+            t.shortDescription?.toLowerCase().includes(searchLower)
         )
       );
     }

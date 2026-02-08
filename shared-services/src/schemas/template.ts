@@ -61,7 +61,19 @@ export const createCoworkerTemplateSchema = z.object({
     .string()
     .min(1, "Name is required")
     .max(100, "Name must be 100 characters or less"),
-  description: z.string().max(500, "Description must be 500 characters or less").optional(),
+  description: z.preprocess(
+    (val) =>
+      typeof val === "string" && val.trim().length === 0 ? undefined : val,
+    z.string().optional(),
+  ),
+  shortDescription: z.preprocess(
+    (val) =>
+      typeof val === "string" && val.trim().length === 0 ? undefined : val,
+    z
+      .string()
+      .max(160, "Short description must be 160 characters or less")
+      .optional(),
+  ),
   rolePrompt: z
     .string()
     .min(1, "Role prompt is required")
@@ -69,6 +81,11 @@ export const createCoworkerTemplateSchema = z.object({
   defaultBehaviors: coworkerDefaultBehaviorsSchema.optional(),
   defaultToolsPolicy: coworkerToolsPolicySchema.optional(),
   modelRoutingPolicy: coworkerModelRoutingPolicySchema.optional(),
+  model: z.preprocess(
+    (val) =>
+      typeof val === "string" && val.trim().length === 0 ? undefined : val,
+    z.string().min(1).optional(),
+  ),
   isPublished: z.boolean().optional(),
 });
 
@@ -96,7 +113,18 @@ export const updateCoworkerTemplateSchema = z.object({
     .min(1, "Name is required")
     .max(100, "Name must be 100 characters or less")
     .optional(),
-  description: z.string().max(500, "Description must be 500 characters or less").nullable().optional(),
+  description: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z.string().nullable().optional(),
+  ),
+  shortDescription: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z
+      .string()
+      .max(160, "Short description must be 160 characters or less")
+      .nullable()
+      .optional(),
+  ),
   rolePrompt: z
     .string()
     .min(1, "Role prompt is required")
@@ -105,6 +133,10 @@ export const updateCoworkerTemplateSchema = z.object({
   defaultBehaviors: coworkerDefaultBehaviorsSchema.nullable().optional(),
   defaultToolsPolicy: coworkerToolsPolicySchema.nullable().optional(),
   modelRoutingPolicy: coworkerModelRoutingPolicySchema.nullable().optional(),
+  model: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z.string().min(1).nullable().optional(),
+  ),
   isPublished: z.boolean().optional(),
 });
 

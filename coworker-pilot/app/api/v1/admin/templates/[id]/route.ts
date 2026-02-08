@@ -101,6 +101,8 @@ async function handlePatch(
   if (data.slug !== undefined) updateData.slug = data.slug;
   if (data.name !== undefined) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
+  if (data.shortDescription !== undefined)
+    updateData.shortDescription = data.shortDescription;
   if (data.rolePrompt !== undefined) updateData.rolePrompt = data.rolePrompt;
   if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
 
@@ -120,6 +122,10 @@ async function handlePatch(
     updateData.modelRoutingPolicyJson = data.modelRoutingPolicy
       ? JSON.stringify(data.modelRoutingPolicy)
       : null;
+  }
+
+  if (data.model !== undefined) {
+    updateData.model = data.model ?? null;
   }
 
   const template = await prisma.coworkerTemplate.update({

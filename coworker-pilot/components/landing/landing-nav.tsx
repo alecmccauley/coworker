@@ -38,7 +38,7 @@ export function LandingNav({ downloadUrlMac }: LandingNavProps) {
             className="transition-transform duration-300 group-hover:scale-105"
           />
           <span className="font-serif text-xl font-medium text-foreground hidden sm:block">
-            Coworker
+            Coworkers
           </span>
         </Link>
 

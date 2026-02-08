@@ -73,9 +73,9 @@
                   <p class="truncate text-sm font-medium text-foreground">
                     {coworker.name}
                   </p>
-                  {#if coworker.description}
+                  {#if coworker.shortDescription}
                     <p class="truncate text-xs text-muted-foreground">
-                      {coworker.description}
+                      {coworker.shortDescription}
                     </p>
                   {/if}
                 </div>
