@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import FolderXIcon from '@lucide/svelte/icons/folder-x'
+  import EraserIcon from '@lucide/svelte/icons/eraser'
   import Loader2Icon from '@lucide/svelte/icons/loader-2'
   import LogOutIcon from '@lucide/svelte/icons/log-out'
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
@@ -274,8 +275,15 @@
   }
 
   async function handleClearRecentWorkspaces(): Promise<void> {
-    await window.api.workspace.clearRecent()
-    recentWorkspaces = []
+    errorMessage = null
+    try {
+      await window.api.workspace.clearRecent()
+      await window.api.menu.refresh()
+      recentWorkspaces = []
+    } catch (error) {
+      console.error('Failed to clear recent workspaces:', error)
+      errorMessage = formatError(error, 'Failed to clear recent workspaces.')
+    }
   }
 
   function handleWorkspaceOpened(workspace: WorkspaceInfo): void {
@@ -487,6 +495,16 @@
     >
       <FolderXIcon class="h-3.5 w-3.5" />
       Close
+    </button>
+  {/if}
+  {#if !currentWorkspace && recentWorkspaces.length > 0}
+    <button
+      onclick={handleClearRecentWorkspaces}
+      class="flex items-center gap-2 rounded-full bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+      title="Clear recent workspaces"
+    >
+      <EraserIcon class="h-3.5 w-3.5" />
+      Clear Recents
     </button>
   {/if}
   <button

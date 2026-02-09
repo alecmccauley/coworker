@@ -264,6 +264,8 @@ The pre-auth screens (welcome splash and sign-in flow) surface a compact “Upda
 
 Screens shown after authentication (e.g. Dashboard) use the shared **AppShell** component, which provides the draggable title bar (“Coworker”), macOS traffic-light spacing, and the main content area. Screen-specific actions (e.g. Close workspace, Sign out) are passed via AppShell’s optional `headerActions` snippet so they appear in the title bar.
 
+The dashboard also surfaces a **Clear Recents** header action when no workspace is open and recent workspaces exist. It clears the recent workspaces list and refreshes the File → Open Recent menu.
+
 ## UI Error Surface
 
 The dashboard renders a dismissible error banner for workspace and coworker

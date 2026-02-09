@@ -24,7 +24,11 @@ import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
 import { registerModelIpcHandlers, setModelSdkGetter } from "./models";
 import { registerChatIpcHandlers, setChatSdkGetter } from "./chat";
-import { buildApplicationMenu, setChannelSettingsEnabled } from "./menu";
+import {
+  buildApplicationMenu,
+  refreshApplicationMenu,
+  setChannelSettingsEnabled,
+} from "./menu";
 import {
   initUpdates,
   checkForUpdates,
@@ -75,6 +79,9 @@ const getApiUrl = (): string =>
 const registerIpcHandlers = (): void => {
   // Config handlers
   ipcMain.handle("config:getApiUrl", () => getApiUrl());
+
+  // Menu handlers
+  ipcMain.handle("menu:refresh", () => refreshApplicationMenu());
 
   // Auth handlers
   ipcMain.handle("auth:requestCode", async (_event, email: string) => {

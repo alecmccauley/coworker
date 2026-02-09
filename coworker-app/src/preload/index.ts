@@ -440,6 +440,9 @@ const api = {
       };
     },
   },
+  menu: {
+    refresh: () => ipcRenderer.invoke("menu:refresh") as Promise<void>,
+  },
   users: {
     list: async () => ipcRenderer.invoke("api:users:list"),
     getById: async (id: string) => ipcRenderer.invoke("api:users:getById", id),
