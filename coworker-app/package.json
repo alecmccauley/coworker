@@ -1,7 +1,7 @@
 {
-  "name": "Coworkers",
+  "name": "coworker-app",
   "version": "1.0.5",
-  "description": "Coworkers - Desktop App",
+  "description": "Coworker App - Electron Desktop App",
   "main": "./out/main/index.js",
   "author": "The Modern Company",
   "homepage": "https://coworkers.2tm.ca/",
