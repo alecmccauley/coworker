@@ -18,9 +18,30 @@
     coworkers: Coworker[]
     onCreateCoworker: (channelId?: string) => void
     openSettingsPanel?: boolean
+    selectedThreadId?: string | null
+    onSelectThread?: (thread: Thread | null) => void
+    notificationSupported?: boolean
+    notificationPermission?: NotificationPermission
+    onRequestNotificationPermission?: () => void
+    onMarkThreadRead?: (threadId: string, readAt?: Date) => void
+    isAppFocused?: boolean
+    unreadByThread?: Record<string, number>
   }
 
-  let { channel, coworkers, onCreateCoworker, openSettingsPanel = false }: Props = $props()
+  let {
+    channel,
+    coworkers,
+    onCreateCoworker,
+    openSettingsPanel = false,
+    selectedThreadId = null,
+    onSelectThread,
+    notificationSupported = false,
+    notificationPermission = 'default',
+    onRequestNotificationPermission,
+    onMarkThreadRead,
+    isAppFocused = false,
+    unreadByThread = {}
+  }: Props = $props()
 
   let threads = $state<Thread[]>([])
   let isLoading = $state(false)
@@ -55,6 +76,17 @@
   })
 
   $effect(() => {
+    if (!selectedThreadId) {
+      selectedThread = null
+      return
+    }
+    const match = threads.find((thread) => thread.id === selectedThreadId) ?? null
+    if (match) {
+      selectedThread = match
+    }
+  })
+
+  $effect(() => {
     const cleanup = window.api.thread.onUpdated((updated) => {
       threads = threads.map((thread) =>
         thread.id === updated.id ? updated : thread
@@ -73,6 +105,9 @@
     isLoading = true
     try {
       threads = await window.api.thread.list(channel.id)
+      if (selectedThreadId) {
+        selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null
+      }
     } catch (error) {
       console.error('Failed to load threads:', error)
     } finally {
@@ -100,6 +135,7 @@
       })
       await loadThreads()
       selectedThread = thread
+      onSelectThread?.(thread)
     } catch (error) {
       console.error('Failed to create thread:', error)
     }
@@ -229,12 +265,22 @@
               class:hover:bg-muted={selectedThread?.id !== thread.id}
             >
               <button
-                onclick={() => (selectedThread = thread)}
+                onclick={() => {
+                  selectedThread = thread
+                  onSelectThread?.(thread)
+                }}
                 class="flex min-w-0 flex-1 flex-col gap-1 text-left"
               >
-                <span class="truncate font-medium text-foreground">
-                  {thread.title || 'Untitled conversation'}
-                </span>
+                <div class="flex min-w-0 items-center justify-between gap-2">
+                  <span class="min-w-0 truncate font-medium text-foreground">
+                    {thread.title || 'Untitled conversation'}
+                  </span>
+                  {#if unreadByThread[thread.id] && unreadByThread[thread.id] > 0}
+                    <span class="shrink-0 inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-semibold text-accent">
+                      {unreadByThread[thread.id] > 99 ? '99+' : unreadByThread[thread.id]}
+                    </span>
+                  {/if}
+                </div>
                 <span class="text-xs text-muted-foreground">
                   {formatRelativeTime(thread.updatedAt)}
                 </span>
@@ -287,6 +333,11 @@
           channelCoworkers={channelCoworkers}
           onCreateCoworker={() => onCreateCoworker(channel.id)}
           onRenameThread={openRename}
+          {notificationSupported}
+          {notificationPermission}
+          onRequestNotificationPermission={onRequestNotificationPermission}
+          onMarkThreadRead={onMarkThreadRead}
+          {isAppFocused}
         />
       {:else}
         <div class="flex flex-1 flex-col items-center justify-center p-8 text-center">

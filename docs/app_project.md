@@ -291,8 +291,10 @@ Channel views now provide a full conversation experience:
 - Sources panel for thread-specific attachments (files, links, notes)
 - First message auto-names new conversations via AI tool call
 - Co-worker replies are orchestrated and streamed as separate coworker messages
-- Activity updates appear in the thread header and inside streaming coworker bubbles
+- Activity updates appear in the thread header, composer area, and inside streaming coworker bubbles
 - Manual rename available from the thread header and thread list menu (title required)
+- Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback. After submitting, answers are persisted into the message's `contentShort` as JSON and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
+- User messages can be queued while co-workers are working; queued messages show a “Queued” badge and run sequentially after the current orchestrator finishes.
 
 Channel setup rules:
 
@@ -307,6 +309,8 @@ Primary components:
 - `src/renderer/src/components/message/MessageList.svelte`
 - `src/renderer/src/components/message/MessageInput.svelte`
 - `src/renderer/src/components/thread/ThreadSourcesPanel.svelte`
+- `src/renderer/src/components/message/InterviewBubble.svelte`
+- `src/renderer/src/lib/types/interview.ts` — interview data types + parse/format helpers
 - `src/renderer/src/lib/markdown.ts` — MarkdownIt + DOMPurify rendering utility
 
 ## Knowledge Management
@@ -1416,6 +1420,27 @@ interface Window {
   <p>Selected: {selectedFile}</p>
 {/if}
 ```
+
+## Notifications and Unread Badges
+
+The app uses **native desktop notifications** via the renderer `Notification` API and maintains **unread coworker counts** per channel with persisted read state.
+
+### Behavior
+
+- Notifications fire for **coworker messages** when the app is **not focused**.
+- Clicking a notification **focuses the app** and opens the exact thread.
+- A glossy permission banner appears inside every conversation until notifications are granted.
+- Unread counts are computed from coworker messages and reset when the thread is marked read.
+- Thread lists show per-conversation unread badges based on coworker messages newer than `last_read_at`.
+
+### Data + IPC
+
+- `threads.last_read_at` stores the last-read timestamp per thread (workspace DB).
+- IPC endpoints:
+  - `notifications:markThreadRead`
+  - `notifications:getUnreadCounts`
+  - `window:focus`
+- Read tracking is stored in the event log (`thread` + `read` events) and used to compute channel-level unread counts.
 
 ## Best Practices Summary
 

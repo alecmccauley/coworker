@@ -134,6 +134,7 @@ We support a streaming chat pipeline for thread conversations:
 - Renderer updates coworker messages incrementally from IPC events.
 - The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.
 - The model can emit `save_memory` tool calls; the main process persists memories and links them to coworkers for future retrieval.
+- User messages sent during an active orchestrator run are queued in the main process and streamed sequentially after the current run completes. The renderer receives `chat:queueUpdate` events for queued/processing states.
 - Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
 - Coworker replies use a standardized coworker system prompt block before role prompts and defaults to keep tone and behavior consistent.
 
@@ -155,7 +156,7 @@ sequenceDiagram
   API->>Model: streamText() tool loop
   Model-->>API: tool calls + data stream
   API-->>Main: streaming response
-  Main-->>Preload: chat:messageCreated/chat:chunk/chat:status/chat:complete
+  Main-->>Preload: chat:messageCreated/chat:chunk/chat:status/chat:queueUpdate/chat:complete
   Preload-->>Renderer: update UI
 ```
 
@@ -176,6 +177,13 @@ sequenceDiagram
 - PostgreSQL 17 is the backing database.
 - Prisma schema, migrations, and client live in `shared-services`.
 - API uses the shared Prisma client via `@coworker/shared-services/db`.
+
+## Desktop Notifications + Unread Tracking
+
+- Renderer uses the native `Notification` API to display coworker message alerts.
+- App focuses and opens the exact thread on notification click (via `window:focus` IPC).
+- `threads.last_read_at` is stored in the workspace DB to track read state.
+- Unread counts are computed by joining `messages` and `threads` and filtering coworker messages newer than `last_read_at`.
 
 ## Build and Workflow Notes
 

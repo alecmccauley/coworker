@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 10;
 
 /**
  * Run all migrations on a workspace database
@@ -59,6 +59,9 @@ export function runMigrations(sqlite: Database.Database): void {
     }
     if (currentVersion < 9) {
       runMigrationV9(sqlite);
+    }
+    if (currentVersion < 10) {
+      runMigrationV10(sqlite);
     }
 
     // Update schema version
@@ -582,5 +585,16 @@ function runMigrationV9(sqlite: Database.Database): void {
 
   sqlite.exec(`
     ALTER TABLE coworkers ADD COLUMN short_description TEXT
+  `);
+}
+
+/**
+ * Migration V10: Add thread read tracking
+ */
+function runMigrationV10(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V10: Add last_read_at to threads");
+
+  sqlite.exec(`
+    ALTER TABLE threads ADD COLUMN last_read_at INTEGER
   `);
 }

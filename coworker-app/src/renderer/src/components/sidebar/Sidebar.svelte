@@ -12,6 +12,7 @@
     coworkers: Coworker[]
     selectedChannelId: string | null
     selectedCoworkerId: string | null
+    unreadByChannel?: Record<string, number>
     isWorkspaceSettingsActive?: boolean
     isWorkersSettingsActive?: boolean
     onSelectChannel: (channel: Channel) => void
@@ -28,6 +29,7 @@
     coworkers,
     selectedChannelId,
     selectedCoworkerId,
+    unreadByChannel = {},
     isWorkspaceSettingsActive = false,
     isWorkersSettingsActive = false,
     onSelectChannel,
@@ -94,6 +96,11 @@
             >
               <HashIcon class="h-4 w-4 flex-shrink-0 text-muted-foreground" />
               <span class="truncate">{channel.name}</span>
+              {#if unreadByChannel[channel.id] && unreadByChannel[channel.id] > 0}
+                <span class="ml-auto rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-semibold text-accent">
+                  {unreadByChannel[channel.id] > 99 ? '99+' : unreadByChannel[channel.id]}
+                </span>
+              {/if}
             </button>
           {:else}
             <p class="px-2 py-2 text-xs text-muted-foreground">No channels yet</p>

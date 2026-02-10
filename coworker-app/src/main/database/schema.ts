@@ -62,6 +62,7 @@ export const threads = sqliteTable("threads", {
   channelId: text("channel_id").notNull(),
   title: text("title"), // Auto-generated or user-set title
   summaryRef: text("summary_ref"), // Blob ref for auto-generated summary
+  lastReadAt: integer("last_read_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   archivedAt: integer("archived_at", { mode: "timestamp_ms" }),

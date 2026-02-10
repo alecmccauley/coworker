@@ -17,6 +17,7 @@ import { withAuth, type AuthenticatedRequest } from "@/lib/auth-middleware";
 export const dynamic = "force-dynamic";
 
 const TITLE_TOOL_NAME = "set_conversation_title";
+const INTERVIEW_TOOL_NAME = "request_interview";
 const MAX_COWORKER_RESPONSES = 10;
 
 function buildContextBlock(request: ChatCompletionRequest): string {
@@ -132,6 +133,7 @@ function buildCoworkerSystemPrompt(
     "- Hedge with unnecessary qualifiers",
     "- Use passive voice",
     "- Over-explain simple things",
+    "- Use --- horizontal rules (avoid them unless absolutely necessary)",
     "",
     "Handling Context",
     "You have access to workspace-level information that defines who the user is,",
@@ -321,7 +323,7 @@ async function handlePost(
   try {
     const finalSystemPrompt = buildContextBlock(data);
     const aiResult = await streamText({
-      model: requestedModel,
+      model: "google/gemini-3-flash",
       messages: [
         { role: "system", content: finalSystemPrompt },
         ...data.messages,
@@ -330,6 +332,14 @@ async function handlePost(
       maxTokens: data.maxTokens,
       stopWhen: ({ steps }) => {
         const lastStep = steps[steps.length - 1];
+        const hasInterviewToolCall = steps.some((step) =>
+          step.toolCalls?.some(
+            (toolCall) => toolCall.toolName === INTERVIEW_TOOL_NAME,
+          ),
+        );
+        if (hasInterviewToolCall) {
+          return true;
+        }
         const hasTitleToolCall =
           lastStep?.toolCalls?.some(
             (toolCall) => toolCall.toolName === TITLE_TOOL_NAME,
@@ -422,6 +432,27 @@ async function handlePost(
           inputSchema: z.object({
             coworkerId: z.string().min(1),
             content: z.string().min(1),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        request_interview: {
+          description:
+            "Ask the user 1-5 multiple-choice clarifying questions before generating coworker responses. Use when the request is ambiguous or would benefit from more context.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            questions: z
+              .array(
+                z.object({
+                  id: z.string().min(1),
+                  question: z.string().min(1),
+                  options: z
+                    .array(z.object({ label: z.string().min(1) }))
+                    .min(2)
+                    .max(4),
+                }),
+              )
+              .min(1)
+              .max(5),
           }),
           execute: async () => ({ ok: true }),
         },

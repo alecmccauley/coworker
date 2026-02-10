@@ -49,12 +49,19 @@ interface ChatMessageCreatedPayload {
   message: Awaited<ReturnType<typeof createMessage>>;
 }
 
+interface ChatQueuePayload {
+  threadId: string;
+  messageId: string;
+  state: "queued" | "processing";
+}
+
 interface SendMessageResult {
   userMessage: Awaited<ReturnType<typeof createMessage>>;
   responseId: string;
 }
 
 const activeStreams = new Map<string, AbortController>();
+const threadQueues = new Map<string, ThreadQueueState>();
 
 let getSdk: (() => Promise<CoworkerSdk>) | null = null;
 
@@ -67,6 +74,73 @@ function safeSend<T>(sender: WebContents, channel: string, payload: T): void {
     return;
   }
   sender.send(channel, payload);
+}
+
+interface QueuedMessage {
+  threadId: string;
+  content: string;
+  responseId: string;
+  sender: WebContents;
+  shouldAutoTitle: boolean;
+  wasQueued: boolean;
+}
+
+interface ThreadQueueState {
+  active: boolean;
+  queue: QueuedMessage[];
+}
+
+function getThreadQueue(threadId: string): ThreadQueueState {
+  const existing = threadQueues.get(threadId);
+  if (existing) {
+    return existing;
+  }
+  const created: ThreadQueueState = { active: false, queue: [] };
+  threadQueues.set(threadId, created);
+  return created;
+}
+
+function handleStreamFinished(threadId: string): void {
+  const queue = threadQueues.get(threadId);
+  if (!queue) {
+    return;
+  }
+  queue.active = false;
+  const next = queue.queue.shift();
+  if (!next) {
+    return;
+  }
+  void startStreamForMessage(next);
+}
+
+async function startStreamForMessage(message: QueuedMessage): Promise<void> {
+  const queue = getThreadQueue(message.threadId);
+  if (queue.active) {
+    queue.queue.unshift(message);
+    return;
+  }
+  queue.active = true;
+  if (message.wasQueued) {
+    safeSend<ChatQueuePayload>(message.sender, "chat:queueUpdate", {
+      threadId: message.threadId,
+      messageId: message.responseId,
+      state: "processing",
+    });
+  }
+
+  void streamChatResponse(
+    message.sender,
+    message.threadId,
+    message.content,
+    message.responseId,
+    message.shouldAutoTitle,
+  )
+    .catch((error) => {
+      console.error("[Chat] Failed to stream response:", error);
+    })
+    .finally(() => {
+      handleStreamFinished(message.threadId);
+    });
 }
 
 function extractStatusLabelFromInputText(inputText: string): string {
@@ -238,6 +312,7 @@ async function streamChatResponse(
   let statusClosed = false;
   const statusBuffers = new Map<string, string>();
   const titleBuffers = new Map<string, string>();
+  const interviewBuffers = new Map<string, string>();
   let titleApplied = false;
   const coworkerBuffers = new Map<
     string,
@@ -454,6 +529,69 @@ async function streamChatResponse(
             console.error("[Memory] Failed to save memory:", error);
           });
         }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-start" &&
+        event.toolName === "request_interview"
+      ) {
+        interviewBuffers.set(event.toolCallId, "");
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-delta" &&
+        event.toolName === "request_interview"
+      ) {
+        const existing = interviewBuffers.get(event.toolCallId) ?? "";
+        interviewBuffers.set(event.toolCallId, `${existing}${event.inputTextDelta}`);
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "request_interview"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as {
+                coworkerId?: unknown;
+                questions?: unknown;
+              })
+            : null;
+        const coworkerId =
+          input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : "";
+        const questions = Array.isArray(input?.questions)
+          ? input.questions
+          : [];
+
+        if (coworkerId && questions.length > 0) {
+          const interviewJson = JSON.stringify({
+            _type: "interview",
+            coworkerId,
+            questions,
+            answers: null,
+          });
+          const interviewMessage = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: coworkerId,
+            contentShort: interviewJson,
+            status: "complete",
+          });
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: interviewMessage,
+          });
+          const name = coworkerNameById.get(coworkerId);
+          if (name) {
+            emitStatus(`${name} has a few questions...`, "streaming");
+          }
+        }
+        interviewBuffers.delete(event.toolCallId);
         continue;
       }
 
@@ -773,13 +911,26 @@ export function registerChatIpcHandlers(): void {
         status: "complete",
       });
 
-      void streamChatResponse(
-        event.sender,
+      const queue = getThreadQueue(threadId);
+      const queuedMessage: QueuedMessage = {
         threadId,
         content,
-        userMessage.id,
+        responseId: userMessage.id,
+        sender: event.sender,
         shouldAutoTitle,
-      );
+        wasQueued: queue.active,
+      };
+
+      if (queue.active) {
+        queue.queue.push(queuedMessage);
+        safeSend<ChatQueuePayload>(event.sender, "chat:queueUpdate", {
+          threadId,
+          messageId: userMessage.id,
+          state: "queued",
+        });
+      } else {
+        void startStreamForMessage(queuedMessage);
+      }
 
       return { userMessage, responseId: userMessage.id };
     },

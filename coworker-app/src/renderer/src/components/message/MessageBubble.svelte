@@ -9,6 +9,7 @@
     isOwn?: boolean
     highlight?: boolean
     activityLabel?: string
+    isQueued?: boolean
   }
 
   let {
@@ -16,7 +17,8 @@
     authorLabel,
     isOwn = false,
     highlight = false,
-    activityLabel
+    activityLabel,
+    isQueued = false
   }: Props = $props()
 
   const content = $derived(
@@ -30,7 +32,14 @@
 </script>
 
 <div class={cn('flex flex-col gap-1', isOwn ? 'items-end' : 'items-start')}>
-  <span class="text-xs font-medium text-muted-foreground">{authorLabel}</span>
+  <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+    <span>{authorLabel}</span>
+    {#if isQueued}
+      <span class="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide">
+        Queued
+      </span>
+    {/if}
+  </div>
   <div
     class={cn(
       'max-w-2xl rounded-2xl border px-4 py-3 text-sm leading-relaxed',

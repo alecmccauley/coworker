@@ -542,6 +542,7 @@ Chat streaming supports model tool calls. Current tools:
 - `generate_coworker_response` — Runs a subordinate model to generate a coworker-specific reply.
 - `emit_coworker_message` — Emits a coworker reply payload for the client to render.
 - `save_memory` — Stores durable preferences/facts as memories linked to one or more coworkers.
+- `request_interview` — Asks the user 1-5 clarifying multiple-choice questions before generating coworker responses. Triggers a `stopWhen` halt so the client can render the interview UI and collect answers.
 
 Chat request payload includes orchestration context:
 

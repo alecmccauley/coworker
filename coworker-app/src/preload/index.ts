@@ -111,6 +111,7 @@ export interface Thread {
   channelId: string;
   title: string | null;
   summaryRef: string | null;
+  lastReadAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   archivedAt: Date | null;
@@ -345,6 +346,12 @@ export interface ChatStatusPayload {
   messageId: string;
   label: string;
   phase?: "streaming" | "done" | "error";
+}
+
+export interface ChatQueuePayload {
+  threadId: string;
+  messageId: string;
+  state: "queued" | "processing";
 }
 
 // Blob types
@@ -765,6 +772,26 @@ const api = {
   models: {
     list: () => ipcRenderer.invoke("models:list") as Promise<AiModel[]>,
   },
+  notifications: {
+    markThreadRead: (threadId: string, readAt?: string | number) =>
+      ipcRenderer.invoke(
+        "notifications:markThreadRead",
+        threadId,
+        readAt,
+      ) as Promise<void>,
+    getUnreadCounts: () =>
+      ipcRenderer.invoke(
+        "notifications:getUnreadCounts",
+      ) as Promise<Record<string, number>>,
+    getUnreadThreads: (channelId: string) =>
+      ipcRenderer.invoke(
+        "notifications:getUnreadThreads",
+        channelId,
+      ) as Promise<Record<string, number>>,
+  },
+  window: {
+    focus: () => ipcRenderer.invoke("window:focus") as Promise<void>,
+  },
   chat: {
     sendMessage: (threadId: string, content: string) =>
       ipcRenderer.invoke(
@@ -823,6 +850,17 @@ const api = {
       ipcRenderer.on("chat:status", listener);
       return () => {
         ipcRenderer.removeListener("chat:status", listener);
+      };
+    },
+    onQueueUpdate: (
+      handler: (payload: ChatQueuePayload) => void,
+    ): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        handler(payload as ChatQueuePayload);
+      };
+      ipcRenderer.on("chat:queueUpdate", listener);
+      return () => {
+        ipcRenderer.removeListener("chat:queueUpdate", listener);
       };
     },
   },
