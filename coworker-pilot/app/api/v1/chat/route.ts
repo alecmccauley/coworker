@@ -344,7 +344,7 @@ async function handlePost(
           lastStep?.toolCalls?.some(
             (toolCall) => toolCall.toolName === TITLE_TOOL_NAME,
           ) ?? false;
-        const maxSteps = Math.max(12, 2 + maxCoworkerResponses * 4);
+        const maxSteps = Math.max(12, 2 + maxCoworkerResponses * 5);
         if (steps.length >= maxSteps) {
           return true;
         }
@@ -453,6 +453,15 @@ async function handlePost(
               )
               .min(1)
               .max(5),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        start_document_draft: {
+          description:
+            "Notify the user that a document is about to be drafted. Call this as soon as you determine a coworker will produce a document — before calling generate_coworker_response — so the user sees a drafting indicator while the content is being generated.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            title: z.string().min(1).max(200),
           }),
           execute: async () => ({ ok: true }),
         },

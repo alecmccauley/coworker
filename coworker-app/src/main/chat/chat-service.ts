@@ -137,8 +137,8 @@ export function buildOrchestratorSystemPrompt(
     "- Only use `request_interview` once per turn. Do not combine it with `generate_coworker_response`.",
     "",
     "Document artifacts:",
-    "- When a coworker produces a document, brief, report, plan, or any structured artifact, call `emit_document` after `emit_coworker_message`.",
-    "- Use `emit_coworker_message` for the short conversational response, then `emit_document` with the full document content and a descriptive title.",
+    "- When a coworker will produce a document, brief, report, plan, or any structured artifact, call `start_document_draft` with the coworkerId and title BEFORE calling `generate_coworker_response`. This shows a drafting indicator to the user while the content is being generated.",
+    "- After `generate_coworker_response` completes, call `emit_coworker_message` for the short conversational response, then `emit_document` with the full document content.",
     "- Do NOT put full document content in `emit_coworker_message` — keep the message short and conversational.",
   );
 

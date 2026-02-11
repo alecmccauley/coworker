@@ -2,7 +2,7 @@ export interface DocumentData {
   _type: "document";
   coworkerId: string;
   title: string;
-  blobId: string;
+  blobId?: string;
 }
 
 export function parseDocumentData(

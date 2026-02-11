@@ -98,6 +98,7 @@
           <DocumentBar
             documentData={document}
             authorLabel={getAuthorLabel(message)}
+            activityLabel={activityByMessageId[message.id]}
           />
         {:else}
           <MessageBubble

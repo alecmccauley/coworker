@@ -321,8 +321,10 @@ async function streamChatResponse(
       coworkerId: string;
       title: string;
       content: string;
+      messageId?: string;
     }
   >();
+  const pendingDocumentMessages = new Map<string, string>();
   let titleApplied = false;
   const coworkerBuffers = new Map<
     string,
@@ -543,6 +545,50 @@ async function streamChatResponse(
       }
 
       if (
+        event.type === "tool-input-available" &&
+        event.toolName === "start_document_draft"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { coworkerId?: unknown; title?: unknown })
+            : null;
+        const coworkerId =
+          input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : "";
+        const title =
+          input?.title && typeof input.title === "string"
+            ? input.title
+            : "";
+
+        if (coworkerId && title) {
+          const documentJson = JSON.stringify({
+            _type: "document",
+            coworkerId,
+            title,
+          });
+          const created = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: coworkerId,
+            contentShort: documentJson,
+            status: "streaming",
+          });
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: created,
+          });
+          pendingDocumentMessages.set(coworkerId, created.id);
+          activeMessageId = created.id;
+          const name = coworkerNameById.get(coworkerId);
+          if (name) {
+            emitStatus(`${name} is drafting ${title}...`, "streaming");
+          }
+        }
+        continue;
+      }
+
+      if (
         event.type === "tool-input-start" &&
         event.toolName === "emit_document"
       ) {
@@ -570,6 +616,36 @@ async function streamChatResponse(
           existing.coworkerId = coworkerId || existing.coworkerId;
           existing.title = title || existing.title;
           existing.content = content || existing.content;
+
+          if (existing.coworkerId && existing.title && !existing.messageId) {
+            const pendingId = pendingDocumentMessages.get(existing.coworkerId);
+            if (pendingId) {
+              existing.messageId = pendingId;
+            } else {
+              const documentJson = JSON.stringify({
+                _type: "document",
+                coworkerId: existing.coworkerId,
+                title: existing.title,
+              });
+              const created = await createMessage({
+                threadId,
+                authorType: "coworker",
+                authorId: existing.coworkerId,
+                contentShort: documentJson,
+                status: "streaming",
+              });
+              existing.messageId = created.id;
+              safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+                threadId,
+                message: created,
+              });
+              activeMessageId = created.id;
+              const name = coworkerNameById.get(existing.coworkerId);
+              if (name) {
+                emitStatus(`${name} is drafting ${existing.title}...`, "streaming");
+              }
+            }
+          }
         }
         continue;
       }
@@ -608,24 +684,41 @@ async function streamChatResponse(
             mime: "text/markdown",
             filename,
           });
-          const documentJson = JSON.stringify({
+          const finalContentShort = JSON.stringify({
             _type: "document",
             coworkerId,
             title,
             blobId: blob.id,
           });
-          const documentMessage = await createMessage({
-            threadId,
-            authorType: "coworker",
-            authorId: coworkerId,
-            contentShort: documentJson,
-            status: "complete",
-          });
-          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
-            threadId,
-            message: documentMessage,
-          });
+
+          const messageId =
+            existing?.messageId ?? pendingDocumentMessages.get(coworkerId);
+
+          if (messageId) {
+            await persistStreamingContent(
+              messageId,
+              finalContentShort,
+              "complete",
+            );
+            safeSend<ChatCompletePayload>(sender, "chat:complete", {
+              messageId,
+              content: finalContentShort,
+            });
+          } else {
+            const documentMessage = await createMessage({
+              threadId,
+              authorType: "coworker",
+              authorId: coworkerId,
+              contentShort: finalContentShort,
+              status: "complete",
+            });
+            safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+              threadId,
+              message: documentMessage,
+            });
+          }
         }
+        pendingDocumentMessages.delete(coworkerId);
         documentBuffers.delete(event.toolCallId);
         continue;
       }
@@ -977,6 +1070,21 @@ async function streamChatResponse(
         });
       }
     }
+    for (const buffer of documentBuffers.values()) {
+      if (buffer.messageId) {
+        safeSend<ChatErrorPayload>(sender, "chat:error", {
+          messageId: buffer.messageId,
+          error: controller.signal.aborted ? "Message canceled" : message,
+        });
+      }
+    }
+    for (const pendingMessageId of pendingDocumentMessages.values()) {
+      safeSend<ChatErrorPayload>(sender, "chat:error", {
+        messageId: pendingMessageId,
+        error: controller.signal.aborted ? "Message canceled" : message,
+      });
+    }
+    pendingDocumentMessages.clear();
     finalizeStatus("error");
     safeSend<ChatErrorPayload>(sender, "chat:error", {
       messageId: responseId,
