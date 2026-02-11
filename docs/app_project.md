@@ -123,10 +123,11 @@ See [Authentication Documentation](./authentication.md) for complete auth detail
 
 ## Message Composer Mentions
 
-The message composer supports @mentions of channel-assigned co-workers with a
-tokenized, chip-based input. Mentions are rendered as inline chips in the
-composer while the stored message content remains plain text with a deterministic
-token format for backend parsing.
+The message composer supports @mentions of channel-assigned co-workers and
+workspace documents (AI document artifacts) with a tokenized, chip-based input.
+Mentions are rendered as inline chips in the composer while the stored message
+content remains plain text with a deterministic token format for backend
+parsing.
 
 ### Mention token format
 
@@ -134,18 +135,22 @@ Mentions are serialized as:
 
 ```
 @{coworker:ID|Name}
+@{document:MessageId|Title}
 ```
 
 Example:
 
 ```
 @{coworker:ckv9j2x1e0001|Alex}
+@{document:cmsg123|Marketing Brief}
 ```
 
 ### Mention picker behavior
 
 - Triggered by typing `@` at a word boundary.
-- Suggestions are limited to co-workers assigned to the active channel.
+- Suggestions include co-workers assigned to the active channel and documents
+  from anywhere in the workspace.
+- The document list is loaded via `message:listDocumentsByWorkspace`.
 - Keyboard controls:
   - `ArrowUp`/`ArrowDown` move selection
   - `Enter` or `Tab` inserts the selected mention

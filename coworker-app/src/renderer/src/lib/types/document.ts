@@ -14,6 +14,17 @@ export interface ChannelDocument {
   createdAt: Date;
 }
 
+export interface WorkspaceDocument {
+  messageId: string;
+  threadId: string;
+  threadTitle: string | null;
+  channelId: string;
+  channelName: string;
+  authorId: string | null;
+  contentShort: string;
+  createdAt: Date;
+}
+
 export function parseDocumentData(
   contentShort: string | null | undefined,
 ): DocumentData | null {

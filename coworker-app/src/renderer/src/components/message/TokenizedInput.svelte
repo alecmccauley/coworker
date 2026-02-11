@@ -1,29 +1,49 @@
 <script lang="ts">
+  import UserIcon from '@lucide/svelte/icons/user'
+  import FileTextIcon from '@lucide/svelte/icons/file-text'
   import { cn } from '$lib/utils.js'
-  import type { Coworker } from '$lib/types'
+  import type { Coworker, WorkspaceDocument } from '$lib/types'
+  import { parseDocumentData } from '$lib/types/document'
 
   interface Props {
     value: string
     coworkers: Coworker[]
+    documents?: WorkspaceDocument[]
     disabled?: boolean
     placeholder?: string
     onChange: (value: string) => void
     onSubmit: () => void
+    onMentionOpen?: () => void
   }
 
-  type MentionToken = { type: 'mention'; id: string; name: string }
+  type MentionType = 'coworker' | 'document'
+  type MentionToken = {
+    type: 'mention'
+    mentionType: MentionType
+    id: string
+    name: string
+  }
   type TextToken = { type: 'text'; value: string }
   type Token = MentionToken | TextToken
 
-  const mentionPattern = /@\{coworker:([^|}]+)\|([^}]+)\}/g
+  type MentionItem = {
+    mentionType: MentionType
+    id: string
+    name: string
+    subtitle?: string
+  }
+
+  const mentionPattern = /@\{(coworker|document):([^|}]+)\|([^}]+)\}/g
 
   let {
     value,
     coworkers,
+    documents = [],
     disabled = false,
     placeholder = '',
     onChange,
-    onSubmit
+    onSubmit,
+    onMentionOpen
   }: Props = $props()
 
   let editor: HTMLDivElement | null = $state(null)
@@ -32,12 +52,40 @@
   let mentionQuery = $state('')
   let activeIndex = $state(0)
   let mentionAnchor: { node: Text; startIndex: number } | null = $state(null)
+  let mentionWasOpen = $state(false)
 
-  const filteredCoworkers = $derived.by(() => {
+  const documentMentions = $derived.by(() => {
+    return documents
+      .map((doc) => {
+        const parsed = parseDocumentData(doc.contentShort)
+        if (!parsed) return null
+        return {
+          mentionType: 'document' as const,
+          id: doc.messageId,
+          name: parsed.title ?? 'Untitled document',
+          subtitle: doc.threadTitle
+            ? `${doc.channelName} · ${doc.threadTitle}`
+            : doc.channelName
+        }
+      })
+      .filter((item): item is MentionItem => Boolean(item))
+  })
+
+  const mentionItems = $derived.by(() => {
+    const coworkerItems: MentionItem[] = coworkers.map((coworker) => ({
+      mentionType: 'coworker',
+      id: coworker.id,
+      name: coworker.name,
+      subtitle: coworker.shortDescription ?? undefined
+    }))
+    return [...coworkerItems, ...documentMentions]
+  })
+
+  const filteredMentions = $derived.by(() => {
     const query = mentionQuery.trim().toLowerCase()
-    if (!query) return coworkers
-    return coworkers.filter((coworker) =>
-      coworker.name.toLowerCase().includes(query)
+    if (!query) return mentionItems
+    return mentionItems.filter((item) =>
+      item.name.toLowerCase().includes(query)
     )
   })
 
@@ -64,7 +112,8 @@
       if (match.index > lastIndex) {
         tokens.push({ type: 'text', value: raw.slice(lastIndex, match.index) })
       }
-      tokens.push({ type: 'mention', id: match[1], name: match[2] })
+      const mentionType = match[1] as MentionType
+      tokens.push({ type: 'mention', mentionType, id: match[2], name: match[3] })
       lastIndex = match.index + match[0].length
     }
     if (lastIndex < raw.length) {
@@ -78,7 +127,9 @@
     container.innerHTML = ''
     for (const token of tokens) {
       if (token.type === 'mention') {
-        container.appendChild(createMentionChip(token.id, token.name))
+        container.appendChild(
+          createMentionChip(token.mentionType, token.id, token.name)
+        )
         continue
       }
       if (token.value.length === 0) {
@@ -96,14 +147,19 @@
     }
   }
 
-  function createMentionChip(id: string, name: string): HTMLSpanElement {
+  function createMentionChip(
+    mentionType: MentionType,
+    id: string,
+    name: string
+  ): HTMLSpanElement {
     const chip = document.createElement('span')
     chip.dataset.mentionId = id
     chip.dataset.mentionName = name
+    chip.dataset.mentionType = mentionType
     chip.setAttribute('contenteditable', 'false')
     chip.className =
       'inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-sm font-medium text-foreground'
-    chip.textContent = `@${name}`
+    chip.textContent = mentionType === 'document' ? `@Doc: ${name}` : `@${name}`
     return chip
   }
 
@@ -119,7 +175,10 @@
       if (node.nodeType === Node.ELEMENT_NODE) {
         const element = node as HTMLElement
         if (element.dataset.mentionId && element.dataset.mentionName) {
-          parts.push(`@{coworker:${element.dataset.mentionId}|${element.dataset.mentionName}}`)
+          const mentionType = element.dataset.mentionType ?? 'coworker'
+          parts.push(
+            `@{${mentionType}:${element.dataset.mentionId}|${element.dataset.mentionName}}`
+          )
           return
         }
         if (element.tagName === 'BR') {
@@ -187,6 +246,11 @@
     mentionQuery = query
     mentionAnchor = { node: anchor.node, startIndex: atIndex }
     activeIndex = 0
+
+    if (!mentionWasOpen) {
+      mentionWasOpen = true
+      onMentionOpen?.()
+    }
   }
 
   function closeMention(): void {
@@ -194,9 +258,10 @@
     mentionQuery = ''
     mentionAnchor = null
     activeIndex = 0
+    mentionWasOpen = false
   }
 
-  function insertMention(coworker: Coworker): void {
+  function insertMention(item: MentionItem): void {
     if (!editor || !mentionAnchor) return
 
     const { node, startIndex } = mentionAnchor
@@ -213,7 +278,9 @@
     if (before.length > 0) {
       fragment.appendChild(document.createTextNode(before))
     }
-    fragment.appendChild(createMentionChip(coworker.id, coworker.name))
+    fragment.appendChild(
+      createMentionChip(item.mentionType, item.id, item.name)
+    )
     fragment.appendChild(document.createTextNode(' '))
     if (after.length > 0) {
       fragment.appendChild(document.createTextNode(after))
@@ -222,7 +289,7 @@
     parent.replaceChild(fragment, node)
     closeMention()
     syncValue()
-    placeCaretAfterMention(parent, coworker.name)
+    placeCaretAfterMention(parent, item.name)
   }
 
   function placeCaretAfterMention(parent: Node, name: string): void {
@@ -287,25 +354,24 @@
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         activeIndex =
-          filteredCoworkers.length === 0
+          filteredMentions.length === 0
             ? 0
-            : (activeIndex + 1) % filteredCoworkers.length
+            : (activeIndex + 1) % filteredMentions.length
         return
       }
 
       if (event.key === 'ArrowUp') {
         event.preventDefault()
         activeIndex =
-          filteredCoworkers.length === 0
+          filteredMentions.length === 0
             ? 0
-            : (activeIndex - 1 + filteredCoworkers.length) %
-              filteredCoworkers.length
+            : (activeIndex - 1 + filteredMentions.length) % filteredMentions.length
         return
       }
 
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault()
-        const selection = filteredCoworkers[activeIndex]
+        const selection = filteredMentions[activeIndex]
         if (selection) {
           insertMention(selection)
         } else {
@@ -343,8 +409,8 @@
     closeMention()
   }
 
-  function handleMentionClick(coworker: Coworker): void {
-    insertMention(coworker)
+  function handleMentionClick(item: MentionItem): void {
+    insertMention(item)
   }
 
   function handleRootMousedown(event: MouseEvent): void {
@@ -379,12 +445,12 @@
 
   {#if mentionOpen}
     <div class="absolute bottom-full left-0 mb-2 w-full rounded-md border border-border bg-card p-1 shadow-sm">
-      {#if filteredCoworkers.length === 0}
+      {#if filteredMentions.length === 0}
         <div class="px-3 py-2 text-sm text-muted-foreground">
-          No co-workers assigned to this channel.
+          No matching mentions.
         </div>
       {:else}
-        {#each filteredCoworkers as coworker, index (coworker.id)}
+        {#each filteredMentions as item, index (`${item.mentionType}:${item.id}`)}
           <button
             type="button"
             class={cn(
@@ -394,11 +460,18 @@
                 : 'text-foreground hover:bg-muted'
             )}
             onmousedown={(event) => event.preventDefault()}
-            onclick={() => handleMentionClick(coworker)}
+            onclick={() => handleMentionClick(item)}
           >
-            <span class="text-sm font-medium">{coworker.name}</span>
-            {#if coworker.shortDescription}
-              <span class="text-xs text-muted-foreground">{coworker.shortDescription}</span>
+            <div class="flex items-center gap-2">
+              {#if item.mentionType === 'document'}
+                <FileTextIcon class="h-4 w-4 text-muted-foreground" />
+              {:else}
+                <UserIcon class="h-4 w-4 text-muted-foreground" />
+              {/if}
+              <span class="text-sm font-medium">{item.name}</span>
+            </div>
+            {#if item.subtitle}
+              <span class="text-xs text-muted-foreground">{item.subtitle}</span>
             {/if}
           </button>
         {/each}

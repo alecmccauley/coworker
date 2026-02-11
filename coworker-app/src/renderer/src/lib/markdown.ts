@@ -27,13 +27,17 @@ markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
   return self.renderToken(tokens, index, options);
 };
 
-const MENTION_REGEX = /@\{coworker:([^|}]+)\|([^}]+)\}/g;
+const COWORKER_MENTION_REGEX = /@\{coworker:([^|}]+)\|([^}]+)\}/g;
+const DOCUMENT_MENTION_REGEX = /@\{document:([^|}]+)\|([^}]+)\}/g;
 
 export function renderMarkdown(content: string): string {
   if (!content.trim()) return "";
   let rawHtml = markdown.render(content);
-  rawHtml = rawHtml.replace(MENTION_REGEX, (_match, _id: string, name: string) => {
+  rawHtml = rawHtml.replace(COWORKER_MENTION_REGEX, (_match, _id: string, name: string) => {
     return `<span class="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent-foreground">@${name}</span>`;
+  });
+  rawHtml = rawHtml.replace(DOCUMENT_MENTION_REGEX, (_match, _id: string, name: string) => {
+    return `<span class="inline-flex items-center rounded-full border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">Doc: ${name}</span>`;
   });
   return DOMPurify.sanitize(rawHtml);
 }

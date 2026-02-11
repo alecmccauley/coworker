@@ -12,7 +12,9 @@ import {
   buildOrchestratorSystemPrompt,
   convertThreadToChatMessages,
   extractMentionedCoworkerIds,
+  extractMentionedDocumentIds,
   gatherRagContext,
+  gatherMentionedDocumentContext,
   getThreadContext,
   mapCoworkerToContext,
   normalizeMentionsForLlm,
@@ -396,12 +398,19 @@ async function streamChatResponse(
     const coworkerNameById = new Map(
       channelCoworkers.map((coworker) => [coworker.id, coworker.name]),
     );
-    const ragContext = await gatherRagContext(
-      normalizedContent,
-      threadId,
-      threadContext.channelId,
-      coworkerIds,
+    const mentionedDocumentIds = extractMentionedDocumentIds(content);
+    const mentionedDocumentContext = await gatherMentionedDocumentContext(
+      mentionedDocumentIds,
     );
+    const ragContext = [
+      ...mentionedDocumentContext,
+      ...(await gatherRagContext(
+        normalizedContent,
+        threadId,
+        threadContext.channelId,
+        coworkerIds,
+      )),
+    ];
     const priorMessages = await convertThreadToChatMessages(threadId);
     const messages = [
       ...priorMessages,

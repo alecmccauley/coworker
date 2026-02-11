@@ -1,7 +1,9 @@
 export {
   buildSystemPrompt,
   convertThreadToChatMessages,
+  extractMentionedDocumentIds,
   gatherRagContext,
+  gatherMentionedDocumentContext,
   getCoworkerContext,
   getThreadContext,
   resolvePrimaryCoworker,

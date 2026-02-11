@@ -5,9 +5,11 @@ import {
   listMessages,
   getMessageById,
   listDocumentsByChannel,
+  listDocumentsByWorkspace,
   type CreateMessageInput,
   type UpdateMessageInput,
   type ChannelDocument,
+  type WorkspaceDocument,
 } from "./message-service";
 import type { Message } from "../database";
 
@@ -52,6 +54,14 @@ export function registerMessageIpcHandlers(): void {
     "message:listDocumentsByChannel",
     async (_event, channelId: string): Promise<ChannelDocument[]> => {
       return listDocumentsByChannel(channelId);
+    },
+  );
+
+  // List all documents in the workspace
+  ipcMain.handle(
+    "message:listDocumentsByWorkspace",
+    async (): Promise<WorkspaceDocument[]> => {
+      return listDocumentsByWorkspace();
     },
   );
 }

@@ -7,6 +7,7 @@ import {
 } from "../workspace";
 import {
   events,
+  channels,
   messages,
   threads,
   type Message,
@@ -290,6 +291,20 @@ export interface ChannelDocument {
 }
 
 /**
+ * A document found within the workspace
+ */
+export interface WorkspaceDocument {
+  messageId: string;
+  threadId: string;
+  threadTitle: string | null;
+  channelId: string;
+  channelName: string;
+  authorId: string | null;
+  contentShort: string;
+  createdAt: Date;
+}
+
+/**
  * List all completed document messages across threads in a channel
  */
 export async function listDocumentsByChannel(
@@ -326,4 +341,44 @@ export async function listDocumentsByChannel(
     .all();
 
   return results as ChannelDocument[];
+}
+
+/**
+ * List all completed document messages across the workspace
+ */
+export async function listDocumentsByWorkspace(): Promise<WorkspaceDocument[]> {
+  const db = getCurrentDatabase();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const results = db
+    .select({
+      messageId: messages.id,
+      threadId: threads.id,
+      threadTitle: threads.title,
+      channelId: threads.channelId,
+      channelName: channels.name,
+      authorId: messages.authorId,
+      contentShort: messages.contentShort,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .innerJoin(threads, eq(messages.threadId, threads.id))
+    .innerJoin(channels, eq(threads.channelId, channels.id))
+    .where(
+      and(
+        eq(threads.workspaceId, workspace.manifest.id),
+        isNull(threads.archivedAt),
+        eq(messages.status, "complete"),
+        like(messages.contentShort, '%"_type":"document"%'),
+        like(messages.contentShort, '%"blobId"%'),
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+    .all();
+
+  return results as WorkspaceDocument[];
 }

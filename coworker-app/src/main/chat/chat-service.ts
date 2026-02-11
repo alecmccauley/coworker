@@ -2,9 +2,10 @@ import { getCurrentWorkspace } from "../workspace";
 import { getThreadById } from "../thread";
 import { getChannelById, listChannelCoworkers } from "../channel";
 import { getCoworkerById } from "../coworker";
-import { listMessages } from "../message";
+import { getMessageById, listMessages } from "../message";
 import { searchKnowledgeSources } from "../knowledge/indexing/retrieval";
 import { getKnowledgeSourceById } from "../knowledge/knowledge-service";
+import { readBlob } from "../blob";
 import type { Coworker, Message, SourceScopeType } from "../database";
 import type {
   ChatCoworkerContext,
@@ -26,13 +27,26 @@ export interface SystemPromptContext extends ThreadContext {
   autoTitle?: boolean;
 }
 
-const mentionTokenPattern = /@\{coworker:([^|}]+)\|([^}]+)\}/g;
+const coworkerMentionTokenPattern = /@\{coworker:([^|}]+)\|([^}]+)\}/g;
+const documentMentionTokenPattern = /@\{document:([^|}]+)\|([^}]+)\}/g;
 
 export function extractMentionedCoworkerIds(content: string): string[] {
   if (!content) return [];
   const ids = new Set<string>();
   let match: RegExpExecArray | null;
-  while ((match = mentionTokenPattern.exec(content))) {
+  while ((match = coworkerMentionTokenPattern.exec(content))) {
+    if (match[1]) {
+      ids.add(match[1]);
+    }
+  }
+  return Array.from(ids);
+}
+
+export function extractMentionedDocumentIds(content: string): string[] {
+  if (!content) return [];
+  const ids = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = documentMentionTokenPattern.exec(content))) {
     if (match[1]) {
       ids.add(match[1]);
     }
@@ -42,8 +56,14 @@ export function extractMentionedCoworkerIds(content: string): string[] {
 
 export function normalizeMentionsForLlm(content: string): string {
   if (!content) return content;
-  return content.replace(mentionTokenPattern, (_, _id: string, name: string) =>
-    name ? `@${name}` : "@coworker",
+  const withCoworkers = content.replace(
+    coworkerMentionTokenPattern,
+    (_, _id: string, name: string) => (name ? `@${name}` : "@coworker"),
+  );
+  return withCoworkers.replace(
+    documentMentionTokenPattern,
+    (_, _id: string, name: string) =>
+      name ? `@Document: ${name}` : "@Document",
   );
 }
 
@@ -470,6 +490,72 @@ export async function gatherRagContext(
       matchType: item.matchType,
       scopeType,
       scopeId: scopeId ?? undefined,
+    });
+  }
+
+  return contextItems;
+}
+
+interface DocumentMention {
+  title: string;
+  blobId: string;
+}
+
+function parseDocumentMention(contentShort: string | null): DocumentMention | null {
+  if (!contentShort) return null;
+  try {
+    const parsed = JSON.parse(contentShort) as {
+      _type?: string;
+      title?: unknown;
+      blobId?: unknown;
+    };
+    if (parsed._type !== "document") return null;
+    const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
+    const blobId = typeof parsed.blobId === "string" ? parsed.blobId.trim() : "";
+    if (!title || !blobId) return null;
+    return { title, blobId };
+  } catch {
+    return null;
+  }
+}
+
+export async function gatherMentionedDocumentContext(
+  messageIds: string[],
+): Promise<RagContextItem[]> {
+  const uniqueIds = Array.from(new Set(messageIds)).filter((id) => id.trim().length > 0);
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const contextItems: RagContextItem[] = [];
+
+  for (const messageId of uniqueIds) {
+    const message = await getMessageById(messageId);
+    if (!message) continue;
+    const document = parseDocumentMention(message.contentShort ?? null);
+    if (!document) continue;
+
+    const blob = await readBlob(document.blobId);
+    if (!blob) continue;
+    const content = blob.toString("utf-8").trim();
+    if (!content) continue;
+
+    const thread = await getThreadById(message.threadId);
+    if (!thread) continue;
+    const channel = await getChannelById(thread.channelId);
+    if (!channel) continue;
+
+    const sourceName = document.title;
+
+    contextItems.push({
+      sourceId: `document:${messageId}`,
+      chunkId: `document:${messageId}`,
+      text: content,
+      score: 1,
+      sourceName,
+      matchType: "fts",
+      scopeType: "channel",
+      scopeId: channel.id,
     });
   }
 

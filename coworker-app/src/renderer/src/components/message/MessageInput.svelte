@@ -2,7 +2,7 @@
   import SendIcon from '@lucide/svelte/icons/send'
   import { Button } from '$lib/components/ui/button'
   import TokenizedInput from './TokenizedInput.svelte'
-  import type { Coworker } from '$lib/types'
+  import type { Coworker, WorkspaceDocument } from '$lib/types'
   import TypingIndicator from '../thread/TypingIndicator.svelte'
 
   interface Props {
@@ -24,6 +24,7 @@
   let content = $state('')
   let isSending = $state(false)
   let availableCoworkers = $state<Coworker[]>([])
+  let availableDocuments = $state<WorkspaceDocument[]>([])
 
   const canSend = $derived(content.trim().length > 0 && !disabled && !isSending)
 
@@ -48,6 +49,15 @@
     }
   }
 
+  async function loadDocumentsFromWorkspace(): Promise<void> {
+    try {
+      availableDocuments = await window.api.message.listDocumentsByWorkspace()
+    } catch (error) {
+      console.error('Failed to load workspace documents:', error)
+      availableDocuments = []
+    }
+  }
+
   async function handleSend(): Promise<void> {
     if (!canSend) return
 
@@ -63,6 +73,10 @@
   function handleSubmit(): void {
     void handleSend()
   }
+
+  function handleMentionOpen(): void {
+    void loadDocumentsFromWorkspace()
+  }
 </script>
 
 <div class="border-t border-border bg-card/70 px-6 py-4">
@@ -76,10 +90,12 @@
       <TokenizedInput
         value={content}
         coworkers={availableCoworkers}
+        documents={availableDocuments}
         disabled={disabled || isSending}
         placeholder="Write a message for your co-workers..."
         onChange={(next) => (content = next)}
         onSubmit={handleSubmit}
+        onMentionOpen={handleMentionOpen}
       />
     </div>
     <Button onclick={handleSend} disabled={!canSend} class="gap-2">
