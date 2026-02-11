@@ -7,11 +7,13 @@
   import PencilIcon from '@lucide/svelte/icons/pencil'
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
   import { Button } from '$lib/components/ui/button'
+  import { cn } from '$lib/utils.js'
   import type { Channel, Thread, Coworker } from '$lib/types'
   import ThreadView from '../thread/ThreadView.svelte'
   import ChannelSettingsPanel from './ChannelSettingsPanel.svelte'
   import ThreadRenameDialog from '../thread/ThreadRenameDialog.svelte'
   import ChannelNoCoworkersState from './ChannelNoCoworkersState.svelte'
+  import ChannelDocumentsList from './ChannelDocumentsList.svelte'
 
   interface Props {
     channel: Channel
@@ -43,6 +45,7 @@
     unreadByThread = {}
   }: Props = $props()
 
+  let activeTab = $state<'messages' | 'documents'>('messages')
   let threads = $state<Thread[]>([])
   let isLoading = $state(false)
   let selectedThread = $state<Thread | null>(null)
@@ -57,6 +60,7 @@
   $effect(() => {
     // Reload threads when channel changes
     if (channel) {
+      activeTab = 'messages'
       selectedThread = null
       loadThreads()
       loadChannelCoworkers()
@@ -207,18 +211,47 @@
         <SettingsIcon class="h-4 w-4" />
         {isSettingsPanelOpen ? 'Hide settings' : 'Settings'}
       </Button>
-      <Button
-        onclick={handleCreateThread}
-        class="gap-2"
-        disabled={!isLoadingCoworkers && channelCoworkers.length === 0}
-      >
-        <PlusIcon class="h-4 w-4" />
-        New Thread
-      </Button>
+      {#if activeTab === 'messages'}
+        <Button
+          onclick={handleCreateThread}
+          class="gap-2"
+          disabled={!isLoadingCoworkers && channelCoworkers.length === 0}
+        >
+          <PlusIcon class="h-4 w-4" />
+          New Thread
+        </Button>
+      {/if}
     </div>
   </div>
 
+  <!-- Tab Bar -->
+  <div class="flex border-b border-border px-6">
+    <button
+      class={cn(
+        'px-4 py-3 text-sm font-medium transition-colors',
+        activeTab === 'messages'
+          ? 'border-b-2 border-accent text-foreground'
+          : 'text-muted-foreground hover:text-foreground'
+      )}
+      onclick={() => (activeTab = 'messages')}
+    >
+      Messages
+    </button>
+    <button
+      class={cn(
+        'px-4 py-3 text-sm font-medium transition-colors',
+        activeTab === 'documents'
+          ? 'border-b-2 border-accent text-foreground'
+          : 'text-muted-foreground hover:text-foreground'
+      )}
+      onclick={() => (activeTab = 'documents')}
+    >
+      Documents
+    </button>
+  </div>
+
   <!-- Content -->
+  {#if activeTab === 'messages'}
   <div class="flex flex-1 overflow-hidden">
     {#if !isLoadingCoworkers && channelCoworkers.length === 0 && threads.length === 0}
       <div class="flex flex-1 items-center justify-center p-8">
@@ -352,6 +385,12 @@
       {/if}
     </div>
     {/if}
+  </div>
+  {:else if activeTab === 'documents'}
+  <div class="flex flex-1 overflow-hidden">
+    <ChannelDocumentsList channelId={channel.id} {coworkers} />
+  </div>
+  {/if}
 
     <!-- Channel Settings Panel -->
   <ChannelSettingsPanel
@@ -369,5 +408,4 @@
     isSaving={isRenaming}
     error={renameError}
   />
-</div>
 </div>

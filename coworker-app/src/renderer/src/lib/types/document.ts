@@ -5,6 +5,15 @@ export interface DocumentData {
   blobId?: string;
 }
 
+export interface ChannelDocument {
+  messageId: string;
+  threadId: string;
+  threadTitle: string | null;
+  authorId: string | null;
+  contentShort: string;
+  createdAt: Date;
+}
+
 export function parseDocumentData(
   contentShort: string | null | undefined,
 ): DocumentData | null {

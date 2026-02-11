@@ -242,6 +242,12 @@
     )
   }
 
+  function handleDocumentRenamed(messageId: string, updatedContentShort: string): void {
+    messages = messages.map((m) =>
+      m.id === messageId ? { ...m, contentShort: updatedContentShort } : m
+    )
+  }
+
   async function handleSend(input: { content: string }): Promise<void> {
     try {
       const result = await window.api.chat.sendMessage(thread.id, input.content)
@@ -325,6 +331,7 @@
       scrollKey={thread?.id ?? null}
       isLoading={isLoading}
       onInterviewAnswered={handleInterviewAnswered}
+      onDocumentRenamed={handleDocumentRenamed}
     />
     <MessageInput
       onSend={handleSend}

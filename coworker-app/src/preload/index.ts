@@ -633,6 +633,8 @@ const api = {
       ipcRenderer.invoke("message:list", threadId) as Promise<Message[]>,
     getById: (id: string) =>
       ipcRenderer.invoke("message:getById", id) as Promise<Message | null>,
+    listDocumentsByChannel: (channelId: string) =>
+      ipcRenderer.invoke("message:listDocumentsByChannel", channelId),
   },
   knowledge: {
     add: (input: AddKnowledgeItemInput) =>

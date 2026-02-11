@@ -14,6 +14,7 @@
     isLoading?: boolean
     scrollKey?: string | null
     onInterviewAnswered?: (messageId: string, updatedContentShort: string) => void
+    onDocumentRenamed?: (messageId: string, updatedContentShort: string) => void
   }
 
   let {
@@ -23,7 +24,8 @@
     queuedMessageIds = [],
     isLoading = false,
     scrollKey = null,
-    onInterviewAnswered
+    onInterviewAnswered,
+    onDocumentRenamed
   }: Props = $props()
 
   const sortedMessages = $derived(
@@ -99,6 +101,8 @@
             documentData={document}
             authorLabel={getAuthorLabel(message)}
             activityLabel={activityByMessageId[message.id]}
+            messageId={message.id}
+            onRenamed={(mid, content) => onDocumentRenamed?.(mid, content)}
           />
         {:else}
           <MessageBubble

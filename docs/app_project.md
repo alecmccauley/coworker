@@ -48,6 +48,7 @@ coworker-app/
 │           │   │   └── ...
 │           │   ├── channel/           # Channel components
 │           │   │   ├── ChannelView.svelte
+│           │   │   ├── ChannelDocumentsList.svelte
 │           │   │   └── ChannelSettingsPanel.svelte
 │           │   ├── thread/            # Thread components
 │           │   │   ├── ThreadView.svelte
@@ -282,7 +283,9 @@ If a coworker does not specify a model, the system default model is used.
 
 ## Conversation UI
 
-Channel views now provide a full conversation experience:
+Channel views have a tab bar with two tabs: **Messages** (default) and **Documents**.
+
+The **Messages** tab provides the full conversation experience:
 
 - Thread list on the left and conversation view on the right
 - Message list with user/co-worker styling
@@ -291,11 +294,15 @@ Channel views now provide a full conversation experience:
 - Sources panel for thread-specific attachments (files, links, notes)
 - First message auto-names new conversations via AI tool call
 - Co-worker replies are orchestrated and streamed as separate coworker messages
-- Activity updates appear in the thread header, composer area, and inside streaming coworker bubbles
+- Activity updates appear in the thread header, composer area, and inside streaming coworker bubbles. The composer status line rotates randomized coworker activity phrases every 10 seconds while co-workers are working.
 - Manual rename available from the thread header and thread list menu (title required)
 - Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback. After submitting, answers are persisted into the message's `contentShort` as JSON and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
 - User messages can be queued while co-workers are working; queued messages show a "Queued" badge and run sequentially after the current orchestrator finishes.
 - Document artifacts: when a coworker will produce a structured document (brief, report, plan), the orchestrator calls `start_document_draft` with the coworkerId and title **before** calling `generate_coworker_response`. This creates the `DocumentBar` in a pulsing drafting state immediately, with an activity label (e.g. "Riley is drafting Marketing Brief...") in the thread activity indicator, giving the user visual feedback during the entire subordinate model generation. When `emit_document` fires after the content is ready, it reuses the pending draft message rather than creating a new one. The document content is stored as a `.md` blob and the message is finalized via `chat:complete`, which updates `contentShort` with the `blobId`. The `DocumentBar` then transitions to its clickable final state. If `start_document_draft` is not called (fallback), `emit_document` still creates the message on its own. Clicking the bar opens a `DocumentViewDialog` that loads the blob content and renders the markdown. In chat history, document messages appear as `[Document: <title>]` for LLM context.
+
+The **Documents** tab (`ChannelDocumentsList.svelte`) shows all completed documents across every thread in the channel. It queries `message:listDocumentsByChannel` which joins messages to threads, filtering for complete messages with `_type: "document"` in `contentShort`. Each row displays the document title, authoring coworker name, source thread title, and relative timestamp. Clicking a row opens `DocumentViewDialog`. The list auto-refreshes on `chat:onComplete` events. The tab resets to Messages when switching channels.
+
+Documents can be renamed from two places: the hover three-dot menu on a `DocumentBar` card inside a thread conversation, and the hover three-dot menu on each row in the Documents tab. Both open a `DocumentRenameDialog` (modelled after `ThreadRenameDialog`) that validates the title is non-empty, updates the `title` field inside the message's `contentShort` JSON via `window.api.message.update`, and refreshes the local state so the new name appears immediately. Drafting documents do not show the rename menu.
 
 Channel setup rules:
 

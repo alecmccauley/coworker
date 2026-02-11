@@ -1,4 +1,4 @@
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, like, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import {
   getCurrentWorkspace,
@@ -8,6 +8,7 @@ import {
 import {
   events,
   messages,
+  threads,
   type Message,
   type NewEvent,
   type AuthorType,
@@ -274,4 +275,55 @@ export async function getMessageById(id: string): Promise<Message | null> {
     );
 
   return result[0] ?? null;
+}
+
+/**
+ * A document found within a channel's threads
+ */
+export interface ChannelDocument {
+  messageId: string;
+  threadId: string;
+  threadTitle: string | null;
+  authorId: string | null;
+  contentShort: string;
+  createdAt: Date;
+}
+
+/**
+ * List all completed document messages across threads in a channel
+ */
+export async function listDocumentsByChannel(
+  channelId: string,
+): Promise<ChannelDocument[]> {
+  const db = getCurrentDatabase();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const results = db
+    .select({
+      messageId: messages.id,
+      threadId: threads.id,
+      threadTitle: threads.title,
+      authorId: messages.authorId,
+      contentShort: messages.contentShort,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .innerJoin(threads, eq(messages.threadId, threads.id))
+    .where(
+      and(
+        eq(threads.channelId, channelId),
+        eq(threads.workspaceId, workspace.manifest.id),
+        isNull(threads.archivedAt),
+        eq(messages.status, "complete"),
+        like(messages.contentShort, '%"_type":"document"%'),
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+    .all();
+
+  return results as ChannelDocument[];
 }
