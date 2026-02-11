@@ -543,6 +543,7 @@ Chat streaming supports model tool calls. Current tools:
 - `emit_coworker_message` — Emits a coworker reply payload for the client to render.
 - `save_memory` — Stores durable preferences/facts as memories linked to one or more coworkers.
 - `request_interview` — Asks the user 1-5 clarifying multiple-choice questions before generating coworker responses. Triggers a `stopWhen` halt so the client can render the interview UI and collect answers.
+- `emit_document` — Emits a document artifact (brief, report, plan, etc.) as a separate `.md` file stored via blob storage. The client renders a clickable document bar in the thread with a dialog for viewing the rendered markdown.
 
 Chat request payload includes orchestration context:
 

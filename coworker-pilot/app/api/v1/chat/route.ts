@@ -456,6 +456,16 @@ async function handlePost(
           }),
           execute: async () => ({ ok: true }),
         },
+        emit_document: {
+          description:
+            "Emit a document artifact (brief, report, plan, etc.) as a separate file. Use this when a coworker produces a structured document rather than a short conversational reply.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            title: z.string().min(1).max(200),
+            content: z.string().min(1),
+          }),
+          execute: async () => ({ ok: true }),
+        },
         save_memory: {
           description:
             "Save a durable preference or fact as memory for one or more coworkers.",

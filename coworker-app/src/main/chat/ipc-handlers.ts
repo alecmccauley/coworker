@@ -20,6 +20,7 @@ import {
 import { listChannelCoworkers } from "../channel";
 import { updateThread } from "../thread";
 import { addMemory } from "../memory";
+import { addBlob } from "../blob";
 
 interface ChatChunkPayload {
   messageId: string;
@@ -313,6 +314,15 @@ async function streamChatResponse(
   const statusBuffers = new Map<string, string>();
   const titleBuffers = new Map<string, string>();
   const interviewBuffers = new Map<string, string>();
+  const documentBuffers = new Map<
+    string,
+    {
+      rawInput: string;
+      coworkerId: string;
+      title: string;
+      content: string;
+    }
+  >();
   let titleApplied = false;
   const coworkerBuffers = new Map<
     string,
@@ -529,6 +539,94 @@ async function streamChatResponse(
             console.error("[Memory] Failed to save memory:", error);
           });
         }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-start" &&
+        event.toolName === "emit_document"
+      ) {
+        documentBuffers.set(event.toolCallId, {
+          rawInput: "",
+          coworkerId: "",
+          title: "",
+          content: "",
+        });
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-delta" &&
+        event.toolName === "emit_document"
+      ) {
+        const existing = documentBuffers.get(event.toolCallId);
+        if (existing) {
+          existing.rawInput += event.inputTextDelta;
+          const coworkerId =
+            existing.coworkerId || extractCoworkerIdFromInputText(existing.rawInput);
+          const title =
+            existing.title || extractTitleFromInputText(existing.rawInput);
+          const content = extractContentFromInputText(existing.rawInput);
+          existing.coworkerId = coworkerId || existing.coworkerId;
+          existing.title = title || existing.title;
+          existing.content = content || existing.content;
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "emit_document"
+      ) {
+        const existing = documentBuffers.get(event.toolCallId);
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { coworkerId?: unknown; title?: unknown; content?: unknown })
+            : null;
+        const coworkerId =
+          (input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : existing?.coworkerId) ?? "";
+        const title =
+          (input?.title && typeof input.title === "string"
+            ? input.title
+            : existing?.title) ?? "";
+        const content =
+          (input?.content && typeof input.content === "string"
+            ? input.content
+            : existing?.content) ?? "";
+
+        if (coworkerId && title && content) {
+          const slug = title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")
+            .slice(0, 60);
+          const filename = `${slug}.md`;
+          const { blob } = await addBlob({
+            data: content,
+            mime: "text/markdown",
+            filename,
+          });
+          const documentJson = JSON.stringify({
+            _type: "document",
+            coworkerId,
+            title,
+            blobId: blob.id,
+          });
+          const documentMessage = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: coworkerId,
+            contentShort: documentJson,
+            status: "complete",
+          });
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: documentMessage,
+          });
+        }
+        documentBuffers.delete(event.toolCallId);
         continue;
       }
 

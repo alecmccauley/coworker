@@ -270,6 +270,20 @@
   .text-pretty {
     text-wrap: pretty;
   }
+
+  .typing-dot {
+    @apply h-1.5 w-1.5 rounded-full bg-accent;
+    animation: typing-bounce 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
 }
 
 /* ============================================

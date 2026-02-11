@@ -2,7 +2,8 @@
   import { tick } from 'svelte'
   import MessageBubble from './MessageBubble.svelte'
   import InterviewBubble from './InterviewBubble.svelte'
-  import { parseInterviewData } from '$lib/types'
+  import DocumentBar from './DocumentBar.svelte'
+  import { parseInterviewData, parseDocumentData } from '$lib/types'
   import type { Coworker, Message } from '$lib/types'
 
   interface Props {
@@ -84,6 +85,7 @@
     <div class="flex flex-col gap-5">
       {#each sortedMessages as message (message.id)}
         {@const interview = parseInterviewData(message.contentShort)}
+        {@const document = parseDocumentData(message.contentShort)}
         {#if interview}
           <InterviewBubble
             interviewData={interview}
@@ -91,6 +93,11 @@
             messageId={message.id}
             threadId={message.threadId}
             onAnswered={(mid, content) => onInterviewAnswered?.(mid, content)}
+          />
+        {:else if document}
+          <DocumentBar
+            documentData={document}
+            authorLabel={getAuthorLabel(message)}
           />
         {:else}
           <MessageBubble

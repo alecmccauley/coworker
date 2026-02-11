@@ -135,6 +135,11 @@ export function buildOrchestratorSystemPrompt(
     "- After calling `request_interview`, stop immediately. Do not generate coworker responses.",
     "- The user's answers will appear in the next message. Then proceed normally with coworker responses.",
     "- Only use `request_interview` once per turn. Do not combine it with `generate_coworker_response`.",
+    "",
+    "Document artifacts:",
+    "- When a coworker produces a document, brief, report, plan, or any structured artifact, call `emit_document` after `emit_coworker_message`.",
+    "- Use `emit_coworker_message` for the short conversational response, then `emit_document` with the full document content and a descriptive title.",
+    "- Do NOT put full document content in `emit_coworker_message` — keep the message short and conversational.",
   );
 
   if (shouldAutoTitle) {
@@ -499,7 +504,7 @@ function mapMessageRole(message: Message): ChatMessage["role"] | null {
 function resolveInterviewContent(contentShort: string | null): string | null {
   if (!contentShort) return null;
   try {
-    const parsed = JSON.parse(contentShort) as { _type?: string; questions?: Array<{ id: string; question: string }>; answers?: Record<string, string> | null };
+    const parsed = JSON.parse(contentShort) as { _type?: string; title?: string; questions?: Array<{ id: string; question: string }>; answers?: Record<string, string> | null };
     if (parsed._type === "interview") {
       if (!parsed.answers) return null;
       const lines: string[] = ["[Interview answers]"];
@@ -510,6 +515,9 @@ function resolveInterviewContent(contentShort: string | null): string | null {
         lines.push(`${q.question} ${display}`);
       }
       return lines.join("\n");
+    }
+    if (parsed._type === "document") {
+      return `[Document: ${parsed.title ?? "Untitled"}]`;
     }
   } catch {
     // Not JSON — treat as regular content

@@ -332,7 +332,6 @@
       channelId={thread.channelId}
       disabled={channelCoworkers.length === 0 || hasUnansweredInterview}
       showActivity={isCoworkerWorking}
-      activityLabel={activityLabel}
     />
   </div>
 

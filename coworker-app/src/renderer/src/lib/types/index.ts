@@ -11,3 +11,4 @@ export * from "./events";
 export * from "./updates";
 export * from "./model";
 export * from "./interview";
+export * from "./document";

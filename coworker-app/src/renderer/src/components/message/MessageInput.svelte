@@ -3,14 +3,13 @@
   import { Button } from '$lib/components/ui/button'
   import TokenizedInput from './TokenizedInput.svelte'
   import type { Coworker } from '$lib/types'
-  import ThreadActivityIndicator from '../thread/ThreadActivityIndicator.svelte'
+  import TypingIndicator from '../thread/TypingIndicator.svelte'
 
   interface Props {
     onSend: (input: { content: string }) => Promise<void>
     coworkers: Coworker[]
     channelId: string
     disabled?: boolean
-    activityLabel?: string
     showActivity?: boolean
   }
 
@@ -19,7 +18,6 @@
     coworkers,
     channelId,
     disabled = false,
-    activityLabel,
     showActivity = false
   }: Props = $props()
 
@@ -68,9 +66,9 @@
 </script>
 
 <div class="border-t border-border bg-card/70 px-6 py-4">
-  {#if showActivity && activityLabel}
+  {#if showActivity}
     <div class="mb-2">
-      <ThreadActivityIndicator label={activityLabel} variant="inline" />
+      <TypingIndicator />
     </div>
   {/if}
   <div class="flex items-end gap-3">

@@ -294,7 +294,8 @@ Channel views now provide a full conversation experience:
 - Activity updates appear in the thread header, composer area, and inside streaming coworker bubbles
 - Manual rename available from the thread header and thread list menu (title required)
 - Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback. After submitting, answers are persisted into the message's `contentShort` as JSON and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
-- User messages can be queued while co-workers are working; queued messages show a “Queued” badge and run sequentially after the current orchestrator finishes.
+- User messages can be queued while co-workers are working; queued messages show a "Queued" badge and run sequentially after the current orchestrator finishes.
+- Document artifacts: when a coworker produces a structured document (brief, report, plan), the orchestrator calls `emit_document` after `emit_coworker_message`. The document content is stored as a `.md` file via blob storage. In the message list, documents render as a compact clickable `DocumentBar` with a file icon and title. Clicking opens a `DocumentViewDialog` that loads the blob content and renders the markdown. In chat history, document messages appear as `[Document: <title>]` for LLM context.
 
 Channel setup rules:
 
