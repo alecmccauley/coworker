@@ -8,14 +8,18 @@
     ChatCompletePayload,
     ChatErrorPayload,
     ChatMessageCreatedPayload,
+    ChatQueuePayload,
     ChatStatusPayload,
     Coworker,
     Message,
     Thread
   } from '$lib/types'
+  import { parseInterviewData } from '$lib/types'
   import MessageList from '../message/MessageList.svelte'
   import MessageInput from '../message/MessageInput.svelte'
   import ThreadSourcesPanel from './ThreadSourcesPanel.svelte'
+  import ThreadActivityIndicator from './ThreadActivityIndicator.svelte'
+  import NotificationPermissionBanner from '../notifications/NotificationPermissionBanner.svelte'
 
   interface Props {
     thread: Thread
@@ -23,9 +27,25 @@
     channelCoworkers: Coworker[]
     onCreateCoworker: (channelId?: string) => void
     onRenameThread?: (thread: Thread) => void
+    notificationSupported?: boolean
+    notificationPermission?: NotificationPermission
+    onRequestNotificationPermission?: () => void
+    onMarkThreadRead?: (threadId: string, readAt?: Date) => void
+    isAppFocused?: boolean
   }
 
-  let { thread, coworkers, channelCoworkers, onCreateCoworker, onRenameThread }: Props = $props()
+  let {
+    thread,
+    coworkers,
+    channelCoworkers,
+    onCreateCoworker,
+    onRenameThread,
+    notificationSupported = false,
+    notificationPermission = 'default',
+    onRequestNotificationPermission,
+    onMarkThreadRead,
+    isAppFocused = false
+  }: Props = $props()
 
   let messages = $state<Message[]>([])
   let isLoading = $state(false)
@@ -34,6 +54,8 @@
   let streamingMessageIds = $state<string[]>([])
   let threadActivityLabel = $state<string | null>(null)
   let activityByMessageId = $state<Record<string, string>>({})
+  let lastMarkedAt = $state<number | null>(null)
+  let queuedMessageIds = $state<string[]>([])
 
   function addStreamingMessage(id: string): void {
     if (!streamingMessageIds.includes(id)) {
@@ -57,6 +79,12 @@
 
   $effect(() => {
     void loadMessages()
+  })
+
+  $effect(() => {
+    if (thread?.id) {
+      lastMarkedAt = null
+    }
   })
 
   $effect(() => {
@@ -119,12 +147,26 @@
       }
     )
 
+    const cleanupQueue = window.api.chat.onQueueUpdate(
+      (payload: ChatQueuePayload) => {
+        if (payload.threadId !== thread?.id) return
+        if (payload.state === 'queued') {
+          if (!queuedMessageIds.includes(payload.messageId)) {
+            queuedMessageIds = [...queuedMessageIds, payload.messageId]
+          }
+          return
+        }
+        queuedMessageIds = queuedMessageIds.filter((id) => id !== payload.messageId)
+      }
+    )
+
     return () => {
       cleanupCreated()
       cleanupChunk()
       cleanupComplete()
       cleanupError()
       cleanupStatus()
+      cleanupQueue()
     }
   })
 
@@ -136,6 +178,7 @@
     streamingMessageIds = []
     threadActivityLabel = null
     activityByMessageId = {}
+    queuedMessageIds = []
     try {
       messages = await window.api.message.list(thread.id)
     } catch (err) {
@@ -144,6 +187,65 @@
     } finally {
       isLoading = false
     }
+  }
+
+  $effect(() => {
+    if (!thread?.id || !onMarkThreadRead || !isAppFocused) return
+    const latestTimestamp =
+      messages.length > 0
+        ? new Date(messages[messages.length - 1]?.createdAt ?? Date.now()).getTime()
+        : Date.now()
+    if (lastMarkedAt === null || latestTimestamp > lastMarkedAt) {
+      onMarkThreadRead(thread.id, new Date(latestTimestamp))
+      lastMarkedAt = latestTimestamp
+    }
+  })
+
+  const hasUnansweredInterview = $derived(
+    messages.some((m) => {
+      const data = parseInterviewData(m.contentShort)
+      return data !== null && data.answers === null
+    })
+  )
+
+  const activeCoworkerCount = $derived(
+    (() => {
+      const coworkerIds = new Set<string>()
+      for (const message of messages) {
+        if (message.authorType !== 'coworker' || !message.authorId) continue
+        if (message.status === 'streaming' || streamingMessageIds.includes(message.id)) {
+          coworkerIds.add(message.authorId)
+        }
+      }
+      return coworkerIds.size
+    })()
+  )
+
+  const isCoworkerWorking = $derived(
+    streamingMessageIds.length > 0 || Boolean(threadActivityLabel)
+  )
+
+  const activityLabel = $derived(
+    (() => {
+      if (threadActivityLabel) return threadActivityLabel
+      if (activeCoworkerCount === 1) return '1 co-worker at work'
+      if (activeCoworkerCount > 1) {
+        return `${activeCoworkerCount} co-workers at work`
+      }
+      return 'Co-workers at work'
+    })()
+  )
+
+  function handleInterviewAnswered(messageId: string, updatedContentShort: string): void {
+    messages = messages.map((m) =>
+      m.id === messageId ? { ...m, contentShort: updatedContentShort } : m
+    )
+  }
+
+  function handleDocumentRenamed(messageId: string, updatedContentShort: string): void {
+    messages = messages.map((m) =>
+      m.id === messageId ? { ...m, contentShort: updatedContentShort } : m
+    )
   }
 
   async function handleSend(input: { content: string }): Promise<void> {
@@ -167,10 +269,10 @@
         <h3 class="font-serif text-xl font-medium text-foreground">
           {thread.title || 'Untitled conversation'}
         </h3>
-        {#if threadActivityLabel}
-          <p class="mt-1 text-xs text-muted-foreground">
-            {threadActivityLabel}
-          </p>
+        {#if isCoworkerWorking}
+          <div class="mt-2">
+            <ThreadActivityIndicator label={activityLabel} />
+          </div>
         {/if}
       </div>
       <div class="flex items-center gap-2">
@@ -211,18 +313,32 @@
       </div>
     {/if}
 
+    {#if notificationSupported && notificationPermission !== 'granted'}
+      <div class="px-6 pt-4">
+        <NotificationPermissionBanner
+          supported={notificationSupported}
+          permission={notificationPermission}
+          onRequestPermission={() => onRequestNotificationPermission?.()}
+        />
+      </div>
+    {/if}
+
     <MessageList
       {messages}
       {coworkers}
       {activityByMessageId}
+      {queuedMessageIds}
       scrollKey={thread?.id ?? null}
       isLoading={isLoading}
+      onInterviewAnswered={handleInterviewAnswered}
+      onDocumentRenamed={handleDocumentRenamed}
     />
     <MessageInput
       onSend={handleSend}
       coworkers={channelCoworkers}
       channelId={thread.channelId}
-      disabled={streamingMessageIds.length > 0 || channelCoworkers.length === 0}
+      disabled={channelCoworkers.length === 0 || hasUnansweredInterview}
+      showActivity={isCoworkerWorking}
     />
   </div>
 

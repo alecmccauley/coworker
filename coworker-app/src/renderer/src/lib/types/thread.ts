@@ -7,6 +7,7 @@ export interface Thread {
   channelId: string;
   title: string | null;
   summaryRef: string | null;
+  lastReadAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   archivedAt: Date | null;

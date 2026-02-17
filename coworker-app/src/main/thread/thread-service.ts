@@ -121,6 +121,7 @@ export async function createThread(input: CreateThreadInput): Promise<Thread> {
         channelId: input.channelId,
         title: input.title ?? null,
         summaryRef: null,
+        lastReadAt: null,
         createdAt: now,
         updatedAt: now,
       })

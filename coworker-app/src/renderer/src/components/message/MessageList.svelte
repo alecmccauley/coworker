@@ -1,22 +1,31 @@
 <script lang="ts">
   import { tick } from 'svelte'
   import MessageBubble from './MessageBubble.svelte'
+  import InterviewBubble from './InterviewBubble.svelte'
+  import DocumentBar from './DocumentBar.svelte'
+  import { parseInterviewData, parseDocumentData } from '$lib/types'
   import type { Coworker, Message } from '$lib/types'
 
   interface Props {
     messages: Message[]
     coworkers: Coworker[]
     activityByMessageId?: Record<string, string>
+    queuedMessageIds?: string[]
     isLoading?: boolean
     scrollKey?: string | null
+    onInterviewAnswered?: (messageId: string, updatedContentShort: string) => void
+    onDocumentRenamed?: (messageId: string, updatedContentShort: string) => void
   }
 
   let {
     messages,
     coworkers,
     activityByMessageId = {},
+    queuedMessageIds = [],
     isLoading = false,
-    scrollKey = null
+    scrollKey = null,
+    onInterviewAnswered,
+    onDocumentRenamed
   }: Props = $props()
 
   const sortedMessages = $derived(
@@ -77,13 +86,34 @@
   {:else}
     <div class="flex flex-col gap-5">
       {#each sortedMessages as message (message.id)}
-        <MessageBubble
-          {message}
-          authorLabel={getAuthorLabel(message)}
-          isOwn={message.authorType === 'user'}
-          highlight={message.authorType === 'coworker'}
-          activityLabel={activityByMessageId[message.id]}
-        />
+        {@const interview = parseInterviewData(message.contentShort)}
+        {@const document = parseDocumentData(message.contentShort)}
+        {#if interview}
+          <InterviewBubble
+            interviewData={interview}
+            authorLabel={getAuthorLabel(message)}
+            messageId={message.id}
+            threadId={message.threadId}
+            onAnswered={(mid, content) => onInterviewAnswered?.(mid, content)}
+          />
+        {:else if document}
+          <DocumentBar
+            documentData={document}
+            authorLabel={getAuthorLabel(message)}
+            activityLabel={activityByMessageId[message.id]}
+            messageId={message.id}
+            onRenamed={(mid, content) => onDocumentRenamed?.(mid, content)}
+          />
+        {:else}
+          <MessageBubble
+            {message}
+            authorLabel={getAuthorLabel(message)}
+            isOwn={message.authorType === 'user'}
+            highlight={message.authorType === 'coworker'}
+            isQueued={message.authorType === 'user' && queuedMessageIds.includes(message.id)}
+            activityLabel={activityByMessageId[message.id]}
+          />
+        {/if}
       {/each}
     </div>
   {/if}

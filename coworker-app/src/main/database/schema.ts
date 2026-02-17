@@ -62,6 +62,7 @@ export const threads = sqliteTable("threads", {
   channelId: text("channel_id").notNull(),
   title: text("title"), // Auto-generated or user-set title
   summaryRef: text("summary_ref"), // Blob ref for auto-generated summary
+  lastReadAt: integer("last_read_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
@@ -81,6 +82,20 @@ export const messages = sqliteTable("messages", {
   status: text("status").default("complete"), // 'pending' | 'streaming' | 'complete' | 'error'
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
+ * Document versions - immutable history for document artifacts
+ */
+export const documentVersions = sqliteTable("document_versions", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  messageId: text("message_id").notNull(),
+  blobId: text("blob_id").notNull(),
+  commitMessage: text("commit_message").notNull(),
+  authorType: text("author_type").notNull(), // 'user' | 'coworker' | 'system'
+  authorId: text("author_id"), // coworker ID if authorType='coworker'
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
 /**
@@ -219,6 +234,8 @@ export type NewThread = typeof threads.$inferInsert;
 // Type exports - Messages
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+export type NewDocumentVersion = typeof documentVersions.$inferInsert;
 
 // Type exports - Knowledge Items
 export type KnowledgeItem = typeof knowledgeItems.$inferSelect;

@@ -27,3 +27,9 @@ export interface ChatMessageCreatedPayload {
   threadId: string;
   message: Message;
 }
+
+export interface ChatQueuePayload {
+  threadId: string;
+  messageId: string;
+  state: "queued" | "processing";
+}

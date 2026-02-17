@@ -17,8 +17,8 @@ import { withAuth, type AuthenticatedRequest } from "@/lib/auth-middleware";
 export const dynamic = "force-dynamic";
 
 const TITLE_TOOL_NAME = "set_conversation_title";
+const INTERVIEW_TOOL_NAME = "request_interview";
 const MAX_COWORKER_RESPONSES = 10;
-
 function buildContextBlock(request: ChatCompletionRequest): string {
   const activityInstruction = [
     "Use report_status to share short, user-safe activity updates (no internal reasoning).",
@@ -132,6 +132,7 @@ function buildCoworkerSystemPrompt(
     "- Hedge with unnecessary qualifiers",
     "- Use passive voice",
     "- Over-explain simple things",
+    "- Use --- horizontal rules (avoid them unless absolutely necessary)",
     "",
     "Handling Context",
     "You have access to workspace-level information that defines who the user is,",
@@ -321,7 +322,7 @@ async function handlePost(
   try {
     const finalSystemPrompt = buildContextBlock(data);
     const aiResult = await streamText({
-      model: requestedModel,
+      model: "google/gemini-3-flash",
       messages: [
         { role: "system", content: finalSystemPrompt },
         ...data.messages,
@@ -330,11 +331,19 @@ async function handlePost(
       maxTokens: data.maxTokens,
       stopWhen: ({ steps }) => {
         const lastStep = steps[steps.length - 1];
+        const hasInterviewToolCall = steps.some((step) =>
+          step.toolCalls?.some(
+            (toolCall) => toolCall.toolName === INTERVIEW_TOOL_NAME,
+          ),
+        );
+        if (hasInterviewToolCall) {
+          return true;
+        }
         const hasTitleToolCall =
           lastStep?.toolCalls?.some(
             (toolCall) => toolCall.toolName === TITLE_TOOL_NAME,
           ) ?? false;
-        const maxSteps = Math.max(12, 2 + maxCoworkerResponses * 4);
+        const maxSteps = Math.max(12, 2 + maxCoworkerResponses * 5);
         if (steps.length >= maxSteps) {
           return true;
         }
@@ -373,6 +382,73 @@ async function handlePost(
             })),
             mentionedCoworkerIds: data.mentionedCoworkerIds,
           }),
+        },
+        list_thread_documents: {
+          description: "List all documents in the current thread.",
+          inputSchema: z.object({}),
+          execute: async () => ({
+            documents: data.threadDocuments,
+            ok: true,
+          }),
+        },
+        list_workspace_documents: {
+          description: "List all documents in the workspace.",
+          inputSchema: z.object({}),
+          execute: async () => ({
+            documents: data.workspaceDocuments,
+            ok: true,
+          }),
+        },
+        find_document: {
+          description:
+            "Find lines in a document that match a query. Use before reading ranges.",
+          inputSchema: z.object({
+            messageId: z.string().min(1),
+            query: z.string().min(1),
+            caseSensitive: z.boolean().optional(),
+            maxHits: z.number().int().positive().max(50).optional(),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        read_document_range: {
+          description:
+            "Read a specific line range from a document. Large ranges are rejected.",
+          inputSchema: z.object({
+            messageId: z.string().min(1),
+            startLine: z.number().int().positive(),
+            endLine: z.number().int().positive(),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        edit_document: {
+          description:
+            "Edit a document by finding and replacing exact text. " +
+            "Each edit has a 'search' string (must exactly match text in the document) " +
+            "and a 'replace' string (the new content). " +
+            "Include enough surrounding context in 'search' to uniquely identify the location. " +
+            "To delete text, set replace to empty string. " +
+            "IMPORTANT: Always call read_document_range first to see current content. " +
+            "Copy exact text from the read output for your search strings.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            messageId: z.string().min(1),
+            edits: z.array(z.object({
+              search: z.string().min(1),
+              replace: z.string(),
+            })).min(1).max(20),
+            commitMessage: z.string().min(1).max(120),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        create_document_copy: {
+          description: "Create a copy of an existing document in the current thread.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            messageId: z.string().min(1),
+            title: z.string().min(1).max(200).optional(),
+            commitMessage: z.string().min(1).max(120).optional(),
+          }),
+          execute: async () => ({ ok: true }),
         },
         generate_coworker_response: {
           description:
@@ -421,6 +497,52 @@ async function handlePost(
             "Emit the final coworker message payload for the client to display.",
           inputSchema: z.object({
             coworkerId: z.string().min(1),
+            content: z.string().min(1),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        request_interview: {
+          description:
+            "Ask the user 1-5 multiple-choice clarifying questions before generating coworker responses. Use when the request is ambiguous or would benefit from more context.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            context: z
+              .object({
+                documentId: z.string().min(1).optional(),
+                documentTitle: z.string().min(1).optional(),
+              })
+              .optional(),
+            questions: z
+              .array(
+                z.object({
+                  id: z.string().min(1),
+                  question: z.string().min(1),
+                  options: z
+                    .array(z.object({ label: z.string().min(1) }))
+                    .min(2)
+                    .max(4),
+                }),
+              )
+              .min(1)
+              .max(5),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        start_document_draft: {
+          description:
+            "Notify the user that a document is about to be drafted. Call this as soon as you determine a coworker will produce a document — before calling generate_coworker_response — so the user sees a drafting indicator while the content is being generated.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            title: z.string().min(1).max(200),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        emit_document: {
+          description:
+            "Emit a document artifact (brief, report, plan, etc.) as a separate file. Use this when a coworker produces a structured document rather than a short conversational reply.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            title: z.string().min(1).max(200),
             content: z.string().min(1),
           }),
           execute: async () => ({ ok: true }),

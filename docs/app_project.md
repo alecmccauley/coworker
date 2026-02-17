@@ -48,6 +48,7 @@ coworker-app/
 │           │   │   └── ...
 │           │   ├── channel/           # Channel components
 │           │   │   ├── ChannelView.svelte
+│           │   │   ├── ChannelDocumentsList.svelte
 │           │   │   └── ChannelSettingsPanel.svelte
 │           │   ├── thread/            # Thread components
 │           │   │   ├── ThreadView.svelte
@@ -122,10 +123,11 @@ See [Authentication Documentation](./authentication.md) for complete auth detail
 
 ## Message Composer Mentions
 
-The message composer supports @mentions of channel-assigned co-workers with a
-tokenized, chip-based input. Mentions are rendered as inline chips in the
-composer while the stored message content remains plain text with a deterministic
-token format for backend parsing.
+The message composer supports @mentions of channel-assigned co-workers and
+workspace documents (AI document artifacts) with a tokenized, chip-based input.
+Mentions are rendered as inline chips in the composer while the stored message
+content remains plain text with a deterministic token format for backend
+parsing.
 
 ### Mention token format
 
@@ -133,23 +135,94 @@ Mentions are serialized as:
 
 ```
 @{coworker:ID|Name}
+@{document:MessageId|Title}
 ```
 
 Example:
 
 ```
 @{coworker:ckv9j2x1e0001|Alex}
+@{document:cmsg123|Marketing Brief}
 ```
 
 ### Mention picker behavior
 
 - Triggered by typing `@` at a word boundary.
-- Suggestions are limited to co-workers assigned to the active channel.
+- Suggestions include co-workers assigned to the active channel and documents
+  from anywhere in the workspace.
+- The document list is loaded via `message:listDocumentsByWorkspace`.
 - Keyboard controls:
   - `ArrowUp`/`ArrowDown` move selection
   - `Enter` or `Tab` inserts the selected mention
   - `Escape` closes the picker
 - Shift+Enter inserts a newline in the composer.
+
+## Document Editing Tools
+
+Document artifacts are edited via tool calls from the orchestrator. For large
+documents, the model is required to read only the necessary sections using range
+tools, then apply a unified diff patch.
+
+**Core tools:**
+
+- `list_thread_documents` — summaries for documents in the current thread
+- `list_workspace_documents` — summaries across the workspace
+- `find_document` — line search for a query (handled in main process against live blob)
+- `read_document_range` — fetch a line range with line numbers (handled in main process against live blob, max 400 lines)
+- `edit_document` — search-and-replace edits with fuzzy text matching, content-loss validation, and per-attempt retry budgets
+- `create_document_copy` — create a copy of another document in the current thread
+
+**Permission rules:**
+
+- Documents in the current thread can be edited immediately.
+- Documents outside the thread require an interview prompt asking whether to
+  edit the original, make a copy, or cancel. If the original is edited, the
+  updated document is linked into the current thread.
+
+**Tool error handling:**
+
+- If a document tool returns `error` or `ok: false`, the orchestrator must
+  revise the request and retry (smaller ranges, re-read, or a more precise patch).
+- When a tool fails locally, the main process emits a tool error message and
+  automatically triggers a retry run so the model can rework the request.
+
+**Fuzzy text matching (`edit_document`):**
+
+The `edit_document` tool uses a multi-strategy matching pipeline (implemented in
+`src/main/chat/fuzzy-match.ts`) to locate search text within document content.
+Strategies are tried in order and stop at the first unique match:
+
+1. **Exact** — `indexOf` fast path, no normalization.
+2. **Line-based exact** — normalizes `\r\n` vs `\n` line endings.
+3. **Trimmed lines** — also strips trailing whitespace per line.
+4. **Collapsed whitespace** — also collapses runs of spaces/tabs to a single space.
+5. **Fuzzy line-by-line** — Levenshtein similarity with markdown stripping (min 85% average, min 50% per line). Only attempted for search strings ≥ 20 characters.
+
+Every strategy enforces uniqueness: multiple matches produce an "ambiguous" error
+asking for more context. This prevents wrong-location edits while tolerating minor
+whitespace and formatting differences that cause LLM retry loops.
+
+**Upstream failures:**
+
+- If the chat stream fails due to a retryable upstream error (e.g. gateway timeout),
+  the main process will automatically retry the stream (up to a small limit) and
+  show a “Retrying…” status instead of ending the conversation.
+
+## Document Version History
+
+Every document edit creates a new immutable version stored as a blob. Versions
+include a commit message, author metadata, and timestamp. The document viewer
+shows a right sidebar listing versions and allows previewing or reverting to a
+previous version. Reverts create a new version rather than overwriting history.
+
+**Deduplication guard:** The system prompt instructs the orchestrator to use
+`edit_document` (not `emit_document`) when modifying existing documents. As a
+defensive measure, `streamChatResponse` tracks an `editedDocuments` set keyed by
+`coworkerId:title`. If `edit_document` succeeds and the model still calls
+`emit_document` for the same document, the duplicate is silently dropped and any
+dangling "drafting…" message is cleaned up. This prevents duplicate document
+cards appearing after edits while preserving the version timeline on the
+original document.
 
 ## Main Process
 
@@ -282,7 +355,9 @@ If a coworker does not specify a model, the system default model is used.
 
 ## Conversation UI
 
-Channel views now provide a full conversation experience:
+Channel views have a tab bar with two tabs: **Messages** (default) and **Documents**.
+
+The **Messages** tab provides the full conversation experience:
 
 - Thread list on the left and conversation view on the right
 - Message list with user/co-worker styling
@@ -291,8 +366,16 @@ Channel views now provide a full conversation experience:
 - Sources panel for thread-specific attachments (files, links, notes)
 - First message auto-names new conversations via AI tool call
 - Co-worker replies are orchestrated and streamed as separate coworker messages
-- Activity updates appear in the thread header and inside streaming coworker bubbles
+- Activity updates appear in the thread header, composer area, and inside streaming coworker bubbles. The composer status line rotates randomized coworker activity phrases every 10 seconds while co-workers are working.
 - Manual rename available from the thread header and thread list menu (title required)
+- Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback. After submitting, answers are persisted into the message's `contentShort` as JSON and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
+- User messages can be queued while co-workers are working; queued messages show a "Queued" badge and run sequentially after the current orchestrator finishes.
+- Document artifacts: when a coworker will produce a structured document (brief, report, plan), the orchestrator calls `start_document_draft` with the coworkerId and title **before** calling `generate_coworker_response`. This creates the `DocumentBar` in a pulsing drafting state immediately, with an activity label (e.g. "Riley is drafting Marketing Brief...") in the thread activity indicator, giving the user visual feedback during the entire subordinate model generation. When `emit_document` fires after the content is ready, it reuses the pending draft message rather than creating a new one. The document content is stored as a `.md` blob and the message is finalized via `chat:complete`, which updates `contentShort` with the `blobId`. The `DocumentBar` then transitions to its clickable final state. If `start_document_draft` is not called (fallback), `emit_document` still creates the message on its own. Clicking the bar opens a `DocumentViewDialog` that loads the blob content and renders the markdown. In chat history, document messages appear as `[Document: <title>]` for LLM context.
+- Rich clipboard copy is available in both standard chat bubbles and the `DocumentViewDialog`. Copy writes both `text/html` and `text/plain` through a typed IPC bridge so pasting into rich editors preserves markdown formatting while plain-text targets still get readable text.
+
+The **Documents** tab (`ChannelDocumentsList.svelte`) shows all completed documents across every thread in the channel. It queries `message:listDocumentsByChannel` which joins messages to threads, filtering for complete messages with `_type: "document"` in `contentShort`. Each row displays the document title, authoring coworker name, source thread title, and relative timestamp. Clicking a row opens `DocumentViewDialog`. The list auto-refreshes on `chat:onComplete` events. The tab resets to Messages when switching channels.
+
+Documents can be renamed from two places: the hover three-dot menu on a `DocumentBar` card inside a thread conversation, and the hover three-dot menu on each row in the Documents tab. Both open a `DocumentRenameDialog` (modelled after `ThreadRenameDialog`) that validates the title is non-empty, updates the `title` field inside the message's `contentShort` JSON via `window.api.message.update`, and refreshes the local state so the new name appears immediately. Drafting documents do not show the rename menu.
 
 Channel setup rules:
 
@@ -307,6 +390,8 @@ Primary components:
 - `src/renderer/src/components/message/MessageList.svelte`
 - `src/renderer/src/components/message/MessageInput.svelte`
 - `src/renderer/src/components/thread/ThreadSourcesPanel.svelte`
+- `src/renderer/src/components/message/InterviewBubble.svelte`
+- `src/renderer/src/lib/types/interview.ts` — interview data types + parse/format helpers
 - `src/renderer/src/lib/markdown.ts` — MarkdownIt + DOMPurify rendering utility
 
 ## Knowledge Management
@@ -464,6 +549,7 @@ Key files:
 - `coworker-app/src/main/updates/update-preferences.ts` — persisted auto-download preference
 - `coworker-app/src/preload/index.ts` — `window.api.updates` IPC surface
 - `coworker-app/src/renderer/src/components/updates/UpdateSettingsPanel.svelte` — UI
+- `coworker-app/src/main/clipboard/ipc-handlers.ts` — rich clipboard IPC (`clipboard:writeRich`)
 
 ## Preload Script
 
@@ -478,6 +564,10 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { CoworkerSdk, AuthUser, AuthStatusResponse } from '@coworker/shared-services'
 
 const api = {
+  clipboard: {
+    writeRich: (input: { html: string; text: string }) =>
+      ipcRenderer.invoke('clipboard:writeRich', input),
+  },
   auth: {
     requestCode: (email: string) =>
       ipcRenderer.invoke('auth:requestCode', email),
@@ -512,6 +602,7 @@ if (process.contextIsolated) {
 
 **Note:** Auth handlers return user data only—tokens are never exposed to the renderer.
 They are stored securely in the main process using `safeStorage`.
+Clipboard writes are also handled in the main process so the renderer never directly touches privileged Electron clipboard APIs.
 
 ### Type Definitions (`src/preload/index.d.ts`)
 
@@ -1416,6 +1507,27 @@ interface Window {
   <p>Selected: {selectedFile}</p>
 {/if}
 ```
+
+## Notifications and Unread Badges
+
+The app uses **native desktop notifications** via the renderer `Notification` API and maintains **unread coworker counts** per channel with persisted read state.
+
+### Behavior
+
+- Notifications fire for **coworker messages** when the app is **not focused**.
+- Clicking a notification **focuses the app** and opens the exact thread.
+- A glossy permission banner appears inside every conversation until notifications are granted.
+- Unread counts are computed from coworker messages and reset when the thread is marked read.
+- Thread lists show per-conversation unread badges based on coworker messages newer than `last_read_at`.
+
+### Data + IPC
+
+- `threads.last_read_at` stores the last-read timestamp per thread (workspace DB).
+- IPC endpoints:
+  - `notifications:markThreadRead`
+  - `notifications:getUnreadCounts`
+  - `window:focus`
+- Read tracking is stored in the event log (`thread` + `read` events) and used to compute channel-level unread counts.
 
 ## Best Practices Summary
 

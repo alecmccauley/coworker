@@ -24,6 +24,9 @@ import { registerBlobIpcHandlers } from "./blob";
 import { registerTemplateIpcHandlers, setTemplateSdkGetter } from "./templates";
 import { registerModelIpcHandlers, setModelSdkGetter } from "./models";
 import { registerChatIpcHandlers, setChatSdkGetter } from "./chat";
+import { registerNotificationIpcHandlers } from "./notifications/ipc-handlers";
+import { registerDocumentHistoryIpcHandlers } from "./document-history/ipc-handlers";
+import { registerClipboardIpcHandlers } from "./clipboard";
 import {
   buildApplicationMenu,
   refreshApplicationMenu,
@@ -288,9 +291,7 @@ function getPrimaryWindow(): BrowserWindow {
   return createWindow();
 }
 
-async function handleOpenWorkspacePath(
-  workspacePath: string,
-): Promise<void> {
+async function handleOpenWorkspacePath(workspacePath: string): Promise<void> {
   if (!workspacePath.endsWith(WORKSPACE_EXTENSION)) {
     console.warn(
       "[Workspace] Ignoring open-file path without .cowork extension:",
@@ -363,6 +364,9 @@ app.whenReady().then(() => {
   registerTemplateIpcHandlers();
   registerModelIpcHandlers();
   registerChatIpcHandlers();
+  registerNotificationIpcHandlers();
+  registerDocumentHistoryIpcHandlers();
+  registerClipboardIpcHandlers();
 
   // Set SDK getter for templates
   setTemplateSdkGetter(getSdk);

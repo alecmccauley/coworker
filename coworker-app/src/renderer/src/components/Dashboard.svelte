@@ -6,7 +6,17 @@
   import LogOutIcon from '@lucide/svelte/icons/log-out'
   import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle'
   import type { AuthUser } from '@coworker/shared-services'
-  import type { WorkspaceInfo, RecentWorkspace, Coworker, Channel, CreateCoworkerInput, UpdateCoworkerInput, UpdateState } from '$lib/types'
+  import type {
+    WorkspaceInfo,
+    RecentWorkspace,
+    Coworker,
+    Channel,
+    CreateCoworkerInput,
+    UpdateCoworkerInput,
+    UpdateState,
+    Message,
+    Thread
+  } from '$lib/types'
   import { trackEvent } from '$lib/track-event'
 
   // Workspace components
@@ -59,6 +69,7 @@
   let channels = $state<Channel[]>([])
   let selectedChannel = $state<Channel | null>(null)
   let isLoadingChannels = $state(false)
+  let selectedThreadId = $state<string | null>(null)
 
   // Navigation state
   type ViewType =
@@ -69,6 +80,16 @@
   let currentView = $state<ViewType>('channel')
   let selectedCoworkerId = $state<string | null>(null)
   let openChannelSettingsPanel = $state(false)
+
+  // Notification state
+  let notificationSupported = $state(false)
+  let notificationPermission = $state<NotificationPermission>('default')
+  let isAppFocused = $state(true)
+  let unreadByChannel = $state<Record<string, number>>({})
+  let unreadByThread = $state<Record<string, number>>({})
+
+  const messageIndex = new Map<string, Pick<Message, 'threadId' | 'authorType' | 'authorId'>>()
+  const notifiedMessageIds = new Set<string>()
 
   // Updates state
   let updateState = $state<UpdateState | null>(null)
@@ -99,6 +120,9 @@
   let cleanupMenuChannelsSettings: (() => void) | null = null
   let cleanupMenuWorkersSettings: (() => void) | null = null
   let cleanupUpdatesListener: (() => void) | null = null
+  let cleanupChatCreated: (() => void) | null = null
+  let cleanupChatComplete: (() => void) | null = null
+  let cleanupFocusListeners: (() => void) | null = null
 
   $effect(() => {
     if (currentView === 'channel' && openChannelSettingsPanel) {
@@ -119,9 +143,26 @@
     mounted = true
     setTimeout(() => (showContent = true), 100)
 
+    notificationSupported = typeof Notification !== 'undefined'
+    if (notificationSupported) {
+      notificationPermission = Notification.permission
+    }
+
+    const handleFocusChange = (): void => {
+      isAppFocused = document.hasFocus()
+    }
+    handleFocusChange()
+    window.addEventListener('focus', handleFocusChange)
+    window.addEventListener('blur', handleFocusChange)
+    cleanupFocusListeners = () => {
+      window.removeEventListener('focus', handleFocusChange)
+      window.removeEventListener('blur', handleFocusChange)
+    }
+
     // Load initial state
     await loadCurrentWorkspace()
     await loadRecentWorkspaces()
+    await refreshUnreadCounts()
 
     updateState = await window.api.updates.getState()
     cleanupUpdatesListener = window.api.updates.onState((state) => {
@@ -138,6 +179,42 @@
       window.api.settings.onOpenChannelsSettings(handleMenuChannelsSettings)
     cleanupMenuWorkersSettings =
       window.api.settings.onOpenWorkersSettings(handleMenuWorkersSettings)
+
+    cleanupChatCreated = window.api.chat.onMessageCreated((payload) => {
+      messageIndex.set(payload.message.id, {
+        threadId: payload.threadId,
+        authorType: payload.message.authorType,
+        authorId: payload.message.authorId
+      })
+
+      if (payload.message.authorType === 'coworker') {
+        if (payload.message.status === 'complete') {
+          void maybeNotifyCoworkerMessage(payload.message, payload.threadId)
+        }
+        void refreshUnreadCounts()
+        void refreshUnreadThreads(selectedChannel?.id ?? null)
+      }
+    })
+
+    cleanupChatComplete = window.api.chat.onComplete((payload) => {
+      const metadata = messageIndex.get(payload.messageId)
+      if (!metadata || metadata.authorType !== 'coworker') return
+      const message: Message = {
+        id: payload.messageId,
+        workspaceId: '',
+        threadId: metadata.threadId,
+        authorType: metadata.authorType,
+        authorId: metadata.authorId ?? null,
+        contentRef: null,
+        contentShort: payload.content,
+        status: 'complete',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+      void maybeNotifyCoworkerMessage(message, metadata.threadId)
+      void refreshUnreadCounts()
+      void refreshUnreadThreads(selectedChannel?.id ?? null)
+    })
   })
 
   onDestroy(() => {
@@ -148,6 +225,9 @@
     cleanupMenuChannelsSettings?.()
     cleanupMenuWorkersSettings?.()
     cleanupUpdatesListener?.()
+    cleanupChatCreated?.()
+    cleanupChatComplete?.()
+    cleanupFocusListeners?.()
   })
 
   async function loadCurrentWorkspace(): Promise<void> {
@@ -173,6 +253,116 @@
     }
   }
 
+  async function refreshUnreadCounts(): Promise<void> {
+    if (!currentWorkspace) return
+    try {
+      unreadByChannel = await window.api.notifications.getUnreadCounts()
+    } catch (error) {
+      console.error('Failed to load unread counts:', error)
+    }
+  }
+
+  async function refreshUnreadThreads(channelId: string | null): Promise<void> {
+    if (!currentWorkspace || !channelId) {
+      unreadByThread = {}
+      return
+    }
+    try {
+      unreadByThread = await window.api.notifications.getUnreadThreads(channelId)
+    } catch (error) {
+      console.error('Failed to load unread threads:', error)
+    }
+  }
+
+  async function requestNotificationPermission(): Promise<void> {
+    if (!notificationSupported) return
+    try {
+      notificationPermission = await Notification.requestPermission()
+    } catch (error) {
+      console.error('Failed to request notification permission:', error)
+    }
+  }
+
+  function getCoworkerName(coworkerId?: string | null): string {
+    if (!coworkerId) return 'Co-worker'
+    return coworkers.find((item) => item.id === coworkerId)?.name ?? 'Co-worker'
+  }
+
+  function stripMarkdown(input: string): string {
+    return input
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+      .replace(/[*_~>#-]{1,3}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  function shouldNotify(): boolean {
+    return notificationSupported && notificationPermission === 'granted' && !isAppFocused
+  }
+
+  async function maybeNotifyCoworkerMessage(
+    message: Message,
+    threadId: string,
+  ): Promise<void> {
+    if (!shouldNotify()) return
+    if (notifiedMessageIds.has(message.id)) return
+    notifiedMessageIds.add(message.id)
+
+    const title = getCoworkerName(message.authorId)
+    const rawBody = message.contentShort?.trim() || 'New message'
+    const cleanBody = stripMarkdown(rawBody)
+    const body =
+      cleanBody.length > 180 ? `${cleanBody.slice(0, 177)}...` : cleanBody
+    const notification = new Notification(title, {
+      body,
+      tag: message.id
+    })
+    notification.onclick = () => {
+      void handleNotificationClick(threadId)
+      notification.close()
+    }
+  }
+
+  async function handleNotificationClick(threadId: string): Promise<void> {
+    await window.api.window.focus()
+    await openThreadById(threadId)
+  }
+
+  async function openThreadById(threadId: string): Promise<void> {
+    const thread = await window.api.thread.getById(threadId)
+    if (!thread) return
+    let channel = channels.find((item) => item.id === thread.channelId) ?? null
+    if (!channel) {
+      await loadChannels()
+      channel = channels.find((item) => item.id === thread.channelId) ?? null
+    }
+    if (!channel) return
+    selectedChannel = channel
+    currentView = 'channel'
+    selectedThreadId = thread.id
+    await refreshUnreadThreads(channel.id)
+  }
+
+  async function handleMarkThreadRead(threadId: string, readAt?: Date): Promise<void> {
+    try {
+      await window.api.notifications.markThreadRead(
+        threadId,
+        readAt ? readAt.toISOString() : undefined,
+      )
+      await refreshUnreadCounts()
+      await refreshUnreadThreads(selectedChannel?.id ?? null)
+    } catch (error) {
+      console.error('Failed to mark thread read:', error)
+    }
+  }
+
+  function handleSelectThread(thread: Thread | null): void {
+    selectedThreadId = thread?.id ?? null
+  }
+
   async function loadChannels(): Promise<void> {
     if (!currentWorkspace) return
 
@@ -188,6 +378,7 @@
       // Select first channel by default if none selected
       if (!selectedChannel && channels.length > 0) {
         selectedChannel = channels[0]
+        selectedThreadId = null
       }
     } catch (error) {
       console.error('Failed to load channels:', error)
@@ -289,11 +480,15 @@
   function handleWorkspaceOpened(workspace: WorkspaceInfo): void {
     currentWorkspace = workspace
     selectedChannel = null
+    selectedThreadId = null
     channels = []
+    unreadByChannel = {}
+    unreadByThread = {}
     showFRE = false // Reset FRE state
     loadCoworkers()
     loadChannels()
     loadRecentWorkspaces()
+    void refreshUnreadCounts()
     // Check onboarding status for the new workspace
     checkOnboardingStatus()
   }
@@ -305,6 +500,9 @@
       coworkers = []
       channels = []
       selectedChannel = null
+      selectedThreadId = null
+      unreadByChannel = {}
+      unreadByThread = {}
       await loadRecentWorkspaces()
     } catch (error) {
       console.error('Failed to close workspace:', error)
@@ -317,24 +515,29 @@
     selectedChannel = channel
     currentView = 'channel'
     selectedCoworkerId = null
+    selectedThreadId = null
+    void refreshUnreadThreads(channel.id)
   }
 
   function handleSelectCoworker(coworker: Coworker): void {
     selectedCoworkerId = coworker.id
     selectedChannel = null
     currentView = 'coworker-profile'
+    selectedThreadId = null
   }
 
   function handleOpenWorkspaceSettings(): void {
     currentView = 'workspace-settings'
     selectedCoworkerId = null
     selectedChannel = null
+    selectedThreadId = null
   }
 
   function handleOpenWorkersSettings(): void {
     currentView = 'workers-settings'
     selectedCoworkerId = null
     selectedChannel = null
+    selectedThreadId = null
   }
 
   function handleMenuWorkspaceSettings(): void {
@@ -374,6 +577,8 @@
     await loadChannels()
     selectedChannel = channel
     currentView = 'channel'
+    selectedThreadId = null
+    unreadByThread = {}
   }
 
   async function handleLogout(): Promise<void> {
@@ -575,6 +780,7 @@
             {coworkers}
             selectedChannelId={selectedChannel?.id ?? null}
             {selectedCoworkerId}
+            {unreadByChannel}
             isWorkspaceSettingsActive={currentView === 'workspace-settings'}
             isWorkersSettingsActive={currentView === 'workers-settings'}
             onSelectChannel={handleSelectChannel}
@@ -610,6 +816,14 @@
                 {coworkers}
                 onCreateCoworker={handleCreateCoworker}
                 openSettingsPanel={openChannelSettingsPanel}
+                {selectedThreadId}
+                onSelectThread={handleSelectThread}
+                {notificationSupported}
+                {notificationPermission}
+                onRequestNotificationPermission={requestNotificationPermission}
+                onMarkThreadRead={handleMarkThreadRead}
+                {isAppFocused}
+                {unreadByThread}
               />
             {:else if currentView === 'coworker-profile' && selectedCoworkerId}
               {#each coworkers.filter((c) => c.id === selectedCoworkerId) as coworker (coworker.id)}

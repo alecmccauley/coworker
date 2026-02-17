@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 11;
 
 /**
  * Run all migrations on a workspace database
@@ -59,6 +59,12 @@ export function runMigrations(sqlite: Database.Database): void {
     }
     if (currentVersion < 9) {
       runMigrationV9(sqlite);
+    }
+    if (currentVersion < 10) {
+      runMigrationV10(sqlite);
+    }
+    if (currentVersion < 11) {
+      runMigrationV11(sqlite);
     }
 
     // Update schema version
@@ -582,5 +588,41 @@ function runMigrationV9(sqlite: Database.Database): void {
 
   sqlite.exec(`
     ALTER TABLE coworkers ADD COLUMN short_description TEXT
+  `);
+}
+
+/**
+ * Migration V10: Add thread read tracking
+ */
+function runMigrationV10(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V10: Add last_read_at to threads");
+
+  sqlite.exec(`
+    ALTER TABLE threads ADD COLUMN last_read_at INTEGER
+  `);
+}
+
+/**
+ * Migration V11: Add document version history
+ */
+function runMigrationV11(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V11: Add document_versions table");
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS document_versions (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      blob_id TEXT NOT NULL,
+      commit_message TEXT NOT NULL,
+      author_type TEXT NOT NULL,
+      author_id TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_document_versions_message
+    ON document_versions (workspace_id, message_id, created_at)
   `);
 }
