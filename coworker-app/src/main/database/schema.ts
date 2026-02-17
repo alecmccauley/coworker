@@ -85,6 +85,20 @@ export const messages = sqliteTable("messages", {
 });
 
 /**
+ * Document versions - immutable history for document artifacts
+ */
+export const documentVersions = sqliteTable("document_versions", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  messageId: text("message_id").notNull(),
+  blobId: text("blob_id").notNull(),
+  commitMessage: text("commit_message").notNull(),
+  authorType: text("author_type").notNull(), // 'user' | 'coworker' | 'system'
+  authorId: text("author_id"), // coworker ID if authorType='coworker'
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
  * Knowledge items projection table - scoped "cards" of extracted/summarized knowledge
  */
 export const knowledgeItems = sqliteTable("knowledge_items", {
@@ -220,6 +234,8 @@ export type NewThread = typeof threads.$inferInsert;
 // Type exports - Messages
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+export type NewDocumentVersion = typeof documentVersions.$inferInsert;
 
 // Type exports - Knowledge Items
 export type KnowledgeItem = typeof knowledgeItems.$inferSelect;

@@ -157,6 +157,73 @@ Example:
   - `Escape` closes the picker
 - Shift+Enter inserts a newline in the composer.
 
+## Document Editing Tools
+
+Document artifacts are edited via tool calls from the orchestrator. For large
+documents, the model is required to read only the necessary sections using range
+tools, then apply a unified diff patch.
+
+**Core tools:**
+
+- `list_thread_documents` — summaries for documents in the current thread
+- `list_workspace_documents` — summaries across the workspace
+- `find_document` — line search for a query (handled in main process against live blob)
+- `read_document_range` — fetch a line range with line numbers (handled in main process against live blob, max 400 lines)
+- `edit_document` — search-and-replace edits with fuzzy text matching, content-loss validation, and per-attempt retry budgets
+- `create_document_copy` — create a copy of another document in the current thread
+
+**Permission rules:**
+
+- Documents in the current thread can be edited immediately.
+- Documents outside the thread require an interview prompt asking whether to
+  edit the original, make a copy, or cancel. If the original is edited, the
+  updated document is linked into the current thread.
+
+**Tool error handling:**
+
+- If a document tool returns `error` or `ok: false`, the orchestrator must
+  revise the request and retry (smaller ranges, re-read, or a more precise patch).
+- When a tool fails locally, the main process emits a tool error message and
+  automatically triggers a retry run so the model can rework the request.
+
+**Fuzzy text matching (`edit_document`):**
+
+The `edit_document` tool uses a multi-strategy matching pipeline (implemented in
+`src/main/chat/fuzzy-match.ts`) to locate search text within document content.
+Strategies are tried in order and stop at the first unique match:
+
+1. **Exact** — `indexOf` fast path, no normalization.
+2. **Line-based exact** — normalizes `\r\n` vs `\n` line endings.
+3. **Trimmed lines** — also strips trailing whitespace per line.
+4. **Collapsed whitespace** — also collapses runs of spaces/tabs to a single space.
+5. **Fuzzy line-by-line** — Levenshtein similarity with markdown stripping (min 85% average, min 50% per line). Only attempted for search strings ≥ 20 characters.
+
+Every strategy enforces uniqueness: multiple matches produce an "ambiguous" error
+asking for more context. This prevents wrong-location edits while tolerating minor
+whitespace and formatting differences that cause LLM retry loops.
+
+**Upstream failures:**
+
+- If the chat stream fails due to a retryable upstream error (e.g. gateway timeout),
+  the main process will automatically retry the stream (up to a small limit) and
+  show a “Retrying…” status instead of ending the conversation.
+
+## Document Version History
+
+Every document edit creates a new immutable version stored as a blob. Versions
+include a commit message, author metadata, and timestamp. The document viewer
+shows a right sidebar listing versions and allows previewing or reverting to a
+previous version. Reverts create a new version rather than overwriting history.
+
+**Deduplication guard:** The system prompt instructs the orchestrator to use
+`edit_document` (not `emit_document`) when modifying existing documents. As a
+defensive measure, `streamChatResponse` tracks an `editedDocuments` set keyed by
+`coworkerId:title`. If `edit_document` succeeds and the model still calls
+`emit_document` for the same document, the duplicate is silently dropped and any
+dangling "drafting…" message is cleaned up. This prevents duplicate document
+cards appearing after edits while preserving the version timeline on the
+original document.
+
 ## Main Process
 
 ### Entry Point (`src/main/index.ts`)
@@ -304,6 +371,7 @@ The **Messages** tab provides the full conversation experience:
 - Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback. After submitting, answers are persisted into the message's `contentShort` as JSON and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
 - User messages can be queued while co-workers are working; queued messages show a "Queued" badge and run sequentially after the current orchestrator finishes.
 - Document artifacts: when a coworker will produce a structured document (brief, report, plan), the orchestrator calls `start_document_draft` with the coworkerId and title **before** calling `generate_coworker_response`. This creates the `DocumentBar` in a pulsing drafting state immediately, with an activity label (e.g. "Riley is drafting Marketing Brief...") in the thread activity indicator, giving the user visual feedback during the entire subordinate model generation. When `emit_document` fires after the content is ready, it reuses the pending draft message rather than creating a new one. The document content is stored as a `.md` blob and the message is finalized via `chat:complete`, which updates `contentShort` with the `blobId`. The `DocumentBar` then transitions to its clickable final state. If `start_document_draft` is not called (fallback), `emit_document` still creates the message on its own. Clicking the bar opens a `DocumentViewDialog` that loads the blob content and renders the markdown. In chat history, document messages appear as `[Document: <title>]` for LLM context.
+- Rich clipboard copy is available in both standard chat bubbles and the `DocumentViewDialog`. Copy writes both `text/html` and `text/plain` through a typed IPC bridge so pasting into rich editors preserves markdown formatting while plain-text targets still get readable text.
 
 The **Documents** tab (`ChannelDocumentsList.svelte`) shows all completed documents across every thread in the channel. It queries `message:listDocumentsByChannel` which joins messages to threads, filtering for complete messages with `_type: "document"` in `contentShort`. Each row displays the document title, authoring coworker name, source thread title, and relative timestamp. Clicking a row opens `DocumentViewDialog`. The list auto-refreshes on `chat:onComplete` events. The tab resets to Messages when switching channels.
 
@@ -481,6 +549,7 @@ Key files:
 - `coworker-app/src/main/updates/update-preferences.ts` — persisted auto-download preference
 - `coworker-app/src/preload/index.ts` — `window.api.updates` IPC surface
 - `coworker-app/src/renderer/src/components/updates/UpdateSettingsPanel.svelte` — UI
+- `coworker-app/src/main/clipboard/ipc-handlers.ts` — rich clipboard IPC (`clipboard:writeRich`)
 
 ## Preload Script
 
@@ -495,6 +564,10 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { CoworkerSdk, AuthUser, AuthStatusResponse } from '@coworker/shared-services'
 
 const api = {
+  clipboard: {
+    writeRich: (input: { html: string; text: string }) =>
+      ipcRenderer.invoke('clipboard:writeRich', input),
+  },
   auth: {
     requestCode: (email: string) =>
       ipcRenderer.invoke('auth:requestCode', email),
@@ -529,6 +602,7 @@ if (process.contextIsolated) {
 
 **Note:** Auth handlers return user data only—tokens are never exposed to the renderer.
 They are stored securely in the main process using `safeStorage`.
+Clipboard writes are also handled in the main process so the renderer never directly touches privileged Electron clipboard APIs.
 
 ### Type Definitions (`src/preload/index.d.ts`)
 

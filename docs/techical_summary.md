@@ -124,6 +124,10 @@ Key paths:
 
 This keeps network access and secrets out of the renderer, while preserving end-to-end type safety.
 
+For local privileged operations that are not network calls (for example rich
+clipboard writes), the same renderer -> preload -> main pattern is used so the
+renderer remains unprivileged and Electron system APIs stay in main.
+
 ### AI Chat Streaming
 
 We support a streaming chat pipeline for thread conversations:
@@ -134,6 +138,8 @@ We support a streaming chat pipeline for thread conversations:
 - Renderer updates coworker messages incrementally from IPC events.
 - The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.
 - The model can emit `save_memory` tool calls; the main process persists memories and links them to coworkers for future retrieval.
+- The model can invoke document editing tools (`find_document`, `read_document_range`, `edit_document`, `create_document_copy`); these are placeholder executors on the API — the main process handles them against live blob content, applying search-and-replace edits and emitting document updates.
+- Document edits are versioned: each edit stores a new blob + commit message in `document_versions`, and the viewer exposes a version sidebar for preview/revert.
 - User messages sent during an active orchestrator run are queued in the main process and streamed sequentially after the current run completes. The renderer receives `chat:queueUpdate` events for queued/processing states.
 - Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
 - Coworker replies use a standardized coworker system prompt block before role prompts and defaults to keep tone and behavior consistent.

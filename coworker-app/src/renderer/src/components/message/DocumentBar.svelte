@@ -127,6 +127,7 @@
       bind:open={dialogOpen}
       title={documentData.title}
       blobId={documentData.blobId ?? ''}
+      messageId={messageId}
     />
   {/if}
 </div>

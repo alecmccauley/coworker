@@ -7,12 +7,19 @@ import {
   createMessage,
   updateMessage,
   getThreadMessageCount,
+  listMessages,
+  getMessageById,
 } from "../message";
 import {
   buildOrchestratorSystemPrompt,
   convertThreadToChatMessages,
   extractMentionedCoworkerIds,
   extractMentionedDocumentIds,
+  listThreadDocumentSummaries,
+  listMentionedDocumentSummaries,
+  listWorkspaceDocumentSummaries,
+  buildDocumentContentsMap,
+  parseDocumentMetadata,
   gatherRagContext,
   gatherMentionedDocumentContext,
   getThreadContext,
@@ -22,7 +29,9 @@ import {
 import { listChannelCoworkers } from "../channel";
 import { updateThread } from "../thread";
 import { addMemory } from "../memory";
-import { addBlob } from "../blob";
+import { addBlob, readBlob } from "../blob";
+import { addDocumentVersion } from "../document-history/document-history-service";
+import { fuzzyFindText } from "./fuzzy-match";
 
 interface ChatChunkPayload {
   messageId: string;
@@ -40,6 +49,89 @@ interface ChatErrorPayload {
   error: string;
 }
 
+type ExternalEditDecision = "edit" | "copy" | "cancel" | null;
+
+function slugifyTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+}
+
+async function createDocumentBlob(title: string, content: string): Promise<string> {
+  const filename = `${slugifyTitle(title)}.md`;
+  const { blob } = await addBlob({
+    data: content,
+    mime: "text/markdown",
+    filename,
+  });
+  return blob.id;
+}
+
+function parseInterviewDecision(message: unknown, documentId: string): ExternalEditDecision {
+  if (!message || typeof message !== "object") return null;
+  const data = message as {
+    _type?: unknown;
+    context?: { documentId?: unknown };
+    answers?: Record<string, string> | null;
+  };
+  if (data._type !== "interview") return null;
+  if (!data.context || data.context.documentId !== documentId) return null;
+  if (!data.answers) return null;
+  const answers = Object.values(data.answers);
+  if (answers.includes("Edit original")) return "edit";
+  if (answers.includes("Make a copy")) return "copy";
+  if (answers.includes("Cancel")) return "cancel";
+  return null;
+}
+
+async function resolveExternalDocumentDecision(
+  threadId: string,
+  documentId: string,
+): Promise<ExternalEditDecision> {
+  const messages = await listMessages(threadId);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (!message?.contentShort) continue;
+    try {
+      const parsed = JSON.parse(message.contentShort) as unknown;
+      const decision = parseInterviewDecision(parsed, documentId);
+      if (decision) return decision;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function listApprovedDocumentIds(threadId: string): Promise<string[]> {
+  const messages = await listMessages(threadId);
+  const ids = new Set<string>();
+  for (const message of messages) {
+    if (!message?.contentShort) continue;
+    try {
+      const parsed = JSON.parse(message.contentShort) as {
+        _type?: unknown;
+        context?: { documentId?: unknown };
+        answers?: Record<string, string> | null;
+      };
+      if (parsed._type !== "interview" || !parsed.answers) continue;
+      const docId =
+        typeof parsed.context?.documentId === "string"
+          ? parsed.context.documentId
+          : "";
+      if (!docId) continue;
+      const answers = Object.values(parsed.answers);
+      if (answers.includes("Edit original") || answers.includes("Make a copy")) {
+        ids.add(docId);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return Array.from(ids);
+}
 interface ChatStatusPayload {
   threadId: string;
   messageId?: string;
@@ -65,6 +157,12 @@ interface SendMessageResult {
 
 const activeStreams = new Map<string, AbortController>();
 const threadQueues = new Map<string, ThreadQueueState>();
+const toolRetryCounts = new Map<string, number>();
+const MAX_TOOL_RETRIES = 2;
+const streamRetryCounts = new Map<string, number>();
+const MAX_STREAM_RETRIES = 2;
+
+const MAX_DOCUMENT_RANGE_LINES = 400;
 
 let getSdk: (() => Promise<CoworkerSdk>) | null = null;
 
@@ -104,6 +202,14 @@ function getThreadQueue(threadId: string): ThreadQueueState {
 }
 
 function handleStreamFinished(threadId: string): void {
+  // Clear stale tool retry counts for this thread so past failures
+  // don't block future edits in new conversations.
+  for (const key of toolRetryCounts.keys()) {
+    if (key.startsWith(`${threadId}:`)) {
+      toolRetryCounts.delete(key);
+    }
+  }
+
   const queue = threadQueues.get(threadId);
   if (!queue) {
     return;
@@ -116,6 +222,87 @@ function handleStreamFinished(threadId: string): void {
   void startStreamForMessage(next);
 }
 
+async function triggerToolRetry(params: {
+  sender: WebContents;
+  threadId: string;
+  toolName: string;
+  error: string;
+  retryKey: string;
+}): Promise<void> {
+  const count = toolRetryCounts.get(params.retryKey) ?? 0;
+  if (count >= MAX_TOOL_RETRIES) {
+    safeSend<ChatStatusPayload>(params.sender, "chat:status", {
+      threadId: params.threadId,
+      label: `${params.toolName} failed after ${MAX_TOOL_RETRIES} attempts`,
+      phase: "error",
+    });
+    return;
+  }
+  toolRetryCounts.set(params.retryKey, count + 1);
+
+  safeSend<ChatStatusPayload>(params.sender, "chat:status", {
+    threadId: params.threadId,
+    label: "Retrying...",
+    phase: "streaming",
+  });
+
+  const retryContent = `Tool error: ${params.toolName}. ${params.error} Retry the last tool call using the error above.`;
+  const queue = getThreadQueue(params.threadId);
+  const queuedMessage: QueuedMessage = {
+    threadId: params.threadId,
+    content: retryContent,
+    responseId: "",
+    sender: params.sender,
+    shouldAutoTitle: false,
+    wasQueued: false,
+  };
+
+  if (queue.active) {
+    queue.queue.push(queuedMessage);
+  } else {
+    void startStreamForMessage(queuedMessage);
+  }
+}
+
+function shouldRetryStreamError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("gatewayresponseerror") ||
+    lower.includes("headers timeout") ||
+    lower.includes("headers_timeout") ||
+    lower.includes("und_err_headers_timeout") ||
+    lower.includes("failed to stream")
+  );
+}
+
+function enqueueStreamRetry(params: {
+  sender: WebContents;
+  threadId: string;
+  content: string;
+  responseId: string;
+}): void {
+  const queue = getThreadQueue(params.threadId);
+  const queuedMessage: QueuedMessage = {
+    threadId: params.threadId,
+    content: params.content,
+    responseId: params.responseId,
+    sender: params.sender,
+    shouldAutoTitle: false,
+    wasQueued: queue.active,
+  };
+
+  if (queue.active) {
+    queue.queue.push(queuedMessage);
+    safeSend<ChatQueuePayload>(params.sender, "chat:queueUpdate", {
+      threadId: params.threadId,
+      messageId: params.responseId,
+      state: "queued",
+    });
+  } else {
+    void startStreamForMessage(queuedMessage);
+  }
+}
+
 async function startStreamForMessage(message: QueuedMessage): Promise<void> {
   const queue = getThreadQueue(message.threadId);
   if (queue.active) {
@@ -123,7 +310,7 @@ async function startStreamForMessage(message: QueuedMessage): Promise<void> {
     return;
   }
   queue.active = true;
-  if (message.wasQueued) {
+  if (message.wasQueued && message.responseId && message.responseId.length > 0) {
     safeSend<ChatQueuePayload>(message.sender, "chat:queueUpdate", {
       threadId: message.threadId,
       messageId: message.responseId,
@@ -327,6 +514,7 @@ async function streamChatResponse(
     }
   >();
   const pendingDocumentMessages = new Map<string, string>();
+  const editedDocuments = new Set<string>();
   let titleApplied = false;
   const coworkerBuffers = new Map<
     string,
@@ -399,6 +587,17 @@ async function streamChatResponse(
       channelCoworkers.map((coworker) => [coworker.id, coworker.name]),
     );
     const mentionedDocumentIds = extractMentionedDocumentIds(content);
+    const approvedDocumentIds = await listApprovedDocumentIds(threadId);
+    const threadDocuments = await listThreadDocumentSummaries(threadId);
+    const mentionedDocuments = await listMentionedDocumentSummaries(
+      mentionedDocumentIds,
+    );
+    const workspaceDocuments = await listWorkspaceDocumentSummaries();
+    const documentContents = await buildDocumentContentsMap([
+      ...threadDocuments.map((doc) => doc.messageId),
+      ...mentionedDocuments.map((doc) => doc.messageId),
+      ...approvedDocumentIds,
+    ]);
     const mentionedDocumentContext = await gatherMentionedDocumentContext(
       mentionedDocumentIds,
     );
@@ -422,6 +621,10 @@ async function streamChatResponse(
       messages,
       systemPrompt,
       ragContext,
+      threadDocuments,
+      mentionedDocuments,
+      workspaceDocuments,
+      documentContents,
       threadContext,
       channelCoworkers: channelCoworkers.map(mapCoworkerToContext),
       mentionedCoworkerIds,
@@ -660,9 +863,9 @@ async function streamChatResponse(
       }
 
       if (
-        event.type === "tool-input-available" &&
-        event.toolName === "emit_document"
-      ) {
+          event.type === "tool-input-available" &&
+          event.toolName === "emit_document"
+        ) {
         const existing = documentBuffers.get(event.toolCallId);
         const input =
           event.input && typeof event.input === "object"
@@ -681,24 +884,40 @@ async function streamChatResponse(
             ? input.content
             : existing?.content) ?? "";
 
-        if (coworkerId && title && content) {
-          const slug = title
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-|-$/g, "")
-            .slice(0, 60);
-          const filename = `${slug}.md`;
-          const { blob } = await addBlob({
-            data: content,
-            mime: "text/markdown",
-            filename,
-          });
-          const finalContentShort = JSON.stringify({
-            _type: "document",
-            coworkerId,
-            title,
-            blobId: blob.id,
-          });
+          const editKey = `${coworkerId}:${title}`;
+          if (coworkerId && title && editedDocuments.has(editKey)) {
+            const draftMessageId =
+              existing?.messageId ?? pendingDocumentMessages.get(coworkerId);
+            if (draftMessageId) {
+              await persistStreamingContent(
+                draftMessageId,
+                JSON.stringify({ _type: "system_removed" }),
+                "complete",
+              );
+            }
+            pendingDocumentMessages.delete(coworkerId);
+            documentBuffers.delete(event.toolCallId);
+            continue;
+          }
+
+          if (coworkerId && title && content) {
+            const slug = title
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "")
+              .slice(0, 60);
+            const filename = `${slug}.md`;
+            const { blob } = await addBlob({
+              data: content,
+              mime: "text/markdown",
+              filename,
+            });
+            const finalContentShort = JSON.stringify({
+              _type: "document",
+              coworkerId,
+              title,
+              blobId: blob.id,
+            });
 
           const messageId =
             existing?.messageId ?? pendingDocumentMessages.get(coworkerId);
@@ -709,6 +928,13 @@ async function streamChatResponse(
               finalContentShort,
               "complete",
             );
+            await addDocumentVersion({
+              messageId,
+              blobId: blob.id,
+              commitMessage: "Initial draft",
+              authorType: "coworker",
+              authorId: coworkerId,
+            });
             safeSend<ChatCompletePayload>(sender, "chat:complete", {
               messageId,
               content: finalContentShort,
@@ -721,6 +947,13 @@ async function streamChatResponse(
               contentShort: finalContentShort,
               status: "complete",
             });
+            await addDocumentVersion({
+              messageId: documentMessage.id,
+              blobId: blob.id,
+              commitMessage: "Initial draft",
+              authorType: "coworker",
+              authorId: coworkerId,
+            });
             safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
               threadId,
               message: documentMessage,
@@ -729,6 +962,558 @@ async function streamChatResponse(
         }
         pendingDocumentMessages.delete(coworkerId);
         documentBuffers.delete(event.toolCallId);
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "find_document"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as {
+                messageId?: unknown;
+                query?: unknown;
+                caseSensitive?: unknown;
+                maxHits?: unknown;
+              })
+            : null;
+        const messageId =
+          input?.messageId && typeof input.messageId === "string"
+            ? input.messageId
+            : "";
+        const query =
+          input?.query && typeof input.query === "string" ? input.query : "";
+        const caseSensitive =
+          typeof input?.caseSensitive === "boolean" ? input.caseSensitive : false;
+        const maxHits =
+          typeof input?.maxHits === "number" ? Math.min(input.maxHits, 50) : 20;
+
+        if (!messageId || !query) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "find_document",
+            error: `Missing required fields: ${[!messageId && "messageId", !query && "query"].filter(Boolean).join(", ")}.`,
+            retryKey: `${threadId}:find_document`,
+          });
+          continue;
+        }
+
+        const message = await getMessageById(messageId);
+        if (!message) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "find_document",
+            error: "Document not found. Re-list documents and verify the id.",
+            retryKey: `${threadId}:find_document`,
+          });
+          continue;
+        }
+
+        const metadata = parseDocumentMetadata(message.contentShort ?? null);
+        if (!metadata) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "find_document",
+            error: "Message is not a document. Choose a valid document id.",
+            retryKey: `${threadId}:find_document`,
+          });
+          continue;
+        }
+
+        const blob = await readBlob(metadata.blobId);
+        if (!blob) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "find_document",
+            error: "Document content unavailable.",
+            retryKey: `${threadId}:find_document`,
+          });
+          continue;
+        }
+
+        const docContent = blob.toString("utf-8");
+        const lines = docContent.split("\n");
+        const search = caseSensitive ? query : query.toLowerCase();
+        const hits: Array<{ line: number; preview: string }> = [];
+        for (let i = 0; i < lines.length; i += 1) {
+          const lineText = lines[i] ?? "";
+          const haystack = caseSensitive ? lineText : lineText.toLowerCase();
+          if (haystack.includes(search)) {
+            hits.push({ line: i + 1, preview: lineText.trim().slice(0, 160) });
+            if (hits.length >= maxHits) break;
+          }
+        }
+        // find_document result is informational — no state change needed
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "read_document_range"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as {
+                messageId?: unknown;
+                startLine?: unknown;
+                endLine?: unknown;
+              })
+            : null;
+        const messageId =
+          input?.messageId && typeof input.messageId === "string"
+            ? input.messageId
+            : "";
+        const startLine =
+          typeof input?.startLine === "number" ? input.startLine : 0;
+        const endLine =
+          typeof input?.endLine === "number" ? input.endLine : 0;
+
+        if (!messageId || startLine < 1 || endLine < 1) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "read_document_range",
+            error: `Missing required fields: ${[!messageId && "messageId", startLine < 1 && "startLine", endLine < 1 && "endLine"].filter(Boolean).join(", ")}.`,
+            retryKey: `${threadId}:read_document_range`,
+          });
+          continue;
+        }
+
+        const message = await getMessageById(messageId);
+        if (!message) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "read_document_range",
+            error: "Document not found. Re-list documents and verify the id.",
+            retryKey: `${threadId}:read_document_range`,
+          });
+          continue;
+        }
+
+        const metadata = parseDocumentMetadata(message.contentShort ?? null);
+        if (!metadata) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "read_document_range",
+            error: "Message is not a document. Choose a valid document id.",
+            retryKey: `${threadId}:read_document_range`,
+          });
+          continue;
+        }
+
+        const blob = await readBlob(metadata.blobId);
+        if (!blob) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "read_document_range",
+            error: "Document content unavailable.",
+            retryKey: `${threadId}:read_document_range`,
+          });
+          continue;
+        }
+
+        const docContent = blob.toString("utf-8");
+        const lines = docContent.split("\n");
+        const totalLines = lines.length;
+        const safeStart = Math.max(1, Math.min(startLine, totalLines));
+        const safeEnd = Math.max(safeStart, Math.min(endLine, totalLines));
+        const span = safeEnd - safeStart + 1;
+        if (span > MAX_DOCUMENT_RANGE_LINES) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "read_document_range",
+            error: `Requested range is too large (${span} lines). Maximum is ${MAX_DOCUMENT_RANGE_LINES} lines.`,
+            retryKey: `${threadId}:read_document_range`,
+          });
+          continue;
+        }
+
+        const numberedLines = lines
+          .slice(safeStart - 1, safeEnd)
+          .map((line, idx) => `${safeStart + idx}: ${line}`);
+        const rangeContent = numberedLines.join("\n");
+        // read_document_range result is informational — no state change needed
+        void rangeContent;
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "edit_document"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as {
+                coworkerId?: unknown;
+                messageId?: unknown;
+                edits?: unknown;
+                commitMessage?: unknown;
+              })
+            : null;
+        const coworkerId =
+          input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : "";
+        const messageId =
+          input?.messageId && typeof input.messageId === "string"
+            ? input.messageId
+            : "";
+        const edits = Array.isArray(input?.edits)
+          ? (input.edits as Array<{ search?: unknown; replace?: unknown }>)
+          : [];
+        const commitMessage =
+          input?.commitMessage && typeof input.commitMessage === "string"
+            ? input.commitMessage.trim()
+            : "";
+
+        if (!coworkerId || !messageId || edits.length === 0 || !commitMessage) {
+          const missing = [
+            !coworkerId && "coworkerId",
+            !messageId && "messageId",
+            edits.length === 0 && "edits",
+            !commitMessage && "commitMessage",
+          ].filter(Boolean).join(", ");
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: `Missing required fields: ${missing}.`,
+            retryKey: `${threadId}:edit_document`,
+          });
+          continue;
+        }
+
+        const message = await getMessageById(messageId);
+        if (!message) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: "Document not found. Re-list documents and verify the id.",
+            retryKey: `${threadId}:${messageId}:edit_document`,
+          });
+          continue;
+        }
+
+        const metadata = parseDocumentMetadata(message.contentShort ?? null);
+        if (!metadata) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: "Message is not a document. Choose a valid document id.",
+            retryKey: `${threadId}:${messageId}:edit_document`,
+          });
+          continue;
+        }
+
+        const blob = await readBlob(metadata.blobId);
+        if (!blob) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: "Document content unavailable.",
+            retryKey: `${threadId}:${messageId}:edit_document`,
+          });
+          continue;
+        }
+
+        let currentContent = blob.toString("utf-8");
+        const originalContent = currentContent;
+        const originalLength = currentContent.length;
+        let editFailed = false;
+
+        for (const edit of edits) {
+          const search = typeof edit.search === "string" ? edit.search : "";
+          const replace = typeof edit.replace === "string" ? edit.replace : "";
+
+          if (!search) {
+            await triggerToolRetry({
+              sender,
+              threadId,
+              toolName: "edit_document",
+              error: "An edit has an empty search string. Each edit must have a non-empty search value.",
+              retryKey: `${threadId}:${messageId}:edit_document`,
+            });
+            editFailed = true;
+            break;
+          }
+
+          const matchOutcome = fuzzyFindText(currentContent, search);
+
+          if (!matchOutcome.ok) {
+            await triggerToolRetry({
+              sender,
+              threadId,
+              toolName: "edit_document",
+              error: matchOutcome.error.message,
+              retryKey: `${threadId}:${messageId}:edit_document`,
+            });
+            editFailed = true;
+            break;
+          }
+
+          const { startIndex, endIndex } = matchOutcome.result;
+          currentContent =
+            currentContent.slice(0, startIndex) +
+            replace +
+            currentContent.slice(endIndex);
+        }
+
+        if (editFailed) {
+          continue;
+        }
+
+        // No-op detection: edits resolved but produced no actual change
+        if (currentContent === originalContent) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: "The edits matched text in the document but produced no changes. Verify the replacement text differs from the search text.",
+            retryKey: `${threadId}:${messageId}:edit_document`,
+          });
+          continue;
+        }
+
+        // Post-edit validation
+        if (originalLength > 0 && currentContent.length === 0) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: "Edit would result in an empty document. This is likely an error.",
+            retryKey: `${threadId}:${messageId}:edit_document`,
+          });
+          continue;
+        }
+
+        if (
+          originalLength > 0 &&
+          currentContent.length < originalLength * 0.2
+        ) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "edit_document",
+            error: "Edit would remove more than 80% of the document content. Use smaller, targeted edits.",
+            retryKey: `${threadId}:${messageId}:edit_document`,
+          });
+          continue;
+        }
+
+        // Handle external documents
+        const isExternalDocument = message.threadId !== threadId;
+        if (isExternalDocument) {
+          const decision = await resolveExternalDocumentDecision(
+            threadId,
+            messageId,
+          );
+          if (!decision || decision === "cancel") {
+            const systemMessage = await createMessage({
+              threadId,
+              authorType: "system",
+              contentShort:
+                "I need permission to edit that document. Want to edit the original or make a copy?",
+              status: "complete",
+            });
+            safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+              threadId,
+              message: systemMessage,
+            });
+            continue;
+          }
+
+          if (decision === "copy") {
+            const blobId = await createDocumentBlob(metadata.title, currentContent);
+            const documentJson = JSON.stringify({
+              _type: "document",
+              coworkerId,
+              title: metadata.title,
+              blobId,
+            });
+            const copyMessage = await createMessage({
+              threadId,
+              authorType: "coworker",
+              authorId: coworkerId,
+              contentShort: documentJson,
+              status: "complete",
+            });
+            await addDocumentVersion({
+              messageId: copyMessage.id,
+              blobId,
+              commitMessage,
+              authorType: "coworker",
+              authorId: coworkerId,
+            });
+            safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+              threadId,
+              message: copyMessage,
+            });
+            continue;
+          }
+        }
+
+        const blobId = await createDocumentBlob(metadata.title, currentContent);
+        const updatedContentShort = JSON.stringify({
+          _type: "document",
+          coworkerId: metadata.coworkerId ?? coworkerId,
+          title: metadata.title,
+          blobId,
+        });
+
+        await updateMessage(messageId, { contentShort: updatedContentShort });
+        await addDocumentVersion({
+          messageId,
+          blobId,
+          commitMessage,
+          authorType: "coworker",
+          authorId: coworkerId,
+        });
+        editedDocuments.add(`${coworkerId}:${metadata.title}`);
+        safeSend<ChatCompletePayload>(sender, "chat:complete", {
+          messageId,
+          content: updatedContentShort,
+        });
+
+        if (isExternalDocument) {
+          const linkMessage = await createMessage({
+            threadId,
+            authorType: "coworker",
+            authorId: coworkerId,
+            contentShort: updatedContentShort,
+            status: "complete",
+          });
+          await addDocumentVersion({
+            messageId: linkMessage.id,
+            blobId,
+            commitMessage: `Linked: ${commitMessage}`,
+            authorType: "coworker",
+            authorId: coworkerId,
+          });
+          safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+            threadId,
+            message: linkMessage,
+          });
+        }
+
+        continue;
+      }
+
+      if (
+        event.type === "tool-input-available" &&
+        event.toolName === "create_document_copy"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as {
+                coworkerId?: unknown;
+                messageId?: unknown;
+                title?: unknown;
+                commitMessage?: unknown;
+              })
+            : null;
+        const coworkerId =
+          input?.coworkerId && typeof input.coworkerId === "string"
+            ? input.coworkerId
+            : "";
+        const messageId =
+          input?.messageId && typeof input.messageId === "string"
+            ? input.messageId
+            : "";
+        const overrideTitle =
+          input?.title && typeof input.title === "string" ? input.title : "";
+        const commitMessage =
+          input?.commitMessage && typeof input.commitMessage === "string"
+            ? input.commitMessage.trim()
+            : "Initial copy";
+
+        if (!coworkerId || !messageId) {
+          const missing = [
+            !coworkerId && "coworkerId",
+            !messageId && "messageId",
+          ].filter(Boolean).join(", ");
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "create_document_copy",
+            error: `Missing required fields: ${missing}.`,
+            retryKey: `${threadId}:create_document_copy`,
+          });
+          continue;
+        }
+
+        const message = await getMessageById(messageId);
+        if (!message) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "create_document_copy",
+            error: "Document not found. Re-list documents and verify the id.",
+            retryKey: `${threadId}:${messageId}:create_document_copy`,
+          });
+          continue;
+        }
+        const metadata = parseDocumentMetadata(message.contentShort ?? null);
+        if (!metadata) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "create_document_copy",
+            error: "Message is not a document. Choose a valid document id.",
+            retryKey: `${threadId}:${messageId}:create_document_copy`,
+          });
+          continue;
+        }
+        const blob = await readBlob(metadata.blobId);
+        if (!blob) {
+          await triggerToolRetry({
+            sender,
+            threadId,
+            toolName: "create_document_copy",
+            error: "Document content unavailable.",
+            retryKey: `${threadId}:${messageId}:create_document_copy`,
+          });
+          continue;
+        }
+
+        const content = blob.toString("utf-8");
+        const title = overrideTitle.trim().length > 0 ? overrideTitle : metadata.title;
+        const blobId = await createDocumentBlob(title, content);
+        const documentJson = JSON.stringify({
+          _type: "document",
+          coworkerId,
+          title,
+          blobId,
+        });
+        const copyMessage = await createMessage({
+          threadId,
+          authorType: "coworker",
+          authorId: coworkerId,
+          contentShort: documentJson,
+          status: "complete",
+        });
+        await addDocumentVersion({
+          messageId: copyMessage.id,
+          blobId,
+          commitMessage,
+          authorType: "coworker",
+          authorId: coworkerId,
+        });
+        safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+          threadId,
+          message: copyMessage,
+        });
         continue;
       }
 
@@ -757,6 +1542,7 @@ async function streamChatResponse(
           event.input && typeof event.input === "object"
             ? (event.input as {
                 coworkerId?: unknown;
+                context?: unknown;
                 questions?: unknown;
               })
             : null;
@@ -764,6 +1550,13 @@ async function streamChatResponse(
           input?.coworkerId && typeof input.coworkerId === "string"
             ? input.coworkerId
             : "";
+        const context =
+          input?.context && typeof input.context === "object"
+            ? (input.context as {
+                documentId?: unknown;
+                documentTitle?: unknown;
+              })
+            : null;
         const questions = Array.isArray(input?.questions)
           ? input.questions
           : [];
@@ -772,6 +1565,7 @@ async function streamChatResponse(
           const interviewJson = JSON.stringify({
             _type: "interview",
             coworkerId,
+            context: context ?? undefined,
             questions,
             answers: null,
           });
@@ -1070,6 +1864,20 @@ async function streamChatResponse(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to stream response";
+    const retryKey = `${threadId}:${responseId}`;
+    const retryCount = streamRetryCounts.get(retryKey) ?? 0;
+    const shouldRetry =
+      !controller.signal.aborted &&
+      retryCount < MAX_STREAM_RETRIES &&
+      shouldRetryStreamError(message);
+
+    if (shouldRetry) {
+      streamRetryCounts.set(retryKey, retryCount + 1);
+      emitStatus("Retrying...", "streaming");
+      enqueueStreamRetry({ sender, threadId, content, responseId });
+      return;
+    }
+
     for (const buffer of coworkerBuffers.values()) {
       if (buffer.messageId) {
         await persistStreamingContent(buffer.messageId, buffer.content, "error");

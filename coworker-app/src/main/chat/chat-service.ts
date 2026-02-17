@@ -2,13 +2,14 @@ import { getCurrentWorkspace } from "../workspace";
 import { getThreadById } from "../thread";
 import { getChannelById, listChannelCoworkers } from "../channel";
 import { getCoworkerById } from "../coworker";
-import { getMessageById, listMessages } from "../message";
+import { getMessageById, listMessages, listDocumentsByWorkspace } from "../message";
 import { searchKnowledgeSources } from "../knowledge/indexing/retrieval";
 import { getKnowledgeSourceById } from "../knowledge/knowledge-service";
 import { readBlob } from "../blob";
 import type { Coworker, Message, SourceScopeType } from "../database";
 import type {
   ChatCoworkerContext,
+  ChatDocumentSummary,
   ChatMessage,
   RagContextItem,
 } from "@coworker/shared-services";
@@ -29,6 +30,13 @@ export interface SystemPromptContext extends ThreadContext {
 
 const coworkerMentionTokenPattern = /@\{coworker:([^|}]+)\|([^}]+)\}/g;
 const documentMentionTokenPattern = /@\{document:([^|}]+)\|([^}]+)\}/g;
+const MAX_DOCUMENT_RANGE_LINES = 400;
+
+interface DocumentMetadata {
+  title: string;
+  blobId: string;
+  coworkerId?: string;
+}
 
 export function extractMentionedCoworkerIds(content: string): string[] {
   if (!content) return [];
@@ -65,6 +73,62 @@ export function normalizeMentionsForLlm(content: string): string {
     (_, _id: string, name: string) =>
       name ? `@Document: ${name}` : "@Document",
   );
+}
+
+export function parseDocumentMetadata(contentShort: string | null): DocumentMetadata | null {
+  if (!contentShort) return null;
+  try {
+    const parsed = JSON.parse(contentShort) as {
+      _type?: string;
+      title?: unknown;
+      blobId?: unknown;
+      coworkerId?: unknown;
+    };
+    if (parsed._type !== "document") return null;
+    const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
+    const blobId = typeof parsed.blobId === "string" ? parsed.blobId.trim() : "";
+    if (!title || !blobId) return null;
+    const coworkerId =
+      typeof parsed.coworkerId === "string" && parsed.coworkerId.trim().length > 0
+        ? parsed.coworkerId
+        : undefined;
+    return { title, blobId, coworkerId };
+  } catch {
+    return null;
+  }
+}
+
+function countLines(content: string): number {
+  if (content.length === 0) return 0;
+  return content.split("\n").length;
+}
+
+async function buildDocumentSummary(
+  message: Message,
+): Promise<ChatDocumentSummary | null> {
+  const metadata = parseDocumentMetadata(message.contentShort ?? null);
+  if (!metadata) return null;
+
+  const thread = await getThreadById(message.threadId);
+  if (!thread) return null;
+  const channel = await getChannelById(thread.channelId);
+  if (!channel) return null;
+
+  const blob = await readBlob(metadata.blobId);
+  const content = blob ? blob.toString("utf-8") : "";
+
+  return {
+    messageId: message.id,
+    title: metadata.title,
+    threadId: thread.id,
+    threadTitle: thread.title ?? null,
+    channelId: channel.id,
+    channelName: channel.name,
+    authorId: message.authorId ?? null,
+    updatedAt: message.updatedAt?.getTime?.() ?? 0,
+    lineCount: countLines(content),
+    byteSize: Buffer.byteLength(content, "utf-8"),
+  };
 }
 
 export async function getThreadContext(threadId: string): Promise<ThreadContext> {
@@ -156,10 +220,28 @@ export function buildOrchestratorSystemPrompt(
     "- The user's answers will appear in the next message. Then proceed normally with coworker responses.",
     "- Only use `request_interview` once per turn. Do not combine it with `generate_coworker_response`.",
     "",
-    "Document artifacts:",
-    "- When a coworker will produce a document, brief, report, plan, or any structured artifact, call `start_document_draft` with the coworkerId and title BEFORE calling `generate_coworker_response`. This shows a drafting indicator to the user while the content is being generated.",
-    "- After `generate_coworker_response` completes, call `emit_coworker_message` for the short conversational response, then `emit_document` with the full document content.",
+    "Document artifacts (creating NEW documents):",
+    "- Only use `start_document_draft` and `emit_document` when creating a brand-new document.",
+    "- Do NOT call `emit_document` when editing an existing document — use `edit_document` instead.",
+    "- When creating: call `start_document_draft`, then `generate_coworker_response`, then `emit_coworker_message` (short response), then `emit_document` (full content).",
     "- Do NOT put full document content in `emit_coworker_message` — keep the message short and conversational.",
+    "",
+    "Document editing (modifying EXISTING documents):",
+    "- Use `read_document_range` to see the current content before making any edits.",
+    "- Use `edit_document` to make changes. Provide text from the document as the 'search' value.",
+    "- Copy text from read_document_range output (without line number prefixes).",
+    "- Include enough surrounding context in 'search' to uniquely identify the location.",
+    "- Multiple edits can be applied in one call — they are applied in order.",
+    "- `edit_document` updates the document in place and records a version — do NOT also call `emit_document`.",
+    "- After editing, call `emit_coworker_message` with a short conversational summary of the changes.",
+    "- Documents in the current thread can be edited without permission.",
+    "- Documents outside the current thread require user permission via `request_interview`.",
+    "- When asking permission, offer: \"Edit original\", \"Make a copy\", \"Cancel\".",
+    "- Always include a concise commit message describing what changed.",
+    "- Use `list_thread_documents` to see documents in this thread.",
+    "- Use `list_workspace_documents` to discover other documents.",
+    "- Use `find_document` and `read_document_range` to read only the necessary sections.",
+    "- If a tool returns an error or ok=false, revise the request and try again.",
   );
 
   if (shouldAutoTitle) {
@@ -388,6 +470,129 @@ export function buildSystemPrompt(context: SystemPromptContext): string {
   return lines.join("\n");
 }
 
+export async function listThreadDocumentSummaries(
+  threadId: string,
+): Promise<ChatDocumentSummary[]> {
+  const messages = await listMessages(threadId);
+  const summaries: ChatDocumentSummary[] = [];
+
+  for (const message of messages) {
+    const summary = await buildDocumentSummary(message);
+    if (summary) {
+      summaries.push(summary);
+    }
+  }
+
+  return summaries;
+}
+
+export async function listMentionedDocumentSummaries(
+  messageIds: string[],
+): Promise<ChatDocumentSummary[]> {
+  const uniqueIds = Array.from(new Set(messageIds)).filter((id) => id.trim().length > 0);
+  const summaries: ChatDocumentSummary[] = [];
+
+  for (const messageId of uniqueIds) {
+    const message = await getMessageById(messageId);
+    if (!message) continue;
+    const summary = await buildDocumentSummary(message);
+    if (summary) {
+      summaries.push(summary);
+    }
+  }
+
+  return summaries;
+}
+
+export async function listWorkspaceDocumentSummaries(): Promise<ChatDocumentSummary[]> {
+  const docs = await listDocumentsByWorkspace();
+  const summaries: ChatDocumentSummary[] = [];
+
+  for (const doc of docs) {
+    const message = await getMessageById(doc.messageId);
+    if (!message) continue;
+    const summary = await buildDocumentSummary(message);
+    if (summary) {
+      summaries.push(summary);
+    }
+  }
+
+  return summaries;
+}
+
+export async function buildDocumentContentsMap(
+  messageIds: string[],
+): Promise<Record<string, string>> {
+  const uniqueIds = Array.from(new Set(messageIds)).filter((id) => id.trim().length > 0);
+  const contents: Record<string, string> = {};
+
+  for (const messageId of uniqueIds) {
+    const message = await getMessageById(messageId);
+    if (!message) continue;
+    const metadata = parseDocumentMetadata(message.contentShort ?? null);
+    if (!metadata) continue;
+    const blob = await readBlob(metadata.blobId);
+    if (!blob) continue;
+    contents[messageId] = blob.toString("utf-8");
+  }
+
+  return contents;
+}
+
+export async function readDocumentRange(
+  messageId: string,
+  startLine: number,
+  endLine: number,
+): Promise<{ content: string; startLine: number; endLine: number; totalLines: number } | null> {
+  const message = await getMessageById(messageId);
+  if (!message) return null;
+  const metadata = parseDocumentMetadata(message.contentShort ?? null);
+  if (!metadata) return null;
+  const blob = await readBlob(metadata.blobId);
+  if (!blob) return null;
+  const content = blob.toString("utf-8");
+  const lines = content.split("\n");
+  const totalLines = lines.length;
+  const safeStart = Math.max(1, Math.min(startLine, totalLines));
+  const safeEnd = Math.max(safeStart, Math.min(endLine, totalLines));
+  const span = safeEnd - safeStart + 1;
+  if (span > MAX_DOCUMENT_RANGE_LINES) {
+    return null;
+  }
+  const slice = lines.slice(safeStart - 1, safeEnd).join("\n");
+  return { content: slice, startLine: safeStart, endLine: safeEnd, totalLines };
+}
+
+export async function findDocumentMatches(
+  messageId: string,
+  query: string,
+  caseSensitive: boolean,
+  maxHits: number,
+): Promise<Array<{ line: number; preview: string }>> {
+  const message = await getMessageById(messageId);
+  if (!message) return [];
+  const metadata = parseDocumentMetadata(message.contentShort ?? null);
+  if (!metadata) return [];
+  const blob = await readBlob(metadata.blobId);
+  if (!blob) return [];
+
+  const content = blob.toString("utf-8");
+  const lines = content.split("\n");
+  const search = caseSensitive ? query : query.toLowerCase();
+  const results: Array<{ line: number; preview: string }> = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const lineText = lines[i] ?? "";
+    const haystack = caseSensitive ? lineText : lineText.toLowerCase();
+    if (haystack.includes(search)) {
+      results.push({ line: i + 1, preview: lineText.trim().slice(0, 160) });
+      if (results.length >= maxHits) break;
+    }
+  }
+
+  return results;
+}
+
 export async function gatherRagContext(
   query: string,
   threadId: string,
@@ -496,29 +701,6 @@ export async function gatherRagContext(
   return contextItems;
 }
 
-interface DocumentMention {
-  title: string;
-  blobId: string;
-}
-
-function parseDocumentMention(contentShort: string | null): DocumentMention | null {
-  if (!contentShort) return null;
-  try {
-    const parsed = JSON.parse(contentShort) as {
-      _type?: string;
-      title?: unknown;
-      blobId?: unknown;
-    };
-    if (parsed._type !== "document") return null;
-    const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
-    const blobId = typeof parsed.blobId === "string" ? parsed.blobId.trim() : "";
-    if (!title || !blobId) return null;
-    return { title, blobId };
-  } catch {
-    return null;
-  }
-}
-
 export async function gatherMentionedDocumentContext(
   messageIds: string[],
 ): Promise<RagContextItem[]> {
@@ -532,7 +714,7 @@ export async function gatherMentionedDocumentContext(
   for (const messageId of uniqueIds) {
     const message = await getMessageById(messageId);
     if (!message) continue;
-    const document = parseDocumentMention(message.contentShort ?? null);
+    const document = parseDocumentMetadata(message.contentShort ?? null);
     if (!document) continue;
 
     const blob = await readBlob(document.blobId);
@@ -578,9 +760,6 @@ function mapMessageRole(message: Message): ChatMessage["role"] | null {
   if (message.authorType === "coworker") {
     return "assistant";
   }
-  if (message.authorType === "system") {
-    return "system";
-  }
   if (message.authorType === "user") {
     return "user";
   }
@@ -590,10 +769,33 @@ function mapMessageRole(message: Message): ChatMessage["role"] | null {
 function resolveInterviewContent(contentShort: string | null): string | null {
   if (!contentShort) return null;
   try {
-    const parsed = JSON.parse(contentShort) as { _type?: string; title?: string; questions?: Array<{ id: string; question: string }>; answers?: Record<string, string> | null };
+    const parsed = JSON.parse(contentShort) as {
+      _type?: string;
+      title?: string;
+      questions?: Array<{ id: string; question: string }>;
+      answers?: Record<string, string> | null;
+      context?: { documentId?: unknown; documentTitle?: unknown };
+      toolName?: string;
+      error?: string;
+    };
     if (parsed._type === "interview") {
       if (!parsed.answers) return null;
       const lines: string[] = ["[Interview answers]"];
+      if (parsed.context) {
+        const docId =
+          typeof parsed.context.documentId === "string"
+            ? parsed.context.documentId
+            : null;
+        const docTitle =
+          typeof parsed.context.documentTitle === "string"
+            ? parsed.context.documentTitle
+            : null;
+        if (docId || docTitle) {
+          lines.push(
+            `Document: ${docTitle ?? "Untitled"} (${docId ?? "unknown id"})`,
+          );
+        }
+      }
       for (const q of parsed.questions ?? []) {
         const answer = parsed.answers[q.id];
         if (!answer) continue;
@@ -604,6 +806,13 @@ function resolveInterviewContent(contentShort: string | null): string | null {
     }
     if (parsed._type === "document") {
       return `[Document: ${parsed.title ?? "Untitled"}]`;
+    }
+    if (parsed._type === "tool_error") {
+      const toolName =
+        typeof parsed.toolName === "string" ? parsed.toolName : "tool";
+      const error =
+        typeof parsed.error === "string" ? parsed.error : "Tool error";
+      return `[Tool error] ${toolName}: ${error}`;
     }
   } catch {
     // Not JSON — treat as regular content

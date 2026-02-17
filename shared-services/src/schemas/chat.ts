@@ -37,10 +37,27 @@ export const chatCoworkerContextSchema = z.object({
   model: z.string().min(1).nullable(),
 });
 
+export const chatDocumentSummarySchema = z.object({
+  messageId: z.string().min(1),
+  title: z.string().min(1),
+  threadId: z.string().min(1),
+  threadTitle: z.string().nullable(),
+  channelId: z.string().min(1),
+  channelName: z.string().min(1),
+  authorId: z.string().min(1).nullable(),
+  updatedAt: z.number().int().nonnegative(),
+  lineCount: z.number().int().nonnegative(),
+  byteSize: z.number().int().nonnegative(),
+});
+
 export const chatCompletionRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1),
   systemPrompt: z.string().min(1),
   ragContext: z.array(ragContextItemSchema),
+  threadDocuments: z.array(chatDocumentSummarySchema),
+  mentionedDocuments: z.array(chatDocumentSummarySchema),
+  workspaceDocuments: z.array(chatDocumentSummarySchema),
+  documentContents: z.record(z.string().min(1), z.string()),
   threadContext: chatThreadContextSchema,
   channelCoworkers: z.array(chatCoworkerContextSchema),
   mentionedCoworkerIds: z.array(z.string().min(1)),

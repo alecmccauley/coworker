@@ -15,6 +15,10 @@ export interface InterviewData {
   coworkerId: string;
   questions: InterviewQuestion[];
   answers: InterviewAnswers | null;
+  context?: {
+    documentId?: string;
+    documentTitle?: string;
+  };
 }
 
 export function parseInterviewData(

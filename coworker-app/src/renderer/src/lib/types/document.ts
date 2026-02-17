@@ -25,6 +25,16 @@ export interface WorkspaceDocument {
   createdAt: Date;
 }
 
+export interface DocumentVersion {
+  id: string;
+  messageId: string;
+  blobId: string;
+  commitMessage: string;
+  authorType: "user" | "coworker" | "system";
+  authorId: string | null;
+  createdAt: Date;
+}
+
 export function parseDocumentData(
   contentShort: string | null | undefined,
 ): DocumentData | null {

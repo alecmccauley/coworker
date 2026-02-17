@@ -427,10 +427,12 @@ const api = {
       ipcRenderer.invoke("api:hello:sayHello", name),
   },
   updates: {
-    getState: () => ipcRenderer.invoke("updates:getState") as Promise<UpdateState>,
+    getState: () =>
+      ipcRenderer.invoke("updates:getState") as Promise<UpdateState>,
     check: () => ipcRenderer.invoke("updates:check") as Promise<void>,
     download: () => ipcRenderer.invoke("updates:download") as Promise<void>,
-    quitAndInstall: () => ipcRenderer.invoke("updates:quitAndInstall") as Promise<void>,
+    quitAndInstall: () =>
+      ipcRenderer.invoke("updates:quitAndInstall") as Promise<void>,
     setAutoDownload: (value: boolean) =>
       ipcRenderer.invoke("updates:setAutoDownload", value) as Promise<void>,
     getAutoDownload: () =>
@@ -449,6 +451,10 @@ const api = {
   },
   menu: {
     refresh: () => ipcRenderer.invoke("menu:refresh") as Promise<void>,
+  },
+  clipboard: {
+    writeRich: (input: { html: string; text: string }) =>
+      ipcRenderer.invoke("clipboard:writeRich", input) as Promise<void>,
   },
   users: {
     list: async () => ipcRenderer.invoke("api:users:list"),
@@ -533,8 +539,7 @@ const api = {
     onOpenWorkersSettings: (callback: () => void) => {
       const handler = (): void => callback();
       ipcRenderer.on("menu:settings:workers", handler);
-      return () =>
-        ipcRenderer.removeListener("menu:settings:workers", handler);
+      return () => ipcRenderer.removeListener("menu:settings:workers", handler);
     },
     onOpenUpdates: (callback: () => void) => {
       const handler = (): void => callback();
@@ -638,6 +643,19 @@ const api = {
     listDocumentsByWorkspace: () =>
       ipcRenderer.invoke("message:listDocumentsByWorkspace"),
   },
+  documentHistory: {
+    list: (messageId: string) =>
+      ipcRenderer.invoke("documentHistory:list", messageId),
+    get: (versionId: string) =>
+      ipcRenderer.invoke("documentHistory:get", versionId),
+    revert: (input: {
+      messageId: string;
+      versionId: string;
+      commitMessage: string;
+      authorType: "user" | "coworker" | "system";
+      authorId?: string | null;
+    }) => ipcRenderer.invoke("documentHistory:revert", input),
+  },
   knowledge: {
     add: (input: AddKnowledgeItemInput) =>
       ipcRenderer.invoke("knowledge:add", input) as Promise<KnowledgeItem>,
@@ -689,10 +707,9 @@ const api = {
     extractSource: (id: string, force?: boolean) =>
       ipcRenderer.invoke("knowledge:extractSource", id, force) as Promise<void>,
     searchSources: (params: SearchParams) =>
-      ipcRenderer.invoke(
-        "knowledge:searchSources",
-        params,
-      ) as Promise<RagChunkResult[]>,
+      ipcRenderer.invoke("knowledge:searchSources", params) as Promise<
+        RagChunkResult[]
+      >,
     getSourceText: (sourceId: string, tokenCap: number) =>
       ipcRenderer.invoke(
         "knowledge:getSourceText",
@@ -718,17 +735,15 @@ const api = {
         scopeType,
         scopeId,
       ) as Promise<ImportSourcesResult>,
-    requestFileAccessForDrop: (
-      defaultPath?: string,
-    ): Promise<string[]> =>
+    requestFileAccessForDrop: (defaultPath?: string): Promise<string[]> =>
       ipcRenderer.invoke(
         "knowledge:requestFileAccessForDrop",
         defaultPath,
       ) as Promise<string[]>,
     requestFolderAccess: (): Promise<{ granted: boolean }> =>
-      ipcRenderer.invoke(
-        "knowledge:requestFolderAccess",
-      ) as Promise<{ granted: boolean }>,
+      ipcRenderer.invoke("knowledge:requestFolderAccess") as Promise<{
+        granted: boolean;
+      }>,
     onImportProgress: (
       handler: (payload: ImportProgressPayload) => void,
     ): (() => void) => {
@@ -756,7 +771,11 @@ const api = {
     list: (coworkerId: string) =>
       ipcRenderer.invoke("memory:list", coworkerId) as Promise<MemoryItem[]>,
     forget: (memoryId: string, coworkerId: string) =>
-      ipcRenderer.invoke("memory:forget", memoryId, coworkerId) as Promise<void>,
+      ipcRenderer.invoke(
+        "memory:forget",
+        memoryId,
+        coworkerId,
+      ) as Promise<void>,
   },
   blob: {
     add: (input: AddBlobInput) =>
@@ -784,9 +803,9 @@ const api = {
         readAt,
       ) as Promise<void>,
     getUnreadCounts: () =>
-      ipcRenderer.invoke(
-        "notifications:getUnreadCounts",
-      ) as Promise<Record<string, number>>,
+      ipcRenderer.invoke("notifications:getUnreadCounts") as Promise<
+        Record<string, number>
+      >,
     getUnreadThreads: (channelId: string) =>
       ipcRenderer.invoke(
         "notifications:getUnreadThreads",
@@ -798,11 +817,10 @@ const api = {
   },
   chat: {
     sendMessage: (threadId: string, content: string) =>
-      ipcRenderer.invoke(
-        "chat:sendMessage",
-        threadId,
-        content,
-      ) as Promise<{ userMessage: Message; responseId: string }>,
+      ipcRenderer.invoke("chat:sendMessage", threadId, content) as Promise<{
+        userMessage: Message;
+        responseId: string;
+      }>,
     cancelMessage: (messageId: string) =>
       ipcRenderer.invoke("chat:cancelMessage", messageId) as Promise<void>,
     onMessageCreated: (
@@ -845,9 +863,7 @@ const api = {
         ipcRenderer.removeListener("chat:error", listener);
       };
     },
-    onStatus: (
-      handler: (payload: ChatStatusPayload) => void,
-    ): (() => void) => {
+    onStatus: (handler: (payload: ChatStatusPayload) => void): (() => void) => {
       const listener = (_event: unknown, payload: unknown): void => {
         handler(payload as ChatStatusPayload);
       };

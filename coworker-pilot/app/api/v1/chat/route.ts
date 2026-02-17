@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
 const TITLE_TOOL_NAME = "set_conversation_title";
 const INTERVIEW_TOOL_NAME = "request_interview";
 const MAX_COWORKER_RESPONSES = 10;
-
 function buildContextBlock(request: ChatCompletionRequest): string {
   const activityInstruction = [
     "Use report_status to share short, user-safe activity updates (no internal reasoning).",
@@ -384,6 +383,73 @@ async function handlePost(
             mentionedCoworkerIds: data.mentionedCoworkerIds,
           }),
         },
+        list_thread_documents: {
+          description: "List all documents in the current thread.",
+          inputSchema: z.object({}),
+          execute: async () => ({
+            documents: data.threadDocuments,
+            ok: true,
+          }),
+        },
+        list_workspace_documents: {
+          description: "List all documents in the workspace.",
+          inputSchema: z.object({}),
+          execute: async () => ({
+            documents: data.workspaceDocuments,
+            ok: true,
+          }),
+        },
+        find_document: {
+          description:
+            "Find lines in a document that match a query. Use before reading ranges.",
+          inputSchema: z.object({
+            messageId: z.string().min(1),
+            query: z.string().min(1),
+            caseSensitive: z.boolean().optional(),
+            maxHits: z.number().int().positive().max(50).optional(),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        read_document_range: {
+          description:
+            "Read a specific line range from a document. Large ranges are rejected.",
+          inputSchema: z.object({
+            messageId: z.string().min(1),
+            startLine: z.number().int().positive(),
+            endLine: z.number().int().positive(),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        edit_document: {
+          description:
+            "Edit a document by finding and replacing exact text. " +
+            "Each edit has a 'search' string (must exactly match text in the document) " +
+            "and a 'replace' string (the new content). " +
+            "Include enough surrounding context in 'search' to uniquely identify the location. " +
+            "To delete text, set replace to empty string. " +
+            "IMPORTANT: Always call read_document_range first to see current content. " +
+            "Copy exact text from the read output for your search strings.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            messageId: z.string().min(1),
+            edits: z.array(z.object({
+              search: z.string().min(1),
+              replace: z.string(),
+            })).min(1).max(20),
+            commitMessage: z.string().min(1).max(120),
+          }),
+          execute: async () => ({ ok: true }),
+        },
+        create_document_copy: {
+          description: "Create a copy of an existing document in the current thread.",
+          inputSchema: z.object({
+            coworkerId: z.string().min(1),
+            messageId: z.string().min(1),
+            title: z.string().min(1).max(200).optional(),
+            commitMessage: z.string().min(1).max(120).optional(),
+          }),
+          execute: async () => ({ ok: true }),
+        },
         generate_coworker_response: {
           description:
             "Generate a response as a specific coworker using their role prompt and defaults.",
@@ -440,6 +506,12 @@ async function handlePost(
             "Ask the user 1-5 multiple-choice clarifying questions before generating coworker responses. Use when the request is ambiguous or would benefit from more context.",
           inputSchema: z.object({
             coworkerId: z.string().min(1),
+            context: z
+              .object({
+                documentId: z.string().min(1).optional(),
+                documentTitle: z.string().min(1).optional(),
+              })
+              .optional(),
             questions: z
               .array(
                 z.object({

@@ -23,6 +23,7 @@
   let dialogOpen = $state(false)
   let dialogTitle = $state('')
   let dialogBlobId = $state('')
+  let dialogMessageId = $state('')
 
   let isRenameOpen = $state(false)
   let renameTarget = $state<ChannelDocument | null>(null)
@@ -67,6 +68,7 @@
     if (!parsed?.blobId) return
     dialogTitle = parsed.title
     dialogBlobId = parsed.blobId
+    dialogMessageId = doc.messageId
     dialogOpen = true
   }
 
@@ -192,6 +194,7 @@
   bind:open={dialogOpen}
   title={dialogTitle}
   blobId={dialogBlobId}
+  messageId={dialogMessageId}
 />
 
 <DocumentRenameDialog
