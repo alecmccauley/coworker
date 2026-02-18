@@ -137,6 +137,7 @@ We support a streaming chat pipeline for thread conversations:
 - API route `/api/v1/chat` runs a tool-orchestrated loop that selects coworkers and generates each reply via subordinate calls.
 - Renderer updates coworker messages incrementally from IPC events.
 - The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.
+- If Gemini throws a tool-call `thought_signature` error while setting up orchestration, the API retries once with `report_status` disabled for that run.
 - The model can emit `save_memory` tool calls; the main process persists memories and links them to coworkers for future retrieval.
 - The model can invoke document editing tools (`find_document`, `read_document_range`, `edit_document`, `create_document_copy`); these are placeholder executors on the API — the main process handles them against live blob content, applying search-and-replace edits and emitting document updates.
 - Document edits are versioned: each edit stores a new blob + commit message in `document_versions`, and the viewer exposes a version sidebar for preview/revert.
