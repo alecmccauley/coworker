@@ -551,6 +551,11 @@ Chat streaming supports model tool calls. Current tools:
 - `request_interview` — Asks the user 1-5 clarifying multiple-choice questions before generating coworker responses. Triggers a `stopWhen` halt so the client can render the interview UI and collect answers.
 - `emit_document` — Emits a document artifact (brief, report, plan, etc.) as a separate `.md` file stored via blob storage. The client renders a clickable document bar in the thread with a dialog for viewing the rendered markdown.
 
+Provider resilience behavior:
+
+- If Gemini returns a tool-call `thought_signature` error during orchestration setup, the API retries once with `report_status` disabled for that run.
+- The retry keeps all other tools enabled and preserves normal response streaming semantics.
+
 Chat request payload includes orchestration context:
 
 - `threadContext` — Thread/channel/workspace metadata used for coworker system prompts.

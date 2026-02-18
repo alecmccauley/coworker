@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateText, streamText } from "ai";
+import { generateText, streamText, type ModelMessage } from "ai";
 import { prisma } from "@coworker/shared-services/db";
 import { z } from "zod";
 import {
@@ -19,6 +19,25 @@ export const dynamic = "force-dynamic";
 const TITLE_TOOL_NAME = "set_conversation_title";
 const INTERVIEW_TOOL_NAME = "request_interview";
 const MAX_COWORKER_RESPONSES = 10;
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "";
+}
+
+function isGeminiThoughtSignatureError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("thought_signature") ||
+    message.includes("missing a thought signature") ||
+    message.includes("missing thought signature")
+  );
+}
 function buildContextBlock(request: ChatCompletionRequest): string {
   const activityInstruction = [
     "Use report_status to share short, user-safe activity updates (no internal reasoning).",
@@ -321,243 +340,281 @@ async function handlePost(
 
   try {
     const finalSystemPrompt = buildContextBlock(data);
-    const aiResult = await streamText({
-      model: "google/gemini-3-flash",
-      messages: [
-        { role: "system", content: finalSystemPrompt },
-        ...data.messages,
-      ],
-      temperature: data.temperature ?? 0.2,
-      maxTokens: data.maxTokens,
-      stopWhen: ({ steps }) => {
-        const lastStep = steps[steps.length - 1];
-        const hasInterviewToolCall = steps.some((step) =>
-          step.toolCalls?.some(
-            (toolCall) => toolCall.toolName === INTERVIEW_TOOL_NAME,
-          ),
-        );
-        if (hasInterviewToolCall) {
-          return true;
-        }
-        const hasTitleToolCall =
-          lastStep?.toolCalls?.some(
-            (toolCall) => toolCall.toolName === TITLE_TOOL_NAME,
-          ) ?? false;
-        const maxSteps = Math.max(12, 2 + maxCoworkerResponses * 5);
-        if (steps.length >= maxSteps) {
-          return true;
-        }
-        if (!hasTitleToolCall && (!lastStep?.toolCalls || lastStep.toolCalls.length === 0)) {
-          return steps.length >= 1;
-        }
-        return false;
-      },
-      tools: {
-        report_status: {
-          description:
-            "Share short, user-safe activity updates during generation. Do not reveal internal reasoning.",
-          inputSchema: z.object({
-            label: z.string().min(1).max(120),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        set_conversation_title: {
-          description:
-            "Set a concise, user-visible title for the conversation thread.",
-          inputSchema: z.object({
-            title: z.string().min(1).max(80),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        list_channel_coworkers: {
-          description:
-            "List all coworkers assigned to the current channel.",
-          inputSchema: z.object({}),
-          execute: async () => ({
-            coworkers: data.channelCoworkers,
-            coworkerSummaries: data.channelCoworkers.map((coworker) => ({
-              id: coworker.id,
-              name: coworker.name,
-              description: coworker.description ?? null,
-            })),
-            mentionedCoworkerIds: data.mentionedCoworkerIds,
-          }),
-        },
-        list_thread_documents: {
-          description: "List all documents in the current thread.",
-          inputSchema: z.object({}),
-          execute: async () => ({
-            documents: data.threadDocuments,
-            ok: true,
-          }),
-        },
-        list_workspace_documents: {
-          description: "List all documents in the workspace.",
-          inputSchema: z.object({}),
-          execute: async () => ({
-            documents: data.workspaceDocuments,
-            ok: true,
-          }),
-        },
-        find_document: {
-          description:
-            "Find lines in a document that match a query. Use before reading ranges.",
-          inputSchema: z.object({
-            messageId: z.string().min(1),
-            query: z.string().min(1),
-            caseSensitive: z.boolean().optional(),
-            maxHits: z.number().int().positive().max(50).optional(),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        read_document_range: {
-          description:
-            "Read a specific line range from a document. Large ranges are rejected.",
-          inputSchema: z.object({
-            messageId: z.string().min(1),
-            startLine: z.number().int().positive(),
-            endLine: z.number().int().positive(),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        edit_document: {
-          description:
-            "Edit a document by finding and replacing exact text. " +
-            "Each edit has a 'search' string (must exactly match text in the document) " +
-            "and a 'replace' string (the new content). " +
-            "Include enough surrounding context in 'search' to uniquely identify the location. " +
-            "To delete text, set replace to empty string. " +
-            "IMPORTANT: Always call read_document_range first to see current content. " +
-            "Copy exact text from the read output for your search strings.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            messageId: z.string().min(1),
-            edits: z.array(z.object({
-              search: z.string().min(1),
-              replace: z.string(),
-            })).min(1).max(20),
-            commitMessage: z.string().min(1).max(120),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        create_document_copy: {
-          description: "Create a copy of an existing document in the current thread.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            messageId: z.string().min(1),
-            title: z.string().min(1).max(200).optional(),
-            commitMessage: z.string().min(1).max(120).optional(),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        generate_coworker_response: {
-          description:
-            "Generate a response as a specific coworker using their role prompt and defaults.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            guidance: z.string().optional(),
-          }),
-          execute: async (input) => {
-            const coworker = data.channelCoworkers.find(
-              (item) => item.id === input.coworkerId,
-            );
-            if (!coworker) {
-              return { coworkerId: input.coworkerId, content: "" };
-            }
+    const baseMessages: ModelMessage[] = data.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
 
-            const coworkerPrompt = buildCoworkerSystemPrompt(
-              coworker,
-              data.threadContext,
-            );
-            const systemPrompt = buildCoworkerContextBlock(
-              coworkerPrompt,
-              data,
-            );
-            const coworkerModel =
-              coworker.model && activeModelValues.has(coworker.model)
-                ? coworker.model
-                : defaultModel.value;
-            const response = await generateText({
-              model: coworkerModel,
-              messages: [
-                { role: "system", content: systemPrompt },
-                ...data.messages,
-                ...(input.guidance
-                  ? [{ role: "system", content: input.guidance }]
-                  : []),
-              ],
-              temperature: data.temperature ?? 0.2,
-              maxTokens: data.maxTokens,
-            });
-            return { coworkerId: input.coworkerId, content: response.text };
-          },
+    const stopWhen = ({ steps }: { steps: Array<{ toolCalls?: unknown[] }> }) => {
+      const lastStep = steps[steps.length - 1];
+      const hasInterviewToolCall = steps.some((step) =>
+        step.toolCalls?.some((toolCall) => {
+          const candidate = toolCall as { toolName?: string };
+          return candidate.toolName === INTERVIEW_TOOL_NAME;
+        }),
+      );
+      if (hasInterviewToolCall) {
+        return true;
+      }
+      const hasTitleToolCall =
+        lastStep?.toolCalls?.some((toolCall) => {
+          const candidate = toolCall as { toolName?: string };
+          return candidate.toolName === TITLE_TOOL_NAME;
+        }) ?? false;
+      const maxSteps = Math.max(12, 2 + maxCoworkerResponses * 5);
+      if (steps.length >= maxSteps) {
+        return true;
+      }
+      if (!hasTitleToolCall && (!lastStep?.toolCalls || lastStep.toolCalls.length === 0)) {
+        return steps.length >= 1;
+      }
+      return false;
+    };
+
+    const buildTools = (includeReportStatus: boolean) => ({
+      ...(includeReportStatus
+        ? {
+            report_status: {
+              description:
+                "Share short, user-safe activity updates during generation. Do not reveal internal reasoning.",
+              inputSchema: z.object({
+                label: z.string().min(1).max(120),
+              }),
+              execute: async () => ({ ok: true }),
+            },
+          }
+        : {}),
+      set_conversation_title: {
+        description:
+          "Set a concise, user-visible title for the conversation thread.",
+        inputSchema: z.object({
+          title: z.string().min(1).max(80),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      list_channel_coworkers: {
+        description:
+          "List all coworkers assigned to the current channel.",
+        inputSchema: z.object({}),
+        execute: async () => ({
+          coworkers: data.channelCoworkers,
+          coworkerSummaries: data.channelCoworkers.map((coworker) => ({
+            id: coworker.id,
+            name: coworker.name,
+            description: coworker.description ?? null,
+          })),
+          mentionedCoworkerIds: data.mentionedCoworkerIds,
+        }),
+      },
+      list_thread_documents: {
+        description: "List all documents in the current thread.",
+        inputSchema: z.object({}),
+        execute: async () => ({
+          documents: data.threadDocuments,
+          ok: true,
+        }),
+      },
+      list_workspace_documents: {
+        description: "List all documents in the workspace.",
+        inputSchema: z.object({}),
+        execute: async () => ({
+          documents: data.workspaceDocuments,
+          ok: true,
+        }),
+      },
+      find_document: {
+        description:
+          "Find lines in a document that match a query. Use before reading ranges.",
+        inputSchema: z.object({
+          messageId: z.string().min(1),
+          query: z.string().min(1),
+          caseSensitive: z.boolean().optional(),
+          maxHits: z.number().int().positive().max(50).optional(),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      read_document_range: {
+        description:
+          "Read a specific line range from a document. Large ranges are rejected.",
+        inputSchema: z.object({
+          messageId: z.string().min(1),
+          startLine: z.number().int().positive(),
+          endLine: z.number().int().positive(),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      edit_document: {
+        description:
+          "Edit a document by finding and replacing exact text. " +
+          "Each edit has a 'search' string (must exactly match text in the document) " +
+          "and a 'replace' string (the new content). " +
+          "Include enough surrounding context in 'search' to uniquely identify the location. " +
+          "To delete text, set replace to empty string. " +
+          "IMPORTANT: Always call read_document_range first to see current content. " +
+          "Copy exact text from the read output for your search strings.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          messageId: z.string().min(1),
+          edits: z.array(z.object({
+            search: z.string().min(1),
+            replace: z.string(),
+          })).min(1).max(20),
+          commitMessage: z.string().min(1).max(120),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      create_document_copy: {
+        description: "Create a copy of an existing document in the current thread.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          messageId: z.string().min(1),
+          title: z.string().min(1).max(200).optional(),
+          commitMessage: z.string().min(1).max(120).optional(),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      generate_coworker_response: {
+        description:
+          "Generate a response as a specific coworker using their role prompt and defaults.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          guidance: z.string().optional(),
+        }),
+        execute: async (input: { coworkerId: string; guidance?: string }) => {
+          const coworker = data.channelCoworkers.find(
+            (item) => item.id === input.coworkerId,
+          );
+          if (!coworker) {
+            return { coworkerId: input.coworkerId, content: "" };
+          }
+
+          const coworkerPrompt = buildCoworkerSystemPrompt(
+            coworker,
+            data.threadContext,
+          );
+          const systemPrompt = buildCoworkerContextBlock(
+            coworkerPrompt,
+            data,
+          );
+          const coworkerModel =
+            coworker.model && activeModelValues.has(coworker.model)
+              ? coworker.model
+              : defaultModel.value;
+          const response = await generateText({
+            model: coworkerModel,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...baseMessages,
+              ...(input.guidance
+                ? [{ role: "system", content: input.guidance } as const]
+                : []),
+            ],
+            temperature: data.temperature ?? 0.2,
+            maxOutputTokens: data.maxTokens,
+          });
+          return { coworkerId: input.coworkerId, content: response.text };
         },
-        emit_coworker_message: {
-          description:
-            "Emit the final coworker message payload for the client to display.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            content: z.string().min(1),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        request_interview: {
-          description:
-            "Ask the user 1-5 multiple-choice clarifying questions before generating coworker responses. Use when the request is ambiguous or would benefit from more context.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            context: z
-              .object({
-                documentId: z.string().min(1).optional(),
-                documentTitle: z.string().min(1).optional(),
-              })
-              .optional(),
-            questions: z
-              .array(
-                z.object({
-                  id: z.string().min(1),
-                  question: z.string().min(1),
-                  options: z
-                    .array(z.object({ label: z.string().min(1) }))
-                    .min(2)
-                    .max(4),
-                }),
-              )
-              .min(1)
-              .max(5),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        start_document_draft: {
-          description:
-            "Notify the user that a document is about to be drafted. Call this as soon as you determine a coworker will produce a document — before calling generate_coworker_response — so the user sees a drafting indicator while the content is being generated.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            title: z.string().min(1).max(200),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        emit_document: {
-          description:
-            "Emit a document artifact (brief, report, plan, etc.) as a separate file. Use this when a coworker produces a structured document rather than a short conversational reply.",
-          inputSchema: z.object({
-            coworkerId: z.string().min(1),
-            title: z.string().min(1).max(200),
-            content: z.string().min(1),
-          }),
-          execute: async () => ({ ok: true }),
-        },
-        save_memory: {
-          description:
-            "Save a durable preference or fact as memory for one or more coworkers.",
-          inputSchema: z.object({
-            content: z.string().min(1).max(500),
-            coworkerIds: z.array(z.string().min(1)).min(1),
-          }),
-          execute: async () => ({ ok: true }),
-        },
+      },
+      emit_coworker_message: {
+        description:
+          "Emit the final coworker message payload for the client to display.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          content: z.string().min(1),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      request_interview: {
+        description:
+          "Ask the user 1-5 multiple-choice clarifying questions before generating coworker responses. Use when the request is ambiguous or would benefit from more context.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          context: z
+            .object({
+              documentId: z.string().min(1).optional(),
+              documentTitle: z.string().min(1).optional(),
+            })
+            .optional(),
+          questions: z
+            .array(
+              z.object({
+                id: z.string().min(1),
+                question: z.string().min(1),
+                options: z
+                  .array(z.object({ label: z.string().min(1) }))
+                  .min(2)
+                  .max(4),
+              }),
+            )
+            .min(1)
+            .max(5),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      start_document_draft: {
+        description:
+          "Notify the user that a document is about to be drafted. Call this as soon as you determine a coworker will produce a document — before calling generate_coworker_response — so the user sees a drafting indicator while the content is being generated.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          title: z.string().min(1).max(200),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      emit_document: {
+        description:
+          "Emit a document artifact (brief, report, plan, etc.) as a separate file. Use this when a coworker produces a structured document rather than a short conversational reply.",
+        inputSchema: z.object({
+          coworkerId: z.string().min(1),
+          title: z.string().min(1).max(200),
+          content: z.string().min(1),
+        }),
+        execute: async () => ({ ok: true }),
+      },
+      save_memory: {
+        description:
+          "Save a durable preference or fact as memory for one or more coworkers.",
+        inputSchema: z.object({
+          content: z.string().min(1).max(500),
+          coworkerIds: z.array(z.string().min(1)).min(1),
+        }),
+        execute: async () => ({ ok: true }),
       },
     });
+
+    const runOrchestrator = async (includeReportStatus: boolean) =>
+      streamText({
+        model: requestedModel,
+        messages: [
+          { role: "system", content: finalSystemPrompt },
+          ...baseMessages,
+        ],
+        temperature: data.temperature ?? 0.2,
+        maxOutputTokens: data.maxTokens,
+        stopWhen,
+        tools: buildTools(includeReportStatus),
+      });
+
+    let aiResult: Awaited<ReturnType<typeof runOrchestrator>>;
+    try {
+      aiResult = await runOrchestrator(true);
+    } catch (error) {
+      const isThoughtSignatureError = isGeminiThoughtSignatureError(error);
+      console.error("[Chat] Streaming setup error:", {
+        retryMode: "none",
+        isThoughtSignatureError,
+        chatProviderErrorCode: isThoughtSignatureError
+          ? "missing_thought_signature"
+          : "unknown",
+        message: getErrorMessage(error),
+      });
+
+      if (!isThoughtSignatureError) {
+        throw error;
+      }
+
+      console.warn("[Chat] Retrying chat stream with report_status disabled");
+      aiResult = await runOrchestrator(false);
+    }
 
     return aiResult.toUIMessageStreamResponse() as NextResponse;
   } catch (error) {

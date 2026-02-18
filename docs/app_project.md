@@ -207,6 +207,9 @@ whitespace and formatting differences that cause LLM retry loops.
 - If the chat stream fails due to a retryable upstream error (e.g. gateway timeout),
   the main process will automatically retry the stream (up to a small limit) and
   show a “Retrying…” status instead of ending the conversation.
+- If the API detects a Gemini tool-call `thought_signature` setup error, it retries
+  once with the `report_status` tool disabled for that run. The stream still
+  completes through the normal main-process retry and IPC pipeline.
 
 ## Document Version History
 
