@@ -44,6 +44,7 @@ interface ChatChunkPayload {
 interface ChatCompletePayload {
   messageId: string;
   content: string;
+  status?: "complete" | "suppressed";
 }
 
 interface ChatErrorPayload {
@@ -166,6 +167,106 @@ const MAX_STREAM_RETRIES = 2;
 
 const MAX_DOCUMENT_RANGE_LINES = 400;
 const MAX_MENTIONED_SOURCE_TOKENS = 120000;
+const MAX_AI_SIMILARITY_CHECK_PRIORS = 3;
+
+interface SimilaritySignals {
+  normalized: string;
+  tokens: Set<string>;
+  trigrams: Set<string>;
+}
+
+function normalizeForSimilarity(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[`*_~>#-]/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toTokenSet(text: string): Set<string> {
+  const tokens = text.split(" ").map((item) => item.trim()).filter(Boolean);
+  return new Set(tokens);
+}
+
+function toTrigramSet(text: string): Set<string> {
+  const compact = text.replace(/\s+/g, " ").trim();
+  const grams = new Set<string>();
+  if (compact.length < 3) {
+    if (compact.length > 0) grams.add(compact);
+    return grams;
+  }
+  for (let index = 0; index <= compact.length - 3; index += 1) {
+    grams.add(compact.slice(index, index + 3));
+  }
+  return grams;
+}
+
+function setJaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  const smaller = a.size <= b.size ? a : b;
+  const larger = a.size <= b.size ? b : a;
+  for (const value of smaller) {
+    if (larger.has(value)) intersection += 1;
+  }
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const prev = new Array<number>(b.length + 1);
+  const curr = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j += 1) prev[j] = j;
+
+  for (let i = 1; i <= a.length; i += 1) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + cost,
+      );
+    }
+    for (let j = 0; j <= b.length; j += 1) prev[j] = curr[j];
+  }
+  return prev[b.length] ?? 0;
+}
+
+function computeSimilaritySignals(text: string): SimilaritySignals {
+  const normalized = normalizeForSimilarity(text);
+  return {
+    normalized,
+    tokens: toTokenSet(normalized),
+    trigrams: toTrigramSet(normalized),
+  };
+}
+
+function buildAlgorithmicSimilarityScore(
+  current: SimilaritySignals,
+  prior: SimilaritySignals,
+): number {
+  if (!current.normalized || !prior.normalized) return 0;
+  if (current.normalized === prior.normalized) return 1;
+
+  const tokenSimilarity = setJaccard(current.tokens, prior.tokens);
+  const trigramSimilarity = setJaccard(current.trigrams, prior.trigrams);
+  const editDistance = levenshteinDistance(current.normalized, prior.normalized);
+  const maxLength = Math.max(current.normalized.length, prior.normalized.length);
+  const editSimilarity = maxLength === 0 ? 1 : 1 - editDistance / maxLength;
+
+  return tokenSimilarity * 0.45 + trigramSimilarity * 0.35 + editSimilarity * 0.2;
+}
+
+function shouldRunAiSimilarityJudge(score: number): boolean {
+  return score >= 0.58;
+}
 
 let getSdk: (() => Promise<CoworkerSdk>) | null = null;
 
@@ -510,7 +611,7 @@ function normalizeTitle(rawTitle: string): string {
 async function persistStreamingContent(
   messageId: string,
   content: string,
-  status: "streaming" | "complete" | "error",
+  status: "streaming" | "complete" | "error" | "suppressed",
 ): Promise<void> {
   await updateMessage(messageId, {
     contentShort: content,
@@ -560,6 +661,12 @@ async function streamChatResponse(
     }
   >();
   const responseMessageByCoworker = new Map<string, string>();
+  const emittedCoworkerContent = new Map<string, SimilaritySignals>();
+  const pendingJudgeCandidateByToolCall = new Map<string, SimilaritySignals>();
+  const aiJudgeDecisionsByNormalizedCandidate = new Map<
+    string,
+    { isDuplicate: boolean; addsMaterialValue: boolean; similarityScore: number }
+  >();
   let activeMessageId: string | null = null;
 
   const emitStatus = (label: string, phase: ChatStatusPayload["phase"]): void => {
@@ -609,7 +716,11 @@ async function streamChatResponse(
     emitStatus("Selecting co-workers...", "streaming");
 
     const normalizedContent = normalizeMentionsForLlm(content);
-    const maxCoworkerResponses = 3;
+    const mentionedCoworkerIds = extractMentionedCoworkerIds(content);
+    const maxCoworkerResponses =
+      mentionedCoworkerIds.length > 1
+        ? Math.min(mentionedCoworkerIds.length, 3)
+        : 1;
     const systemPrompt = buildOrchestratorSystemPrompt(
       threadContext,
       maxCoworkerResponses,
@@ -677,7 +788,6 @@ async function streamChatResponse(
       ...priorMessages,
       { role: "user", content: normalizedContent },
     ] as ChatCompletionRequest["messages"];
-    const mentionedCoworkerIds = extractMentionedCoworkerIds(content);
 
     const request: ChatCompletionRequest = {
       messages,
@@ -1763,6 +1873,58 @@ async function streamChatResponse(
       }
 
       if (
+        event.type === "tool-input-available" &&
+        event.toolName === "judge_coworker_similarity"
+      ) {
+        const input =
+          event.input && typeof event.input === "object"
+            ? (event.input as { candidate?: unknown })
+            : null;
+        const candidate =
+          input?.candidate && typeof input.candidate === "string"
+            ? input.candidate
+            : "";
+        if (candidate.trim().length > 0) {
+          pendingJudgeCandidateByToolCall.set(
+            event.toolCallId,
+            computeSimilaritySignals(candidate),
+          );
+        }
+        continue;
+      }
+
+      if (
+        event.type === "tool-output-available" &&
+        event.toolName === "judge_coworker_similarity"
+      ) {
+        const candidate = pendingJudgeCandidateByToolCall.get(event.toolCallId);
+        const output =
+          event.output && typeof event.output === "object"
+            ? (event.output as {
+                isDuplicate?: unknown;
+                addsMaterialValue?: unknown;
+                similarityScore?: unknown;
+              })
+            : null;
+
+        if (candidate && output) {
+          const isDuplicate = Boolean(output.isDuplicate);
+          const addsMaterialValue = Boolean(output.addsMaterialValue);
+          const similarityScore =
+            typeof output.similarityScore === "number"
+              ? Math.max(0, Math.min(1, output.similarityScore))
+              : 0;
+          aiJudgeDecisionsByNormalizedCandidate.set(candidate.normalized, {
+            isDuplicate,
+            addsMaterialValue,
+            similarityScore,
+          });
+        }
+        pendingJudgeCandidateByToolCall.delete(event.toolCallId);
+        continue;
+      }
+
+      if (
         event.type === "tool-input-start" &&
         event.toolName === "emit_coworker_message"
       ) {
@@ -1908,10 +2070,70 @@ async function streamChatResponse(
         }
 
         if (messageId) {
+          const candidateSignals = computeSimilaritySignals(contentValue);
+          let shouldSuppress = false;
+          let strongestScore = 0;
+
+          if (candidateSignals.normalized.length > 0) {
+            const recentEmitted = Array.from(emittedCoworkerContent.values()).slice(
+              -MAX_AI_SIMILARITY_CHECK_PRIORS,
+            );
+            for (const priorSignals of recentEmitted) {
+              if (priorSignals.normalized === candidateSignals.normalized) {
+                shouldSuppress = true;
+                strongestScore = 1;
+                break;
+              }
+
+              const score = buildAlgorithmicSimilarityScore(
+                candidateSignals,
+                priorSignals,
+              );
+              strongestScore = Math.max(strongestScore, score);
+            }
+
+            if (!shouldSuppress) {
+              const aiDecision = aiJudgeDecisionsByNormalizedCandidate.get(
+                candidateSignals.normalized,
+              );
+              if (
+                aiDecision &&
+                aiDecision.isDuplicate &&
+                !aiDecision.addsMaterialValue
+              ) {
+                shouldSuppress = true;
+                strongestScore = Math.max(
+                  strongestScore,
+                  aiDecision.similarityScore,
+                );
+              } else if (
+                shouldRunAiSimilarityJudge(strongestScore) &&
+                strongestScore >= 0.84
+              ) {
+                shouldSuppress = true;
+              }
+            }
+          }
+
+          if (shouldSuppress) {
+            await persistStreamingContent(messageId, "", "suppressed");
+            safeSend<ChatCompletePayload>(sender, "chat:complete", {
+              messageId,
+              content: "",
+              status: "suppressed",
+            });
+            coworkerBuffers.delete(event.toolCallId);
+            continue;
+          }
+
           await persistStreamingContent(messageId, contentValue, "complete");
+          if (candidateSignals.normalized.length > 0) {
+            emittedCoworkerContent.set(coworkerId || messageId, candidateSignals);
+          }
           safeSend<ChatCompletePayload>(sender, "chat:complete", {
             messageId,
             content: contentValue,
+            status: "complete",
           });
         }
         coworkerBuffers.delete(event.toolCallId);

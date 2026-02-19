@@ -135,10 +135,12 @@ We support a streaming chat pipeline for thread conversations:
 - Renderer calls `window.api.chat.sendMessage()`.
 - Main process gathers RAG context from local workspace sources, injects any @mentioned document content, injects full text for @mentioned knowledge sources (workspace/channel/thread scopes), composes the orchestrator system prompt, and streams via the SDK.
 - API route `/api/v1/chat` runs a tool-orchestrated loop that selects coworkers and generates each reply via subordinate calls.
+- Coworker selection is single-by-default; additional replies are allowed only when they add distinct value.
 - Renderer updates coworker messages incrementally from IPC events.
 - The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.
 - If Gemini throws a tool-call `thought_signature` error while setting up orchestration, the API retries once with `report_status` disabled for that run.
 - The model can emit `save_memory` tool calls; the main process persists memories and links them to coworkers for future retrieval.
+- The model can emit `judge_coworker_similarity`; the app combines that semantic signal with local similarity scoring to suppress non-additive coworker replies (`status: "suppressed"`).
 - The model can invoke document editing tools (`find_document`, `read_document_range`, `edit_document`, `create_document_copy`); these are placeholder executors on the API — the main process handles them against live blob content, applying search-and-replace edits and emitting document updates.
 - Document edits are versioned: each edit stores a new blob + commit message in `document_versions`, and the viewer exposes a version sidebar for preview/revert.
 - User messages sent during an active orchestrator run are queued in the main process and streamed sequentially after the current run completes. The renderer receives `chat:queueUpdate` events for queued/processing states.

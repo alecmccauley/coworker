@@ -129,7 +129,12 @@ export interface UpdateThreadInput {
 
 // Message types
 export type AuthorType = "user" | "coworker" | "system";
-export type MessageStatus = "pending" | "streaming" | "complete" | "error";
+export type MessageStatus =
+  | "pending"
+  | "streaming"
+  | "complete"
+  | "error"
+  | "suppressed";
 
 export interface Message {
   id: string;
@@ -335,6 +340,7 @@ export interface ChatChunkPayload {
 export interface ChatCompletePayload {
   messageId: string;
   content: string;
+  status?: "complete" | "suppressed";
 }
 
 export interface ChatErrorPayload {

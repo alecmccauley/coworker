@@ -123,7 +123,11 @@
       (payload: ChatCompletePayload) => {
         messages = messages.map((message) =>
           message.id === payload.messageId
-            ? { ...message, contentShort: payload.content, status: 'complete' }
+            ? {
+                ...message,
+                contentShort: payload.content,
+                status: payload.status ?? 'complete'
+              }
             : message
         )
         removeStreamingMessage(payload.messageId)

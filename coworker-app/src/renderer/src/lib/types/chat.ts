@@ -9,6 +9,7 @@ export interface ChatChunkPayload {
 export interface ChatCompletePayload {
   messageId: string;
   content: string;
+  status?: "complete" | "suppressed";
 }
 
 export interface ChatErrorPayload {

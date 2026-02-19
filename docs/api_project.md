@@ -546,6 +546,7 @@ Chat streaming supports model tool calls. Current tools:
 - `edit_document` — Edits a document via search-and-replace. Accepts an array of `{search, replace}` edits applied in order. Includes validation for unique matches and content-loss protection.
 - `create_document_copy` — Creates a copy of a document in the current thread.
 - `generate_coworker_response` — Runs a subordinate model to generate a coworker-specific reply.
+- `judge_coworker_similarity` — AI semantic judge that determines whether a candidate coworker reply materially differs from prior same-turn coworker replies.
 - `emit_coworker_message` — Emits a coworker reply payload for the client to render.
 - `save_memory` — Stores durable preferences/facts as memories linked to one or more coworkers.
 - `request_interview` — Asks the user 1-5 clarifying multiple-choice questions before generating coworker responses. Triggers a `stopWhen` halt so the client can render the interview UI and collect answers.
@@ -562,6 +563,7 @@ Chat request payload includes orchestration context:
 - `channelCoworkers` — Coworker details available to the orchestrator.
 - `mentionedCoworkerIds` — Explicit coworker mentions extracted from the user message.
 - `maxCoworkerResponses` — Upper bound on coworker replies per user message.
+  - App default policy is one responder unless multi-response adds distinct value.
 - `threadDocuments` — Document summaries available for the current thread.
 - `mentionedDocuments` — Document summaries for any @mentioned documents.
 - `workspaceDocuments` — Document summaries across the workspace for discovery.

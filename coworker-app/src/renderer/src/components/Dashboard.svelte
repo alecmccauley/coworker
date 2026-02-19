@@ -197,6 +197,7 @@
     })
 
     cleanupChatComplete = window.api.chat.onComplete((payload) => {
+      if (payload.status === 'suppressed') return
       const metadata = messageIndex.get(payload.messageId)
       if (!metadata || metadata.authorType !== 'coworker') return
       const message: Message = {
@@ -207,7 +208,7 @@
         authorId: metadata.authorId ?? null,
         contentRef: null,
         contentShort: payload.content,
-        status: 'complete',
+        status: payload.status ?? 'complete',
         createdAt: new Date(),
         updatedAt: new Date()
       }

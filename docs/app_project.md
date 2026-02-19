@@ -250,6 +250,14 @@ dangling "drafting…" message is cleaned up. This prevents duplicate document
 cards appearing after edits while preserving the version timeline on the
 original document.
 
+**Coworker response deduplication guard:** Multi-coworker responses are
+single-by-default (`maxCoworkerResponses = 1` unless mentions/context justify
+more). Before finalizing later coworker replies, the runtime applies a hybrid
+duplicate gate: algorithmic similarity scoring (token/trigram Jaccard +
+Levenshtein-normalized similarity) plus AI judge signals from
+`judge_coworker_similarity` when available. Replies judged non-additive are
+persisted as `suppressed` and hidden from thread UI/unread counts.
+
 ## Main Process
 
 ### Entry Point (`src/main/index.ts`)

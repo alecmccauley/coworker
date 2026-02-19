@@ -6,7 +6,12 @@ export type AuthorType = "user" | "coworker" | "system";
 /**
  * Message status
  */
-export type MessageStatus = "pending" | "streaming" | "complete" | "error";
+export type MessageStatus =
+  | "pending"
+  | "streaming"
+  | "complete"
+  | "error"
+  | "suppressed";
 
 /**
  * A message entity in the workspace

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { generateText, streamText, type ModelMessage } from "ai";
+import {
+  generateObject,
+  generateText,
+  streamText,
+  type ModelMessage,
+} from "ai";
 import { prisma } from "@coworker/shared-services/db";
 import { z } from "zod";
 import {
@@ -19,6 +24,12 @@ export const dynamic = "force-dynamic";
 const TITLE_TOOL_NAME = "set_conversation_title";
 const INTERVIEW_TOOL_NAME = "request_interview";
 const MAX_COWORKER_RESPONSES = 10;
+const similarityJudgementSchema = z.object({
+  isDuplicate: z.boolean(),
+  similarityScore: z.number().min(0).max(1),
+  addsMaterialValue: z.boolean(),
+  rationale: z.string().min(1).max(300),
+});
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -475,7 +486,8 @@ async function handlePost(
       },
       generate_coworker_response: {
         description:
-          "Generate a response as a specific coworker using their role prompt and defaults.",
+          "Generate a response as a specific coworker using their role prompt and defaults. " +
+          "For second+ coworker replies in the same turn, compare against prior replies before emitting.",
         inputSchema: z.object({
           coworkerId: z.string().min(1),
           guidance: z.string().optional(),
@@ -515,9 +527,67 @@ async function handlePost(
           return { coworkerId: input.coworkerId, content: response.text };
         },
       },
+      judge_coworker_similarity: {
+        description:
+          "Judge whether a candidate coworker response is materially different from prior same-turn coworker responses.",
+        inputSchema: z.object({
+          candidate: z.string().min(1),
+          priorResponses: z
+            .array(
+              z.object({
+                coworkerId: z.string().min(1),
+                content: z.string().min(1),
+              }),
+            )
+            .max(MAX_COWORKER_RESPONSES),
+          userIntent: z.string().optional(),
+        }),
+        execute: async (input: {
+          candidate: string;
+          priorResponses: Array<{ coworkerId: string; content: string }>;
+          userIntent?: string;
+        }) => {
+          if (input.priorResponses.length === 0) {
+            return {
+              isDuplicate: false,
+              similarityScore: 0,
+              addsMaterialValue: true,
+              rationale: "No prior coworker responses in this turn.",
+            };
+          }
+
+          const rubric = [
+            "You judge whether two coworker replies are materially different.",
+            "Duplicate means same recommendation, same action, or same conclusion with minor rewording.",
+            "Not duplicate means clear new facts, distinct strategy, different risks/tradeoffs, or complementary steps.",
+            "Be strict about semantic overlap, but do not penalize style/tone differences when substance differs.",
+          ].join("\n");
+
+          const judgeResult = await generateObject({
+            model: requestedModel,
+            schema: similarityJudgementSchema,
+            temperature: 0,
+            maxOutputTokens: 220,
+            messages: [
+              { role: "system", content: rubric },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  userIntent: input.userIntent ?? null,
+                  candidate: input.candidate,
+                  priorResponses: input.priorResponses,
+                }),
+              },
+            ],
+          });
+
+          return judgeResult.object;
+        },
+      },
       emit_coworker_message: {
         description:
-          "Emit the final coworker message payload for the client to display.",
+          "Emit the final coworker message payload for the client to display. " +
+          "Only emit when this response is materially different from prior coworker replies in this turn.",
         inputSchema: z.object({
           coworkerId: z.string().min(1),
           content: z.string().min(1),

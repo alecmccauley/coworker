@@ -289,4 +289,9 @@ export type SourceScopeType = "workspace" | "channel" | "coworker" | "thread";
 export type AuthorType = "user" | "coworker" | "system";
 
 // Message status
-export type MessageStatus = "pending" | "streaming" | "complete" | "error";
+export type MessageStatus =
+  | "pending"
+  | "streaming"
+  | "complete"
+  | "error"
+  | "suppressed";

@@ -37,11 +37,13 @@
   }: Props = $props()
 
   const sortedMessages = $derived(
-    [...messages].sort((a, b) => {
+    [...messages]
+      .filter((message) => message.status !== 'suppressed')
+      .sort((a, b) => {
       const aTime = new Date(a.createdAt).getTime()
       const bTime = new Date(b.createdAt).getTime()
       return aTime - bTime
-    })
+      })
   )
 
   let scrollContainer: HTMLDivElement | null = $state(null)
