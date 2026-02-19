@@ -21,6 +21,8 @@ export interface InterviewData {
   };
 }
 
+const mentionPattern = /@\{(coworker|document|source):([^|}]+)\|([^}]+)\}/g;
+
 export function parseInterviewData(
   contentShort: string | null | undefined,
 ): InterviewData | null {
@@ -53,4 +55,13 @@ export function formatInterviewAnswersAsText(data: InterviewData): string {
     lines.push(`${question.question} ${displayAnswer}`);
   }
   return lines.join("\n");
+}
+
+export function formatInterviewAnswerForDisplay(answer: string): string {
+  const raw = answer.startsWith("other:") ? answer.slice(6) : answer;
+  return raw.replace(mentionPattern, (_, type: string, _id: string, name: string) => {
+    if (type === "document") return `@Doc: ${name}`;
+    if (type === "source") return `@Source: ${name}`;
+    return `@${name}`;
+  });
 }

@@ -56,6 +56,7 @@
   let activityByMessageId = $state<Record<string, string>>({})
   let lastMarkedAt = $state<number | null>(null)
   let queuedMessageIds = $state<string[]>([])
+  let retryingMessageIds = $state<string[]>([])
 
   function addStreamingMessage(id: string): void {
     if (!streamingMessageIds.includes(id)) {
@@ -75,6 +76,16 @@
     const next = { ...activityByMessageId }
     delete next[messageId]
     activityByMessageId = next
+  }
+
+  function addRetryingMessage(id: string): void {
+    if (!retryingMessageIds.includes(id)) {
+      retryingMessageIds = [...retryingMessageIds, id]
+    }
+  }
+
+  function removeRetryingMessage(id: string): void {
+    retryingMessageIds = retryingMessageIds.filter((item) => item !== id)
   }
 
   $effect(() => {
@@ -236,6 +247,22 @@
     })()
   )
 
+  const latestFailedUserMessageId = $derived(
+    (() => {
+      const failedUserMessages = messages.filter(
+        (message) => message.authorType === 'user' && message.status === 'error'
+      )
+      if (failedUserMessages.length === 0) return null
+      return failedUserMessages
+        .sort((a, b) => {
+          const aTime = new Date(a.createdAt).getTime()
+          const bTime = new Date(b.createdAt).getTime()
+          return bTime - aTime
+        })[0]
+        ?.id ?? null
+    })()
+  )
+
   function handleInterviewAnswered(messageId: string, updatedContentShort: string): void {
     messages = messages.map((m) =>
       m.id === messageId ? { ...m, contentShort: updatedContentShort } : m
@@ -254,7 +281,31 @@
       messages = [...messages, result.userMessage]
     } catch (err) {
       console.error('Failed to send message:', err)
-      error = 'Something went wrong while sending. Please try again.'
+      error = err instanceof Error ? err.message : 'Something went wrong while sending. Please try again.'
+    }
+  }
+
+  async function handleRetryMessage(messageId: string): Promise<void> {
+    if (retryingMessageIds.includes(messageId)) return
+
+    addRetryingMessage(messageId)
+    messages = messages.map((message) =>
+      message.id === messageId ? { ...message, status: 'complete' } : message
+    )
+
+    try {
+      await window.api.chat.retryMessage(thread.id, messageId)
+      error = null
+    } catch (err) {
+      messages = messages.map((message) =>
+        message.id === messageId ? { ...message, status: 'error' } : message
+      )
+      error =
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while retrying. Please try again.'
+    } finally {
+      removeRetryingMessage(messageId)
     }
   }
 </script>
@@ -309,7 +360,27 @@
 
     {#if error}
       <div class="border-b border-border bg-muted px-6 py-3 text-sm text-muted-foreground">
-        {error}
+        <div class="flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={
+              !latestFailedUserMessageId ||
+              retryingMessageIds.includes(latestFailedUserMessageId)
+            }
+            onclick={() => {
+              if (!latestFailedUserMessageId) return
+              void handleRetryMessage(latestFailedUserMessageId)
+            }}
+          >
+            {#if latestFailedUserMessageId && retryingMessageIds.includes(latestFailedUserMessageId)}
+              Retrying...
+            {:else}
+              Retry
+            {/if}
+          </Button>
+        </div>
       </div>
     {/if}
 
@@ -326,17 +397,22 @@
     <MessageList
       {messages}
       {coworkers}
+      channelCoworkers={channelCoworkers}
+      channelId={thread.channelId}
       {activityByMessageId}
       {queuedMessageIds}
+      {retryingMessageIds}
       scrollKey={thread?.id ?? null}
       isLoading={isLoading}
       onInterviewAnswered={handleInterviewAnswered}
       onDocumentRenamed={handleDocumentRenamed}
+      onRetryMessage={handleRetryMessage}
     />
     <MessageInput
       onSend={handleSend}
       coworkers={channelCoworkers}
       channelId={thread.channelId}
+      threadId={thread.id}
       disabled={channelCoworkers.length === 0 || hasUnansweredInterview}
       showActivity={isCoworkerWorking}
     />

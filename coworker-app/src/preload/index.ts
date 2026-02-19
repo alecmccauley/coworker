@@ -615,6 +615,10 @@ const api = {
       ipcRenderer.invoke("thread:update", id, input) as Promise<Thread>,
     archive: (id: string) =>
       ipcRenderer.invoke("thread:archive", id) as Promise<void>,
+    listArchived: (channelId: string) =>
+      ipcRenderer.invoke("thread:listArchived", channelId) as Promise<Thread[]>,
+    unarchive: (id: string) =>
+      ipcRenderer.invoke("thread:unarchive", id) as Promise<void>,
     list: (channelId: string) =>
       ipcRenderer.invoke("thread:list", channelId) as Promise<Thread[]>,
     getById: (id: string) =>
@@ -821,6 +825,8 @@ const api = {
         userMessage: Message;
         responseId: string;
       }>,
+    retryMessage: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke("chat:retryMessage", threadId, messageId) as Promise<void>,
     cancelMessage: (messageId: string) =>
       ipcRenderer.invoke("chat:cancelMessage", messageId) as Promise<void>,
     onMessageCreated: (

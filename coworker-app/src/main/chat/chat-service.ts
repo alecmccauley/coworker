@@ -3,7 +3,10 @@ import { getThreadById } from "../thread";
 import { getChannelById, listChannelCoworkers } from "../channel";
 import { getCoworkerById } from "../coworker";
 import { getMessageById, listMessages, listDocumentsByWorkspace } from "../message";
-import { searchKnowledgeSources } from "../knowledge/indexing/retrieval";
+import {
+  getSourceTextForPrompt,
+  searchKnowledgeSources,
+} from "../knowledge/indexing/retrieval";
 import { getKnowledgeSourceById } from "../knowledge/knowledge-service";
 import { readBlob } from "../blob";
 import type { Coworker, Message, SourceScopeType } from "../database";
@@ -30,12 +33,26 @@ export interface SystemPromptContext extends ThreadContext {
 
 const coworkerMentionTokenPattern = /@\{coworker:([^|}]+)\|([^}]+)\}/g;
 const documentMentionTokenPattern = /@\{document:([^|}]+)\|([^}]+)\}/g;
+const sourceMentionTokenPattern = /@\{source:([^|}]+)\|([^}]+)\}/g;
 const MAX_DOCUMENT_RANGE_LINES = 400;
+const SOURCE_TEXT_TOKEN_CAP = Number.MAX_SAFE_INTEGER;
 
 interface DocumentMetadata {
   title: string;
   blobId: string;
   coworkerId?: string;
+}
+
+export interface MentionedSourceSkip {
+  sourceId: string;
+  sourceName: string;
+  reason: "not_found" | "missing_text";
+}
+
+export interface MentionedSourceContextResult {
+  contextItems: RagContextItem[];
+  totalTokens: number;
+  skipped: MentionedSourceSkip[];
 }
 
 export function extractMentionedCoworkerIds(content: string): string[] {
@@ -62,16 +79,33 @@ export function extractMentionedDocumentIds(content: string): string[] {
   return Array.from(ids);
 }
 
+export function extractMentionedSourceIds(content: string): string[] {
+  if (!content) return [];
+  const ids = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = sourceMentionTokenPattern.exec(content))) {
+    if (match[1]) {
+      ids.add(match[1]);
+    }
+  }
+  return Array.from(ids);
+}
+
 export function normalizeMentionsForLlm(content: string): string {
   if (!content) return content;
   const withCoworkers = content.replace(
     coworkerMentionTokenPattern,
     (_, _id: string, name: string) => (name ? `@${name}` : "@coworker"),
   );
-  return withCoworkers.replace(
+  const withDocuments = withCoworkers.replace(
     documentMentionTokenPattern,
     (_, _id: string, name: string) =>
       name ? `@Document: ${name}` : "@Document",
+  );
+  return withDocuments.replace(
+    sourceMentionTokenPattern,
+    (_, _id: string, name: string) =>
+      name ? `@Source: ${name}` : "@Source",
   );
 }
 
@@ -742,6 +776,61 @@ export async function gatherMentionedDocumentContext(
   }
 
   return contextItems;
+}
+
+export async function gatherMentionedSourceContext(
+  sourceIds: string[],
+): Promise<MentionedSourceContextResult> {
+  const uniqueIds = Array.from(new Set(sourceIds)).filter((id) => id.trim().length > 0);
+  if (uniqueIds.length === 0) {
+    return { contextItems: [], totalTokens: 0, skipped: [] };
+  }
+
+  const contextItems: RagContextItem[] = [];
+  const skipped: MentionedSourceSkip[] = [];
+  let totalTokens = 0;
+
+  for (const sourceId of uniqueIds) {
+    const source = await getKnowledgeSourceById(sourceId);
+    const sourceName = source?.name?.trim() || `Source ${sourceId.slice(0, 6)}`;
+    if (!source || source.archivedAt) {
+      skipped.push({
+        sourceId,
+        sourceName,
+        reason: "not_found",
+      });
+      continue;
+    }
+
+    const textResult = await getSourceTextForPrompt(sourceId, SOURCE_TEXT_TOKEN_CAP);
+    if (!textResult?.text?.trim()) {
+      skipped.push({
+        sourceId,
+        sourceName,
+        reason: "missing_text",
+      });
+      continue;
+    }
+
+    const scopeType =
+      source.scopeType && ["workspace", "channel", "thread", "coworker"].includes(source.scopeType)
+        ? (source.scopeType as SourceScopeType)
+        : "workspace";
+
+    contextItems.push({
+      sourceId: source.id,
+      chunkId: `source:${source.id}`,
+      text: textResult.text.trim(),
+      score: 1,
+      sourceName,
+      matchType: "fts",
+      scopeType,
+      scopeId: source.scopeId ?? undefined,
+    });
+    totalTokens += textResult.tokenCount;
+  }
+
+  return { contextItems, totalTokens, skipped };
 }
 
 function extractMemoryIdFromSource(metadata: string | null): string | null {

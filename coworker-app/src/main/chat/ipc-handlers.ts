@@ -15,6 +15,7 @@ import {
   convertThreadToChatMessages,
   extractMentionedCoworkerIds,
   extractMentionedDocumentIds,
+  extractMentionedSourceIds,
   listThreadDocumentSummaries,
   listMentionedDocumentSummaries,
   listWorkspaceDocumentSummaries,
@@ -22,6 +23,7 @@ import {
   parseDocumentMetadata,
   gatherRagContext,
   gatherMentionedDocumentContext,
+  gatherMentionedSourceContext,
   getThreadContext,
   mapCoworkerToContext,
   normalizeMentionsForLlm,
@@ -163,6 +165,7 @@ const streamRetryCounts = new Map<string, number>();
 const MAX_STREAM_RETRIES = 2;
 
 const MAX_DOCUMENT_RANGE_LINES = 400;
+const MAX_MENTIONED_SOURCE_TOKENS = 120000;
 
 let getSdk: (() => Promise<CoworkerSdk>) | null = null;
 
@@ -189,6 +192,36 @@ interface QueuedMessage {
 interface ThreadQueueState {
   active: boolean;
   queue: QueuedMessage[];
+}
+
+function enqueueMessageForStreaming(params: {
+  sender: WebContents;
+  threadId: string;
+  content: string;
+  responseId: string;
+  shouldAutoTitle: boolean;
+}): void {
+  const queue = getThreadQueue(params.threadId);
+  const queuedMessage: QueuedMessage = {
+    threadId: params.threadId,
+    content: params.content,
+    responseId: params.responseId,
+    sender: params.sender,
+    shouldAutoTitle: params.shouldAutoTitle,
+    wasQueued: queue.active,
+  };
+
+  if (queue.active) {
+    queue.queue.push(queuedMessage);
+    safeSend<ChatQueuePayload>(params.sender, "chat:queueUpdate", {
+      threadId: params.threadId,
+      messageId: params.responseId,
+      state: "queued",
+    });
+    return;
+  }
+
+  void startStreamForMessage(queuedMessage);
 }
 
 function getThreadQueue(threadId: string): ThreadQueueState {
@@ -587,6 +620,7 @@ async function streamChatResponse(
       channelCoworkers.map((coworker) => [coworker.id, coworker.name]),
     );
     const mentionedDocumentIds = extractMentionedDocumentIds(content);
+    const mentionedSourceIds = extractMentionedSourceIds(content);
     const approvedDocumentIds = await listApprovedDocumentIds(threadId);
     const threadDocuments = await listThreadDocumentSummaries(threadId);
     const mentionedDocuments = await listMentionedDocumentSummaries(
@@ -601,7 +635,35 @@ async function streamChatResponse(
     const mentionedDocumentContext = await gatherMentionedDocumentContext(
       mentionedDocumentIds,
     );
+    const mentionedSourceContextResult = await gatherMentionedSourceContext(
+      mentionedSourceIds,
+    );
+    if (mentionedSourceContextResult.totalTokens > MAX_MENTIONED_SOURCE_TOKENS) {
+      throw new Error(
+        `Mentioned sources exceed the ${MAX_MENTIONED_SOURCE_TOKENS.toLocaleString()} token context limit. Remove one or more @sources and try again.`,
+      );
+    }
+    if (mentionedSourceContextResult.skipped.length > 0) {
+      const skippedLines = mentionedSourceContextResult.skipped.map((item) => {
+        const reason =
+          item.reason === "not_found"
+            ? "source not found"
+            : "source text is not available yet";
+        return `- ${item.sourceName} (${reason})`;
+      });
+      const warningMessage = await createMessage({
+        threadId,
+        authorType: "system",
+        contentShort: `Some @mentioned sources were skipped:\n${skippedLines.join("\n")}`,
+        status: "complete",
+      });
+      safeSend<ChatMessageCreatedPayload>(sender, "chat:messageCreated", {
+        threadId,
+        message: warningMessage,
+      });
+    }
     const ragContext = [
+      ...mentionedSourceContextResult.contextItems,
       ...mentionedDocumentContext,
       ...(await gatherRagContext(
         normalizedContent,
@@ -1933,29 +1995,47 @@ export function registerChatIpcHandlers(): void {
         contentShort: content,
         status: "complete",
       });
-
-      const queue = getThreadQueue(threadId);
-      const queuedMessage: QueuedMessage = {
+      enqueueMessageForStreaming({
+        sender: event.sender,
         threadId,
         content,
         responseId: userMessage.id,
-        sender: event.sender,
         shouldAutoTitle,
-        wasQueued: queue.active,
-      };
-
-      if (queue.active) {
-        queue.queue.push(queuedMessage);
-        safeSend<ChatQueuePayload>(event.sender, "chat:queueUpdate", {
-          threadId,
-          messageId: userMessage.id,
-          state: "queued",
-        });
-      } else {
-        void startStreamForMessage(queuedMessage);
-      }
+      });
 
       return { userMessage, responseId: userMessage.id };
+    },
+  );
+
+  ipcMain.handle(
+    "chat:retryMessage",
+    async (event, threadId: string, messageId: string): Promise<void> => {
+      const message = await getMessageById(messageId);
+      if (!message) {
+        throw new Error("Cannot retry: message not found.");
+      }
+      if (message.threadId !== threadId) {
+        throw new Error("Cannot retry: message does not belong to this conversation.");
+      }
+      if (message.authorType !== "user") {
+        throw new Error("Cannot retry: only user messages can be retried.");
+      }
+
+      const content = message.contentShort?.trim() ?? "";
+      if (content.length === 0) {
+        throw new Error("Cannot retry: original message content is empty.");
+      }
+
+      await updateMessage(message.id, { status: "complete" });
+      streamRetryCounts.delete(`${threadId}:${message.id}`);
+
+      enqueueMessageForStreaming({
+        sender: event.sender,
+        threadId,
+        content,
+        responseId: message.id,
+        shouldAutoTitle: false,
+      });
     },
   );
 

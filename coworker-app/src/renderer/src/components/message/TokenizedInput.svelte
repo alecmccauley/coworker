@@ -1,13 +1,15 @@
 <script lang="ts">
   import UserIcon from '@lucide/svelte/icons/user'
   import FileTextIcon from '@lucide/svelte/icons/file-text'
+  import FileStackIcon from '@lucide/svelte/icons/file-stack'
   import { cn } from '$lib/utils.js'
-  import type { Coworker, WorkspaceDocument } from '$lib/types'
+  import type { Coworker, KnowledgeSource, WorkspaceDocument } from '$lib/types'
   import { parseDocumentData } from '$lib/types/document'
 
   interface Props {
     value: string
     coworkers: Coworker[]
+    sources?: KnowledgeSource[]
     documents?: WorkspaceDocument[]
     disabled?: boolean
     placeholder?: string
@@ -16,7 +18,7 @@
     onMentionOpen?: () => void
   }
 
-  type MentionType = 'coworker' | 'document'
+  type MentionType = 'coworker' | 'document' | 'source'
   type MentionToken = {
     type: 'mention'
     mentionType: MentionType
@@ -33,11 +35,12 @@
     subtitle?: string
   }
 
-  const mentionPattern = /@\{(coworker|document):([^|}]+)\|([^}]+)\}/g
+  const mentionPattern = /@\{(coworker|document|source):([^|}]+)\|([^}]+)\}/g
 
   let {
     value,
     coworkers,
+    sources = [],
     documents = [],
     disabled = false,
     placeholder = '',
@@ -78,7 +81,15 @@
       name: coworker.name,
       subtitle: coworker.shortDescription ?? undefined
     }))
-    return [...coworkerItems, ...documentMentions]
+
+    const sourceItems: MentionItem[] = sources.map((source) => ({
+      mentionType: 'source',
+      id: source.id,
+      name: source.name?.trim() || `Source ${source.id.slice(0, 6)}`,
+      subtitle: describeSource(source)
+    }))
+
+    return [...coworkerItems, ...documentMentions, ...sourceItems]
   })
 
   const filteredMentions = $derived.by(() => {
@@ -159,8 +170,40 @@
     chip.setAttribute('contenteditable', 'false')
     chip.className =
       'inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-sm font-medium text-foreground'
-    chip.textContent = mentionType === 'document' ? `@Doc: ${name}` : `@${name}`
+    if (mentionType === 'document') {
+      chip.textContent = `@Doc: ${name}`
+      return chip
+    }
+    if (mentionType === 'source') {
+      chip.textContent = `@Source: ${name}`
+      return chip
+    }
+    chip.textContent = `@${name}`
     return chip
+  }
+
+  function describeSource(source: KnowledgeSource): string {
+    const scopeLabel =
+      source.scopeType === 'workspace'
+        ? 'Workspace source'
+        : source.scopeType === 'channel'
+          ? 'Channel source'
+          : source.scopeType === 'thread'
+            ? 'Thread source'
+            : source.scopeType === 'coworker'
+              ? 'Co-worker source'
+              : 'Source'
+
+    const kindLabel =
+      source.kind === 'file'
+        ? 'File'
+        : source.kind === 'url'
+          ? 'Link'
+          : source.kind === 'text'
+            ? 'Text'
+            : 'Memory'
+
+    return `${scopeLabel} · ${kindLabel}`
   }
 
   function serializeFromDom(container: HTMLDivElement): string {
@@ -465,6 +508,8 @@
             <div class="flex items-center gap-2">
               {#if item.mentionType === 'document'}
                 <FileTextIcon class="h-4 w-4 text-muted-foreground" />
+              {:else if item.mentionType === 'source'}
+                <FileStackIcon class="h-4 w-4 text-muted-foreground" />
               {:else}
                 <UserIcon class="h-4 w-4 text-muted-foreground" />
               {/if}

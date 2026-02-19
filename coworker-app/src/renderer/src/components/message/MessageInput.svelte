@@ -1,14 +1,15 @@
 <script lang="ts">
   import SendIcon from '@lucide/svelte/icons/send'
   import { Button } from '$lib/components/ui/button'
-  import TokenizedInput from './TokenizedInput.svelte'
-  import type { Coworker, WorkspaceDocument } from '$lib/types'
+  import MentionComposerInput from './MentionComposerInput.svelte'
+  import type { Coworker } from '$lib/types'
   import TypingIndicator from '../thread/TypingIndicator.svelte'
 
   interface Props {
     onSend: (input: { content: string }) => Promise<void>
     coworkers: Coworker[]
     channelId: string
+    threadId: string
     disabled?: boolean
     showActivity?: boolean
   }
@@ -17,46 +18,15 @@
     onSend,
     coworkers,
     channelId,
+    threadId,
     disabled = false,
     showActivity = false
   }: Props = $props()
 
   let content = $state('')
   let isSending = $state(false)
-  let availableCoworkers = $state<Coworker[]>([])
-  let availableDocuments = $state<WorkspaceDocument[]>([])
 
   const canSend = $derived(content.trim().length > 0 && !disabled && !isSending)
-
-  $effect(() => {
-    if (coworkers.length > 0) {
-      availableCoworkers = coworkers
-      return
-    }
-    if (!channelId) {
-      availableCoworkers = []
-      return
-    }
-    void loadCoworkersFromChannel()
-  })
-
-  async function loadCoworkersFromChannel(): Promise<void> {
-    try {
-      availableCoworkers = await window.api.channel.listCoworkers(channelId)
-    } catch (error) {
-      console.error('Failed to load channel coworkers:', error)
-      availableCoworkers = []
-    }
-  }
-
-  async function loadDocumentsFromWorkspace(): Promise<void> {
-    try {
-      availableDocuments = await window.api.message.listDocumentsByWorkspace()
-    } catch (error) {
-      console.error('Failed to load workspace documents:', error)
-      availableDocuments = []
-    }
-  }
 
   async function handleSend(): Promise<void> {
     if (!canSend) return
@@ -73,10 +43,6 @@
   function handleSubmit(): void {
     void handleSend()
   }
-
-  function handleMentionOpen(): void {
-    void loadDocumentsFromWorkspace()
-  }
 </script>
 
 <div class="border-t border-border bg-card/70 px-6 py-4">
@@ -87,15 +53,15 @@
   {/if}
   <div class="flex items-end gap-3">
     <div class="flex-1">
-      <TokenizedInput
+      <MentionComposerInput
         value={content}
-        coworkers={availableCoworkers}
-        documents={availableDocuments}
+        {coworkers}
+        {channelId}
+        {threadId}
         disabled={disabled || isSending}
         placeholder="Write a message for your co-workers..."
         onChange={(next) => (content = next)}
         onSubmit={handleSubmit}
-        onMentionOpen={handleMentionOpen}
       />
     </div>
     <Button onclick={handleSend} disabled={!canSend} class="gap-2">

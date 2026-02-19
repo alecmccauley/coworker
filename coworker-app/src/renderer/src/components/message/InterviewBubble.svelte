@@ -1,18 +1,29 @@
 <script lang="ts">
   import { cn } from '$lib/utils.js'
   import { Button } from '$lib/components/ui/button'
-  import type { InterviewData } from '$lib/types'
-  import { formatInterviewAnswersAsText } from '$lib/types'
+  import MentionComposerInput from './MentionComposerInput.svelte'
+  import type { Coworker, InterviewData } from '$lib/types'
+  import { formatInterviewAnswerForDisplay, formatInterviewAnswersAsText } from '$lib/types'
 
   interface Props {
     interviewData: InterviewData
     authorLabel: string
     messageId: string
+    channelId: string
     threadId: string
+    channelCoworkers: Coworker[]
     onAnswered: (messageId: string, updatedContentShort: string) => void
   }
 
-  let { interviewData, authorLabel, messageId, threadId, onAnswered }: Props = $props()
+  let {
+    interviewData,
+    authorLabel,
+    messageId,
+    channelId,
+    threadId,
+    channelCoworkers,
+    onAnswered
+  }: Props = $props()
 
   const isAnswered = $derived(interviewData.answers !== null)
 
@@ -91,9 +102,9 @@
             <p class="text-sm font-medium text-foreground">{q.question}</p>
             <span class="mt-1 inline-block rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-foreground">
               {#if interviewData.answers?.[q.id]?.startsWith('other:')}
-                {interviewData.answers[q.id].slice(6)}
+                {formatInterviewAnswerForDisplay(interviewData.answers[q.id])}
               {:else}
-                {interviewData.answers?.[q.id] ?? ''}
+                {formatInterviewAnswerForDisplay(interviewData.answers?.[q.id] ?? '')}
               {/if}
             </span>
           </div>
@@ -135,13 +146,18 @@
               </button>
             </div>
             {#if otherToggles[q.id]}
-              <textarea
-                class="mt-2 w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent/60"
-                placeholder="Type your answer..."
-                rows={2}
-                value={otherTexts[q.id] ?? ''}
-                oninput={(e) => setOtherText(q.id, e.currentTarget.value)}
-              ></textarea>
+              <div class="mt-2">
+                <MentionComposerInput
+                  value={otherTexts[q.id] ?? ''}
+                  {channelId}
+                  {threadId}
+                  coworkers={channelCoworkers}
+                  disabled={isSubmitting}
+                  placeholder="Type your answer..."
+                  onChange={(next) => setOtherText(q.id, next)}
+                  onSubmit={() => void handleSubmit()}
+                />
+              </div>
             {/if}
           </div>
         {/each}

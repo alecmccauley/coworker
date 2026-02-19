@@ -3,7 +3,9 @@ import {
   createThread,
   updateThread,
   archiveThread,
+  unarchiveThread,
   listThreads,
+  listArchivedThreads,
   getThreadById,
   type CreateThreadInput,
   type UpdateThreadInput,
@@ -43,6 +45,22 @@ export function registerThreadIpcHandlers(): void {
     "thread:list",
     async (_event, channelId: string): Promise<Thread[]> => {
       return listThreads(channelId);
+    },
+  );
+
+  // List all archived threads in a channel
+  ipcMain.handle(
+    "thread:listArchived",
+    async (_event, channelId: string): Promise<Thread[]> => {
+      return listArchivedThreads(channelId);
+    },
+  );
+
+  // Unarchive a thread
+  ipcMain.handle(
+    "thread:unarchive",
+    async (_event, id: string): Promise<void> => {
+      return unarchiveThread(id);
     },
   );
 

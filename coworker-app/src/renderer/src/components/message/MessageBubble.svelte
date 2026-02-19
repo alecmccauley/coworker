@@ -15,6 +15,9 @@
     highlight?: boolean;
     activityLabel?: string;
     isQueued?: boolean;
+    showRetry?: boolean;
+    onRetry?: () => void;
+    retryDisabled?: boolean;
   }
 
   let {
@@ -24,6 +27,9 @@
     highlight = false,
     activityLabel,
     isQueued = false,
+    showRetry = false,
+    onRetry,
+    retryDisabled = false,
   }: Props = $props();
 
   const content = $derived(
@@ -54,6 +60,11 @@
     copyResetTimeout = setTimeout(() => {
       isCopied = false;
     }, 1800);
+  }
+
+  function handleRetry(): void {
+    if (retryDisabled) return;
+    onRetry?.();
   }
 
   onDestroy(() => {
@@ -91,6 +102,17 @@
           <CopyIcon class="mr-1 h-3.5 w-3.5" />
           Copy
         {/if}
+      </Button>
+    {/if}
+    {#if showRetry}
+      <Button
+        variant="ghost"
+        size="sm"
+        class="h-6 px-2 opacity-0 transition-opacity group-hover:opacity-100"
+        disabled={retryDisabled}
+        onclick={handleRetry}
+      >
+        {retryDisabled ? "Retrying..." : "Retry"}
       </Button>
     {/if}
   </div>

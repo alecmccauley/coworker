@@ -133,7 +133,7 @@ renderer remains unprivileged and Electron system APIs stay in main.
 We support a streaming chat pipeline for thread conversations:
 
 - Renderer calls `window.api.chat.sendMessage()`.
-- Main process gathers RAG context from local workspace sources, injects any @mentioned document content, composes the orchestrator system prompt, and streams via the SDK.
+- Main process gathers RAG context from local workspace sources, injects any @mentioned document content, injects full text for @mentioned knowledge sources (workspace/channel/thread scopes), composes the orchestrator system prompt, and streams via the SDK.
 - API route `/api/v1/chat` runs a tool-orchestrated loop that selects coworkers and generates each reply via subordinate calls.
 - Renderer updates coworker messages incrementally from IPC events.
 - The model can emit `report_status` tool calls; the main process forwards these as `chat:status` activity updates that render in the thread header.

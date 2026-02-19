@@ -5,6 +5,10 @@
   import SettingsIcon from '@lucide/svelte/icons/settings'
   import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal'
   import PencilIcon from '@lucide/svelte/icons/pencil'
+  import ArchiveIcon from '@lucide/svelte/icons/archive'
+  import ChevronDownIcon from '@lucide/svelte/icons/chevron-down'
+  import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
+  import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw'
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
   import { Button } from '$lib/components/ui/button'
   import { cn } from '$lib/utils.js'
@@ -56,6 +60,9 @@
   let renameTarget = $state<Thread | null>(null)
   let renameError = $state<string | null>(null)
   let isRenaming = $state(false)
+  let archivedThreads = $state<Thread[]>([])
+  let isArchivedOpen = $state(false)
+  let isLoadingArchived = $state(false)
 
   $effect(() => {
     // Reload threads when channel changes
@@ -173,6 +180,43 @@
       console.error('Failed to rename thread:', error)
       renameError = 'Unable to rename this conversation.'
       isRenaming = false
+    }
+  }
+
+  async function handleArchiveThread(thread: Thread): Promise<void> {
+    try {
+      await window.api.thread.archive(thread.id)
+      threads = threads.filter((t) => t.id !== thread.id)
+      if (selectedThread?.id === thread.id) {
+        selectedThread = null
+        onSelectThread?.(null)
+      }
+      if (isArchivedOpen) {
+        await loadArchivedThreads()
+      }
+    } catch (error) {
+      console.error('Failed to archive thread:', error)
+    }
+  }
+
+  async function loadArchivedThreads(): Promise<void> {
+    isLoadingArchived = true
+    try {
+      archivedThreads = await window.api.thread.listArchived(channel.id)
+    } catch (error) {
+      console.error('Failed to load archived threads:', error)
+    } finally {
+      isLoadingArchived = false
+    }
+  }
+
+  async function handleRestoreThread(thread: Thread): Promise<void> {
+    try {
+      await window.api.thread.unarchive(thread.id)
+      archivedThreads = archivedThreads.filter((t) => t.id !== thread.id)
+      await loadThreads()
+    } catch (error) {
+      console.error('Failed to restore thread:', error)
     }
   }
 
@@ -339,13 +383,71 @@
                       <PencilIcon class="mr-2 h-4 w-4" />
                       Rename
                     </DropdownMenu.Item>
+                    <DropdownMenu.Item onclick={() => handleArchiveThread(thread)}>
+                      <ArchiveIcon class="mr-2 h-4 w-4" />
+                      Archive
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </div>
             </div>
           {/each}
         </div>
+
       {/if}
+
+      <!-- Archived Section -->
+      <div class="border-t border-border">
+        <button
+          class="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onclick={async () => {
+            if (!isArchivedOpen && archivedThreads.length === 0) {
+              await loadArchivedThreads()
+            }
+            isArchivedOpen = !isArchivedOpen
+          }}
+        >
+          {#if isArchivedOpen}
+            <ChevronDownIcon class="h-4 w-4 shrink-0" />
+          {:else}
+            <ChevronRightIcon class="h-4 w-4 shrink-0" />
+          {/if}
+          Archived ({archivedThreads.length})
+        </button>
+
+        {#if isArchivedOpen}
+          {#if isLoadingArchived}
+            <div class="flex items-center justify-center py-4">
+              <Loader2Icon class="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          {:else if archivedThreads.length === 0}
+            <p class="px-3 pb-3 text-xs text-muted-foreground">No archived conversations</p>
+          {:else}
+            <div class="pb-2">
+              {#each archivedThreads as thread (thread.id)}
+                <div class="flex items-start justify-between gap-2 px-3 py-2">
+                  <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span class="min-w-0 truncate text-sm text-muted-foreground">
+                      {thread.title || 'Untitled conversation'}
+                    </span>
+                    <span class="text-xs text-muted-foreground/60">
+                      Archived {formatRelativeTime(thread.archivedAt!)}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onclick={() => handleRestoreThread(thread)}
+                    title="Restore"
+                  >
+                    <RotateCcwIcon class="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+      </div>
     </div>
 
     <!-- Conversation View -->

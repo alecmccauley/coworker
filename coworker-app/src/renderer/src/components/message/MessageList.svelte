@@ -9,23 +9,31 @@
   interface Props {
     messages: Message[]
     coworkers: Coworker[]
+    channelCoworkers: Coworker[]
+    channelId: string
     activityByMessageId?: Record<string, string>
     queuedMessageIds?: string[]
+    retryingMessageIds?: string[]
     isLoading?: boolean
     scrollKey?: string | null
     onInterviewAnswered?: (messageId: string, updatedContentShort: string) => void
     onDocumentRenamed?: (messageId: string, updatedContentShort: string) => void
+    onRetryMessage?: (messageId: string) => Promise<void>
   }
 
   let {
     messages,
     coworkers,
+    channelCoworkers,
+    channelId,
     activityByMessageId = {},
     queuedMessageIds = [],
+    retryingMessageIds = [],
     isLoading = false,
     scrollKey = null,
     onInterviewAnswered,
-    onDocumentRenamed
+    onDocumentRenamed,
+    onRetryMessage
   }: Props = $props()
 
   const sortedMessages = $derived(
@@ -93,7 +101,9 @@
             interviewData={interview}
             authorLabel={getAuthorLabel(message)}
             messageId={message.id}
+            {channelId}
             threadId={message.threadId}
+            {channelCoworkers}
             onAnswered={(mid, content) => onInterviewAnswered?.(mid, content)}
           />
         {:else if document}
@@ -112,6 +122,12 @@
             highlight={message.authorType === 'coworker'}
             isQueued={message.authorType === 'user' && queuedMessageIds.includes(message.id)}
             activityLabel={activityByMessageId[message.id]}
+            showRetry={message.authorType === 'user' && message.status === 'error'}
+            retryDisabled={retryingMessageIds.includes(message.id)}
+            onRetry={() => {
+              if (!onRetryMessage) return
+              void onRetryMessage(message.id)
+            }}
           />
         {/if}
       {/each}

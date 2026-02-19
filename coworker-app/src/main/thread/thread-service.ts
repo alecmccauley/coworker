@@ -1,4 +1,4 @@
-import { eq, isNull, and, desc, sql } from "drizzle-orm";
+import { eq, isNull, isNotNull, and, desc, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import {
   getCurrentWorkspace,
@@ -248,6 +248,70 @@ export async function listThreads(channelId: string): Promise<Thread[]> {
       ),
     )
     .orderBy(desc(threads.updatedAt));
+}
+
+/**
+ * List all archived threads in a channel
+ */
+export async function listArchivedThreads(channelId: string): Promise<Thread[]> {
+  const db = getCurrentDatabase();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  return db
+    .select()
+    .from(threads)
+    .where(
+      and(
+        eq(threads.workspaceId, workspace.manifest.id),
+        eq(threads.channelId, channelId),
+        isNotNull(threads.archivedAt),
+      ),
+    )
+    .orderBy(desc(threads.archivedAt));
+}
+
+/**
+ * Unarchive a thread
+ */
+export async function unarchiveThread(id: string): Promise<void> {
+  const db = getCurrentDatabase();
+  const sqlite = getCurrentSqlite();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !sqlite || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const existing = await db
+    .select()
+    .from(threads)
+    .where(
+      and(eq(threads.id, id), eq(threads.workspaceId, workspace.manifest.id)),
+    );
+
+  if (existing.length === 0) {
+    throw new Error(`Thread not found: ${id}`);
+  }
+
+  if (!existing[0].archivedAt) {
+    return; // Already active
+  }
+
+  sqlite.transaction(() => {
+    const event = createEventRecord("thread", id, "unarchived", {});
+    db.insert(events).values(event).run();
+    db.update(threads)
+      .set({
+        archivedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(threads.id, id))
+      .run();
+  })();
 }
 
 /**

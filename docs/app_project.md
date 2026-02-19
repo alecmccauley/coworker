@@ -123,11 +123,15 @@ See [Authentication Documentation](./authentication.md) for complete auth detail
 
 ## Message Composer Mentions
 
-The message composer supports @mentions of channel-assigned co-workers and
-workspace documents (AI document artifacts) with a tokenized, chip-based input.
+The message composer supports @mentions of channel-assigned co-workers,
+workspace documents (AI document artifacts), and knowledge sources relevant to
+the active thread (workspace + channel + thread scopes) with a tokenized,
+chip-based input.
 Mentions are rendered as inline chips in the composer while the stored message
 content remains plain text with a deterministic token format for backend
 parsing.
+The interview bubble "Other" input uses this same tokenized composer
+configuration and mention-loading pipeline so both surfaces stay in sync.
 
 ### Mention token format
 
@@ -136,6 +140,7 @@ Mentions are serialized as:
 ```
 @{coworker:ID|Name}
 @{document:MessageId|Title}
+@{source:SourceId|SourceName}
 ```
 
 Example:
@@ -143,6 +148,7 @@ Example:
 ```
 @{coworker:ckv9j2x1e0001|Alex}
 @{document:cmsg123|Marketing Brief}
+@{source:src_abc123|Brand Positioning Notes}
 ```
 
 ### Mention picker behavior
@@ -150,12 +156,29 @@ Example:
 - Triggered by typing `@` at a word boundary.
 - Suggestions include co-workers assigned to the active channel and documents
   from anywhere in the workspace.
+- Suggestions also include scoped knowledge sources from workspace, current
+  channel, and current thread.
 - The document list is loaded via `message:listDocumentsByWorkspace`.
+- The source list is loaded via `knowledge:listSources` for workspace/channel/thread
+  and deduplicated by source id.
 - Keyboard controls:
   - `ArrowUp`/`ArrowDown` move selection
   - `Enter` or `Tab` inserts the selected mention
   - `Escape` closes the picker
 - Shift+Enter inserts a newline in the composer.
+- For interview "Other" inputs, Enter follows composer semantics (submit when
+  valid), while Shift+Enter inserts a newline.
+
+### Mentioned source context behavior
+
+- `@{source:...}` mentions inject the source's full extracted text into
+  orchestrator context for that turn.
+- If one or more mentioned sources have no extracted text (or no longer exist),
+  they are skipped and a system message is added to the thread listing skipped
+  sources.
+- Mentioned source payload is capped at **120,000 tokens**. If exceeded, send is
+  blocked with a clear error asking the user to remove one or more `@source`
+  mentions.
 
 ## Document Editing Tools
 
@@ -371,8 +394,10 @@ The **Messages** tab provides the full conversation experience:
 - Co-worker replies are orchestrated and streamed as separate coworker messages
 - Activity updates appear in the thread header, composer area, and inside streaming coworker bubbles. The composer status line rotates randomized coworker activity phrases every 10 seconds while co-workers are working.
 - Manual rename available from the thread header and thread list menu (title required)
-- Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback. After submitting, answers are persisted into the message's `contentShort` as JSON and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
+- **Archive & Restore**: threads can be soft-archived from the thread list dropdown menu ("Archive"). Archived threads have `archivedAt` set to the current timestamp; active thread queries filter them out with `isNull(archivedAt)`. A collapsible "Archived" section at the bottom of the thread panel is loaded on demand (`thread:listArchived`). Restoring a thread sets `archivedAt` back to null (`thread:unarchive`) and re-surfaces it in the active list. If the archived thread was currently selected, it deselects gracefully (`selectedThread = null`).
+- Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback that uses the same mention-enabled tokenized composer as the main input (co-workers, documents, and sources). After submitting, answers are persisted into the message's `contentShort` as JSON (raw mention tokens are preserved), displayed in the answered state with humanized mention labels, and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
 - User messages can be queued while co-workers are working; queued messages show a "Queued" badge and run sequentially after the current orchestrator finishes.
+- Conversation retry: when an orchestrator run errors, failed user messages surface a Retry action inline on the message bubble and in the thread error banner. Retry reuses the original user message id/content and re-runs orchestration without creating a duplicate user prompt.
 - Document artifacts: when a coworker will produce a structured document (brief, report, plan), the orchestrator calls `start_document_draft` with the coworkerId and title **before** calling `generate_coworker_response`. This creates the `DocumentBar` in a pulsing drafting state immediately, with an activity label (e.g. "Riley is drafting Marketing Brief...") in the thread activity indicator, giving the user visual feedback during the entire subordinate model generation. When `emit_document` fires after the content is ready, it reuses the pending draft message rather than creating a new one. The document content is stored as a `.md` blob and the message is finalized via `chat:complete`, which updates `contentShort` with the `blobId`. The `DocumentBar` then transitions to its clickable final state. If `start_document_draft` is not called (fallback), `emit_document` still creates the message on its own. Clicking the bar opens a `DocumentViewDialog` that loads the blob content and renders the markdown. In chat history, document messages appear as `[Document: <title>]` for LLM context.
 - Rich clipboard copy is available in both standard chat bubbles and the `DocumentViewDialog`. Copy writes both `text/html` and `text/plain` through a typed IPC bridge so pasting into rich editors preserves markdown formatting while plain-text targets still get readable text.
 
@@ -392,6 +417,7 @@ Primary components:
 - `src/renderer/src/components/thread/ThreadView.svelte`
 - `src/renderer/src/components/message/MessageList.svelte`
 - `src/renderer/src/components/message/MessageInput.svelte`
+- `src/renderer/src/components/message/MentionComposerInput.svelte`
 - `src/renderer/src/components/thread/ThreadSourcesPanel.svelte`
 - `src/renderer/src/components/message/InterviewBubble.svelte`
 - `src/renderer/src/lib/types/interview.ts` — interview data types + parse/format helpers
