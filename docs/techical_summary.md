@@ -144,6 +144,12 @@ We support a streaming chat pipeline for thread conversations:
 - The model can invoke document editing tools (`find_document`, `read_document_range`, `edit_document`, `create_document_copy`); these are placeholder executors on the API — the main process handles them against live blob content, applying search-and-replace edits and emitting document updates.
 - Document edits are versioned: each edit stores a new blob + commit message in `document_versions`, and the viewer exposes a version sidebar for preview/revert.
 - User messages sent during an active orchestrator run are queued in the main process and streamed sequentially after the current run completes. The renderer receives `chat:queueUpdate` events for queued/processing states.
+- Stream parsing now handles full SSE event blocks and flushes trailing buffered
+  events at EOF so final tool/finish events are not dropped.
+- The main process enforces terminal integrity and stream liveness:
+  - idle runs are aborted with `stream_timeout`
+  - incomplete terminal states are marked `stream_incomplete`
+  - retryable stream failures are retried once before surfacing an error
 - Prompt injection guardrails are enforced in the main process; retrieved context is treated as untrusted and is never allowed to override system rules.
 - Coworker replies use a standardized coworker system prompt block before role prompts and defaults to keep tone and behavior consistent.
 
@@ -165,7 +171,7 @@ sequenceDiagram
   API->>Model: streamText() tool loop
   Model-->>API: tool calls + data stream
   API-->>Main: streaming response
-  Main-->>Preload: chat:messageCreated/chat:chunk/chat:status/chat:queueUpdate/chat:complete
+  Main-->>Preload: chat:messageCreated/chat:chunk/chat:status/chat:queueUpdate/chat:complete/chat:error
   Preload-->>Renderer: update UI
 ```
 

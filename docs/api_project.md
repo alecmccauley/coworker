@@ -556,6 +556,9 @@ Provider resilience behavior:
 
 - If Gemini returns a tool-call `thought_signature` error during orchestration setup, the API retries once with `report_status` disabled for that run.
 - The retry keeps all other tools enabled and preserves normal response streaming semantics.
+- In the desktop app pipeline, the main process adds stream reliability guards:
+  idle watchdog timeouts (`stream_timeout`), terminal integrity checks
+  (`stream_incomplete`), and a single automatic retry before emitting `chat:error`.
 
 Chat request payload includes orchestration context:
 

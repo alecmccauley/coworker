@@ -267,6 +267,11 @@ whitespace and formatting differences that cause LLM retry loops.
 - If the API detects a Gemini tool-call `thought_signature` setup error, it retries
   once with the `report_status` tool disabled for that run. The stream still
   completes through the normal main-process retry and IPC pipeline.
+- The main process enforces terminal integrity for each run. If a stream ends
+  before all active coworker/document messages are completed, it is marked as
+  `stream_incomplete` and retried once before surfacing an error.
+- A per-run idle watchdog aborts stalled streams (`stream_timeout`) so threads do
+  not remain in a silent “working” state indefinitely.
 
 ## Document Version History
 
@@ -440,6 +445,7 @@ The **Messages** tab provides the full conversation experience:
 - Interview bubbles: when a request is ambiguous, the orchestrator can call `request_interview` to ask 1-5 clarifying multiple-choice questions before generating responses. The InterviewBubble component renders clickable option cards with an "Other" free-text fallback that uses the same mention-enabled tokenized composer as the main input (co-workers, documents, and sources). After submitting, answers are persisted into the message's `contentShort` as JSON (raw mention tokens are preserved), displayed in the answered state with humanized mention labels, and a formatted user message is sent to trigger a new orchestrator round. The message input is disabled while an unanswered interview exists.
 - User messages can be queued while co-workers are working; queued messages show a "Queued" badge and run sequentially after the current orchestrator finishes.
 - Conversation retry: when an orchestrator run errors, failed user messages surface a Retry action inline on the message bubble and in the thread error banner. Retry reuses the original user message id/content and re-runs orchestration without creating a duplicate user prompt.
+- Chat errors include structured codes (`stream_incomplete`, `stream_timeout`, `stream_aborted`, `stream_upstream_error`) and the thread UI maps these to user-friendly retry guidance.
 - Document artifacts: when a coworker will produce a structured document (brief, report, plan), the orchestrator calls `start_document_draft` with the coworkerId and title **before** calling `generate_coworker_response`. This creates the `DocumentBar` in a pulsing drafting state immediately, with an activity label (e.g. "Riley is drafting Marketing Brief...") in the thread activity indicator, giving the user visual feedback during the entire subordinate model generation. When `emit_document` fires after the content is ready, it reuses the pending draft message rather than creating a new one. The document content is stored as a `.md` blob and the message is finalized via `chat:complete`, which updates `contentShort` with the `blobId`. The `DocumentBar` then transitions to its clickable final state. If `start_document_draft` is not called (fallback), `emit_document` still creates the message on its own. Clicking the bar opens a `DocumentViewDialog` that loads the blob content and renders the markdown. In chat history, document messages appear as `[Document: <title>]` for LLM context.
 - Rich clipboard copy is available in both standard chat bubbles and the `DocumentViewDialog`. Copy writes both `text/html` and `text/plain` through a typed IPC bridge so pasting into rich editors preserves markdown formatting while plain-text targets still get readable text.
 

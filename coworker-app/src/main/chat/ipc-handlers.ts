@@ -51,6 +51,11 @@ interface ChatCompletePayload {
 interface ChatErrorPayload {
   messageId: string;
   error: string;
+  code?:
+    | "stream_incomplete"
+    | "stream_timeout"
+    | "stream_aborted"
+    | "stream_upstream_error";
 }
 
 type ExternalEditDecision = "edit" | "copy" | "cancel" | null;
@@ -168,7 +173,8 @@ const threadQueues = new Map<string, ThreadQueueState>();
 const toolRetryCounts = new Map<string, number>();
 const MAX_TOOL_RETRIES = 2;
 const streamRetryCounts = new Map<string, number>();
-const MAX_STREAM_RETRIES = 2;
+const MAX_STREAM_RETRIES = 1;
+const STREAM_IDLE_TIMEOUT_MS = 90_000;
 
 const MAX_DOCUMENT_RANGE_LINES = 400;
 const MAX_MENTIONED_SOURCE_TOKENS = 120000;
@@ -409,12 +415,25 @@ async function triggerToolRetry(params: {
 function shouldRetryStreamError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
+    lower.includes("stream_incomplete") ||
+    lower.includes("stream_timeout") ||
     lower.includes("gatewayresponseerror") ||
     lower.includes("headers timeout") ||
     lower.includes("headers_timeout") ||
     lower.includes("und_err_headers_timeout") ||
     lower.includes("failed to stream")
   );
+}
+
+function getStreamErrorCode(
+  message: string,
+  aborted: boolean,
+): NonNullable<ChatErrorPayload["code"]> {
+  const lower = message.toLowerCase();
+  if (lower.includes("stream_incomplete")) return "stream_incomplete";
+  if (lower.includes("stream_timeout")) return "stream_timeout";
+  if (aborted) return "stream_aborted";
+  return "stream_upstream_error";
 }
 
 function enqueueStreamRetry(params: {
@@ -739,6 +758,8 @@ async function streamChatResponse(
     { isDuplicate: boolean; addsMaterialValue: boolean; similarityScore: number }
   >();
   let activeMessageId: string | null = null;
+  let streamTimedOut = false;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
   const emitStatus = (label: string, phase: ChatStatusPayload["phase"]): void => {
     if (statusClosed) {
@@ -761,6 +782,52 @@ async function streamChatResponse(
     }
     statusBuffers.clear();
     emitStatus("", phase);
+  };
+
+  const clearIdleTimer = (): void => {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  };
+
+  const bumpStreamActivity = (): void => {
+    clearIdleTimer();
+    idleTimer = setTimeout(() => {
+      streamTimedOut = true;
+      controller.abort();
+    }, STREAM_IDLE_TIMEOUT_MS);
+    if (typeof idleTimer.unref === "function") {
+      idleTimer.unref();
+    }
+  };
+
+  const collectOpenMessageIds = async (): Promise<string[]> => {
+    const candidates = new Set<string>();
+    if (activeMessageId) {
+      candidates.add(activeMessageId);
+    }
+    for (const messageId of responseMessageByCoworker.values()) {
+      candidates.add(messageId);
+    }
+    for (const buffer of coworkerBuffers.values()) {
+      if (buffer.messageId) candidates.add(buffer.messageId);
+    }
+    for (const buffer of documentBuffers.values()) {
+      if (buffer.messageId) candidates.add(buffer.messageId);
+    }
+    for (const pendingId of pendingDocumentMessages.values()) {
+      candidates.add(pendingId);
+    }
+
+    const open: string[] = [];
+    for (const messageId of candidates) {
+      const message = await getMessageById(messageId);
+      if (message?.status === "streaming") {
+        open.push(messageId);
+      }
+    }
+    return open;
   };
 
   try {
@@ -884,7 +951,27 @@ async function streamChatResponse(
       signal: controller.signal,
     });
 
+    const ensureTerminalIntegrity = async (
+      finishReason?: string,
+    ): Promise<void> => {
+      const openMessageIds = await collectOpenMessageIds();
+      if (openMessageIds.length === 0) {
+        return;
+      }
+
+      if (finishReason === "eof") {
+        throw new Error(
+          "stream_incomplete: stream ended unexpectedly before co-worker messages completed.",
+        );
+      }
+      throw new Error(
+        "stream_incomplete: stream finished without all co-worker messages completing.",
+      );
+    };
+
+    bumpStreamActivity();
     for await (const event of stream) {
+      bumpStreamActivity();
       if (event.type === "chunk") {
         continue;
       }
@@ -2218,21 +2305,52 @@ async function streamChatResponse(
       }
 
       if (event.type === "done") {
+        clearIdleTimer();
+        await ensureTerminalIntegrity(event.finishReason);
         finalizeStatus("done");
         return;
       }
     }
+
+    clearIdleTimer();
+    await ensureTerminalIntegrity("eof");
+    throw new Error("stream_incomplete: stream ended without a terminal event.");
   } catch (error) {
-    const message =
+    clearIdleTimer();
+    const baseMessage =
       error instanceof Error ? error.message : "Failed to stream response";
+    const message = streamTimedOut
+      ? "stream_timeout: co-workers stopped responding."
+      : baseMessage;
+    const errorCode = getStreamErrorCode(
+      message,
+      controller.signal.aborted && !streamTimedOut,
+    );
+    const userCanceled = errorCode === "stream_aborted";
     const retryKey = `${threadId}:${responseId}`;
     const retryCount = streamRetryCounts.get(retryKey) ?? 0;
     const shouldRetry =
-      !controller.signal.aborted &&
+      !userCanceled &&
       retryCount < MAX_STREAM_RETRIES &&
       shouldRetryStreamError(message);
 
     if (shouldRetry) {
+      const openMessageIds = await collectOpenMessageIds();
+      for (const messageId of openMessageIds) {
+        const existing = await getMessageById(messageId);
+        if (existing?.status === "streaming") {
+          await persistStreamingContent(
+            messageId,
+            existing.contentShort ?? "",
+            "error",
+          );
+          safeSend<ChatErrorPayload>(sender, "chat:error", {
+            messageId,
+            error: "Co-workers paused unexpectedly. Retrying...",
+            code: errorCode,
+          });
+        }
+      }
       streamRetryCounts.set(retryKey, retryCount + 1);
       emitStatus("Retrying...", "streaming");
       enqueueStreamRetry({
@@ -2245,36 +2363,58 @@ async function streamChatResponse(
       return;
     }
 
+    const openMessageIds = new Set<string>(await collectOpenMessageIds());
     for (const buffer of coworkerBuffers.values()) {
-      if (buffer.messageId) {
-        await persistStreamingContent(buffer.messageId, buffer.content, "error");
-        safeSend<ChatErrorPayload>(sender, "chat:error", {
-          messageId: buffer.messageId,
-          error: controller.signal.aborted ? "Message canceled" : message,
-        });
-      }
+      if (buffer.messageId) openMessageIds.add(buffer.messageId);
     }
     for (const buffer of documentBuffers.values()) {
-      if (buffer.messageId) {
-        safeSend<ChatErrorPayload>(sender, "chat:error", {
-          messageId: buffer.messageId,
-          error: controller.signal.aborted ? "Message canceled" : message,
-        });
-      }
+      if (buffer.messageId) openMessageIds.add(buffer.messageId);
     }
     for (const pendingMessageId of pendingDocumentMessages.values()) {
+      openMessageIds.add(pendingMessageId);
+    }
+
+    const displayError =
+      errorCode === "stream_incomplete"
+        ? "Co-workers stopped before finishing."
+        : errorCode === "stream_timeout"
+          ? "Co-workers stopped responding."
+          : userCanceled
+            ? "Message canceled"
+            : message;
+
+    for (const messageId of openMessageIds) {
+      const existing = await getMessageById(messageId);
+      if (existing?.status === "streaming") {
+        await persistStreamingContent(
+          messageId,
+          existing.contentShort ?? "",
+          "error",
+        );
+      }
       safeSend<ChatErrorPayload>(sender, "chat:error", {
-        messageId: pendingMessageId,
-        error: controller.signal.aborted ? "Message canceled" : message,
+        messageId,
+        error: displayError,
+        code: errorCode,
       });
     }
+
     pendingDocumentMessages.clear();
     finalizeStatus("error");
-    safeSend<ChatErrorPayload>(sender, "chat:error", {
-      messageId: responseId,
-      error: controller.signal.aborted ? "Message canceled" : message,
-    });
+    if (responseId && responseId.length > 0) {
+      if (!userCanceled) {
+        await updateMessage(responseId, { status: "error" }).catch(() => {
+          // Best-effort: responseId can be empty for internal retry queue items.
+        });
+      }
+      safeSend<ChatErrorPayload>(sender, "chat:error", {
+        messageId: responseId,
+        error: displayError,
+        code: errorCode,
+      });
+    }
   } finally {
+    clearIdleTimer();
     activeStreams.delete(responseId);
   }
 }

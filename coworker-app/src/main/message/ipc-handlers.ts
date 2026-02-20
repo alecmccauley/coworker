@@ -3,6 +3,7 @@ import {
   createMessage,
   updateMessage,
   listMessages,
+  reconcileStaleStreamingMessages,
   getMessageById,
   listDocumentsByChannel,
   listDocumentsByWorkspace,
@@ -37,6 +38,7 @@ export function registerMessageIpcHandlers(): void {
   ipcMain.handle(
     "message:list",
     async (_event, threadId: string): Promise<Message[]> => {
+      await reconcileStaleStreamingMessages(threadId);
       return listMessages(threadId);
     },
   );

@@ -89,6 +89,19 @@
     retryingMessageIds = retryingMessageIds.filter((item) => item !== id)
   }
 
+  function getChatErrorMessage(payload: ChatErrorPayload): string {
+    if (payload.code === 'stream_incomplete') {
+      return 'Co-workers stopped before finishing. We saved what we could. Retry to continue.'
+    }
+    if (payload.code === 'stream_timeout') {
+      return 'Co-workers stopped responding. Retry to continue.'
+    }
+    if (payload.code === 'stream_aborted') {
+      return 'Message canceled.'
+    }
+    return payload.error
+  }
+
   $effect(() => {
     void loadMessages()
   })
@@ -144,7 +157,7 @@
       )
       removeStreamingMessage(payload.messageId)
       clearActivity(payload.messageId)
-      error = payload.error
+      error = getChatErrorMessage(payload)
     })
 
     const cleanupStatus = window.api.chat.onStatus(

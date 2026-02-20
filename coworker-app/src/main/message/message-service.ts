@@ -1,4 +1,4 @@
-import { eq, and, asc, desc, isNull, like, sql } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, like, lt, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import {
   getCurrentWorkspace,
@@ -261,6 +261,41 @@ export async function listMessages(threadId: string): Promise<Message[]> {
       ),
     )
     .orderBy(asc(messages.createdAt));
+}
+
+/**
+ * Reconcile stale streaming messages to error so old interrupted runs don't
+ * leave conversations permanently "in progress".
+ */
+export async function reconcileStaleStreamingMessages(
+  threadId: string,
+  maxAgeMs = 5 * 60 * 1000,
+): Promise<number> {
+  const db = getCurrentDatabase();
+  const workspace = getCurrentWorkspace();
+
+  if (!db || !workspace) {
+    throw new Error("No workspace is currently open");
+  }
+
+  const staleBefore = new Date(Date.now() - maxAgeMs);
+  const staleMessages = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.workspaceId, workspace.manifest.id),
+        eq(messages.threadId, threadId),
+        eq(messages.status, "streaming"),
+        lt(messages.updatedAt, staleBefore),
+      ),
+    );
+
+  for (const staleMessage of staleMessages) {
+    await updateMessage(staleMessage.id, { status: "error" });
+  }
+
+  return staleMessages.length;
 }
 
 /**

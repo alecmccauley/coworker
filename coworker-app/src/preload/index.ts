@@ -348,6 +348,11 @@ export interface ChatCompletePayload {
 export interface ChatErrorPayload {
   messageId: string;
   error: string;
+  code?:
+    | "stream_incomplete"
+    | "stream_timeout"
+    | "stream_aborted"
+    | "stream_upstream_error";
 }
 
 export interface ChatStatusPayload {
