@@ -26,3 +26,16 @@ export async function copyRichContent(
     return false;
   }
 }
+
+export async function copyPlainText(text: string): Promise<boolean> {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  try {
+    await window.api.clipboard.writeText(trimmed);
+    return true;
+  } catch (error) {
+    console.error("Failed to copy text:", error);
+    return false;
+  }
+}

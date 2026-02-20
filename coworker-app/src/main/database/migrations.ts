@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
  * Current schema version
  * Increment this when making schema changes
  */
-const CURRENT_SCHEMA_VERSION = 11;
+const CURRENT_SCHEMA_VERSION = 12;
 
 /**
  * Run all migrations on a workspace database
@@ -65,6 +65,9 @@ export function runMigrations(sqlite: Database.Database): void {
     }
     if (currentVersion < 11) {
       runMigrationV11(sqlite);
+    }
+    if (currentVersion < 12) {
+      runMigrationV12(sqlite);
     }
 
     // Update schema version
@@ -232,6 +235,7 @@ function runMigrationV2(sqlite: Database.Database): void {
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
       thread_id TEXT NOT NULL,
+      reply_to_message_id TEXT,
       author_type TEXT NOT NULL,
       author_id TEXT,
       content_ref TEXT,
@@ -624,5 +628,21 @@ function runMigrationV11(sqlite: Database.Database): void {
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_document_versions_message
     ON document_versions (workspace_id, message_id, created_at)
+  `);
+}
+
+/**
+ * Migration V12: Add message reply references
+ */
+function runMigrationV12(sqlite: Database.Database): void {
+  console.log("[DB] Running migration V12: Add reply_to_message_id to messages");
+
+  sqlite.exec(`
+    ALTER TABLE messages ADD COLUMN reply_to_message_id TEXT
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_messages_reply_to
+    ON messages (reply_to_message_id)
   `);
 }

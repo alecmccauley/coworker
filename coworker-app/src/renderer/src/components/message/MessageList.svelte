@@ -11,11 +11,14 @@
     coworkers: Coworker[]
     channelCoworkers: Coworker[]
     channelId: string
+    replyTargetMessageId?: string | null
     activityByMessageId?: Record<string, string>
     queuedMessageIds?: string[]
     retryingMessageIds?: string[]
     isLoading?: boolean
     scrollKey?: string | null
+    onRequestReply?: (messageId: string) => void
+    onCancelReply?: () => void
     onInterviewAnswered?: (messageId: string, updatedContentShort: string) => void
     onDocumentRenamed?: (messageId: string, updatedContentShort: string) => void
     onRetryMessage?: (messageId: string) => Promise<void>
@@ -26,11 +29,14 @@
     coworkers,
     channelCoworkers,
     channelId,
+    replyTargetMessageId = null,
     activityByMessageId = {},
     queuedMessageIds = [],
     retryingMessageIds = [],
     isLoading = false,
     scrollKey = null,
+    onRequestReply,
+    onCancelReply,
     onInterviewAnswered,
     onDocumentRenamed,
     onRetryMessage
@@ -79,9 +85,23 @@
     }
     return 'You'
   }
+
+  function getReplyPreview(content: string | null): string {
+    const text = (content ?? '').trim()
+    if (!text) return 'No message content'
+    return text.length > 180 ? `${text.slice(0, 180).trim()}…` : text
+  }
 </script>
 
-<div bind:this={scrollContainer} class="flex-1 overflow-y-auto px-6 py-4">
+<div bind:this={scrollContainer} class="relative flex-1 overflow-y-auto px-6 py-4">
+  {#if replyTargetMessageId}
+    <button
+      type="button"
+      class="absolute inset-0 z-10 bg-background/45 backdrop-blur-sm"
+      aria-label="Cancel reply focus"
+      onclick={() => onCancelReply?.()}
+    ></button>
+  {/if}
   {#if isLoading}
     <div class="flex items-center justify-center py-12">
       <div class="text-sm text-muted-foreground">Loading conversation...</div>
@@ -94,44 +114,67 @@
       </p>
     </div>
   {:else}
-    <div class="flex flex-col gap-5">
+    <div class="relative z-20 flex flex-col gap-5">
       {#each sortedMessages as message (message.id)}
+        {@const replyTarget = message.replyToMessageId
+          ? sortedMessages.find((candidate) => candidate.id === message.replyToMessageId) ?? null
+          : null}
+        {@const isReplyFocusTarget = replyTargetMessageId === message.id}
+        {@const isReplyFocusNonTarget = Boolean(replyTargetMessageId) && !isReplyFocusTarget}
         {@const interview = parseInterviewData(message.contentShort)}
         {@const document = parseDocumentData(message.contentShort)}
-        {#if interview}
-          <InterviewBubble
-            interviewData={interview}
-            authorLabel={getAuthorLabel(message)}
-            messageId={message.id}
-            {channelId}
-            threadId={message.threadId}
-            {channelCoworkers}
-            onAnswered={(mid, content) => onInterviewAnswered?.(mid, content)}
-          />
-        {:else if document}
-          <DocumentBar
-            documentData={document}
-            authorLabel={getAuthorLabel(message)}
-            activityLabel={activityByMessageId[message.id]}
-            messageId={message.id}
-            onRenamed={(mid, content) => onDocumentRenamed?.(mid, content)}
-          />
-        {:else}
-          <MessageBubble
-            {message}
-            authorLabel={getAuthorLabel(message)}
-            isOwn={message.authorType === 'user'}
-            highlight={message.authorType === 'coworker'}
-            isQueued={message.authorType === 'user' && queuedMessageIds.includes(message.id)}
-            activityLabel={activityByMessageId[message.id]}
-            showRetry={message.authorType === 'user' && message.status === 'error'}
-            retryDisabled={retryingMessageIds.includes(message.id)}
-            onRetry={() => {
-              if (!onRetryMessage) return
-              void onRetryMessage(message.id)
-            }}
-          />
-        {/if}
+        <div
+          class={`relative transition-all duration-300 ${
+            isReplyFocusTarget
+              ? 'z-40 rounded-2xl ring-1 ring-accent/60 shadow-2xl'
+              : isReplyFocusNonTarget
+                ? 'z-20 scale-[0.99] blur-[1.5px] opacity-35'
+                : 'z-20'
+          }`}
+        >
+          {#if interview}
+            <InterviewBubble
+              interviewData={interview}
+              authorLabel={getAuthorLabel(message)}
+              messageId={message.id}
+              {channelId}
+              threadId={message.threadId}
+              {channelCoworkers}
+              onAnswered={(mid, content) => onInterviewAnswered?.(mid, content)}
+            />
+          {:else if document}
+            <DocumentBar
+              documentData={document}
+              authorLabel={getAuthorLabel(message)}
+              activityLabel={activityByMessageId[message.id]}
+              messageId={message.id}
+              onRenamed={(mid, content) => onDocumentRenamed?.(mid, content)}
+            />
+          {:else}
+            <MessageBubble
+              {message}
+              authorLabel={getAuthorLabel(message)}
+              isOwn={message.authorType === 'user'}
+              highlight={message.authorType === 'coworker'}
+              isQueued={message.authorType === 'user' && queuedMessageIds.includes(message.id)}
+              activityLabel={activityByMessageId[message.id]}
+              showRetry={message.authorType === 'user' && message.status === 'error'}
+              retryDisabled={retryingMessageIds.includes(message.id)}
+              canReply={message.authorType === 'user' || message.authorType === 'coworker'}
+              onRequestReply={onRequestReply}
+              replyReference={replyTarget
+                ? {
+                    authorLabel: getAuthorLabel(replyTarget),
+                    content: getReplyPreview(replyTarget.contentShort)
+                  }
+                : null}
+              onRetry={() => {
+                if (!onRetryMessage) return
+                void onRetryMessage(message.id)
+              }}
+            />
+          {/if}
+        </div>
       {/each}
     </div>
   {/if}

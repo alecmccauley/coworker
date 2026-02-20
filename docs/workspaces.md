@@ -150,7 +150,7 @@ Projections are tables that mirror “current state” and are updated when even
 | `coworkers` | Active coworker configs: id, workspace_id, name, description, created_at, updated_at, deleted_at (soft delete). Index: (workspace_id, deleted_at). |
 | `channels` | Project containers: name, purpose, pinned items, sort order, archived state. |
 | `threads` | Conversation sessions within channels. |
-| `messages` | Thread messages, with content refs for large content. |
+| `messages` | Thread messages, with content refs for large content and optional `reply_to_message_id` linkage for reply chains. |
 | `knowledge_items` | Scoped pinned notes and summaries. |
 | `knowledge_sources` | Raw inputs (text, links, files) scoped to workspace/channel/coworker/thread with optional notes, file metadata, and blob references. Drag-and-drop is supported in the app UI for file sources. Notes are indexed alongside source text for retrieval. |
 | `source_text` | Extracted plain/rich text for sources, with extraction versioning and warnings. Notes are appended as labeled text for indexing and retrieval. |
@@ -324,7 +324,7 @@ Status of the architecture briefing items (V1 workspace + storage). AI/streaming
 | Coworker extended fields | Done | rolePrompt, defaultsJson, templateId, templateVersion, templateDescription |
 | Channels table + service | Done | channel-service.ts with create, update, archive, list, createDefaults |
 | Threads table + service | Done | thread-service.ts with create, update, archive, list by channel |
-| Messages table + service | Done | message-service.ts with create, update, list by thread |
+| Messages table + service | Done | message-service.ts with create, update, list by thread, and persisted reply links (`reply_to_message_id`) |
 | Knowledge items table + service | Done | Scoped to workspace/channel/coworker, pinning support |
 | Knowledge sources table + service | Done | text/file/url sources with scope + notes, stored as blobs |
 | Source extraction + indexing | Done | source_text + source_chunks tables, FTS5 + sqlite-vec indexing |

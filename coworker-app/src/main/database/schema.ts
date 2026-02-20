@@ -75,6 +75,7 @@ export const messages = sqliteTable("messages", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id").notNull(),
   threadId: text("thread_id").notNull(),
+  replyToMessageId: text("reply_to_message_id"),
   authorType: text("author_type").notNull(), // 'user' | 'coworker' | 'system'
   authorId: text("author_id"), // coworker ID if authorType='coworker'
   contentRef: text("content_ref"), // Blob ref for large content

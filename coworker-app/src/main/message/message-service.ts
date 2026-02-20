@@ -23,6 +23,7 @@ export interface CreateMessageInput {
   threadId: string;
   authorType: AuthorType;
   authorId?: string;
+  replyToMessageId?: string;
   contentShort?: string;
   contentRef?: string;
   status?: MessageStatus;
@@ -44,6 +45,7 @@ interface MessageCreatedPayload {
   threadId: string;
   authorType: string;
   authorId?: string;
+  replyToMessageId?: string;
   contentShort?: string;
   contentRef?: string;
   status?: string;
@@ -126,10 +128,40 @@ export async function createMessage(
     threadId: input.threadId,
     authorType: input.authorType,
     authorId: input.authorId,
+    replyToMessageId: input.replyToMessageId,
     contentShort: input.contentShort,
     contentRef: input.contentRef,
     status: input.status,
   };
+
+  if (input.replyToMessageId) {
+    if (input.replyToMessageId === id) {
+      throw new Error("A message cannot reply to itself.");
+    }
+
+    const replyTarget = await db
+      .select({
+        id: messages.id,
+        threadId: messages.threadId,
+        workspaceId: messages.workspaceId,
+      })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.id, input.replyToMessageId),
+          eq(messages.workspaceId, workspace.manifest.id),
+        ),
+      )
+      .get();
+
+    if (!replyTarget) {
+      throw new Error(`Reply target message not found: ${input.replyToMessageId}`);
+    }
+
+    if (replyTarget.threadId !== input.threadId) {
+      throw new Error("Reply target must belong to the same thread.");
+    }
+  }
 
   sqlite.transaction(() => {
     const event = createEventRecord("message", id, "created", payload);
@@ -140,6 +172,7 @@ export async function createMessage(
         id,
         workspaceId: workspace.manifest.id,
         threadId: input.threadId,
+        replyToMessageId: input.replyToMessageId ?? null,
         authorType: input.authorType,
         authorId: input.authorId ?? null,
         contentShort: input.contentShort ?? null,

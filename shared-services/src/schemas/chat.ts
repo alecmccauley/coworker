@@ -25,6 +25,14 @@ export const chatThreadContextSchema = z.object({
   workspaceName: z.string().min(1),
 });
 
+export const chatReplyContextSchema = z.object({
+  replyToMessageId: z.string().min(1),
+  replyToAuthorType: z.enum(["user", "coworker", "system"]),
+  replyToAuthorLabel: z.string().min(1),
+  replyToContent: z.string().min(1),
+  replyToCreatedAt: z.string().min(1),
+});
+
 export const chatCoworkerContextSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -59,6 +67,7 @@ export const chatCompletionRequestSchema = z.object({
   workspaceDocuments: z.array(chatDocumentSummarySchema),
   documentContents: z.record(z.string().min(1), z.string()),
   threadContext: chatThreadContextSchema,
+  replyContext: chatReplyContextSchema.optional(),
   channelCoworkers: z.array(chatCoworkerContextSchema),
   mentionedCoworkerIds: z.array(z.string().min(1)),
   maxCoworkerResponses: z.number().int().positive().max(10),

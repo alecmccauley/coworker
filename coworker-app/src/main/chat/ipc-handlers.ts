@@ -1,6 +1,7 @@
 import { ipcMain, type WebContents } from "electron";
 import type {
   ChatCompletionRequest,
+  ChatReplyContext,
   CoworkerSdk,
 } from "@coworker/shared-services";
 import {
@@ -158,6 +159,10 @@ interface SendMessageResult {
   responseId: string;
 }
 
+interface ChatSendOptions {
+  replyToMessageId?: string;
+}
+
 const activeStreams = new Map<string, AbortController>();
 const threadQueues = new Map<string, ThreadQueueState>();
 const toolRetryCounts = new Map<string, number>();
@@ -285,6 +290,7 @@ interface QueuedMessage {
   threadId: string;
   content: string;
   responseId: string;
+  replyToMessageId?: string;
   sender: WebContents;
   shouldAutoTitle: boolean;
   wasQueued: boolean;
@@ -300,6 +306,7 @@ function enqueueMessageForStreaming(params: {
   threadId: string;
   content: string;
   responseId: string;
+  replyToMessageId?: string;
   shouldAutoTitle: boolean;
 }): void {
   const queue = getThreadQueue(params.threadId);
@@ -307,6 +314,7 @@ function enqueueMessageForStreaming(params: {
     threadId: params.threadId,
     content: params.content,
     responseId: params.responseId,
+    replyToMessageId: params.replyToMessageId,
     sender: params.sender,
     shouldAutoTitle: params.shouldAutoTitle,
     wasQueued: queue.active,
@@ -414,12 +422,14 @@ function enqueueStreamRetry(params: {
   threadId: string;
   content: string;
   responseId: string;
+  replyToMessageId?: string;
 }): void {
   const queue = getThreadQueue(params.threadId);
   const queuedMessage: QueuedMessage = {
     threadId: params.threadId,
     content: params.content,
     responseId: params.responseId,
+    replyToMessageId: params.replyToMessageId,
     sender: params.sender,
     shouldAutoTitle: false,
     wasQueued: queue.active,
@@ -457,6 +467,7 @@ async function startStreamForMessage(message: QueuedMessage): Promise<void> {
     message.threadId,
     message.content,
     message.responseId,
+    message.replyToMessageId,
     message.shouldAutoTitle,
   )
     .catch((error) => {
@@ -619,11 +630,71 @@ async function persistStreamingContent(
   });
 }
 
+function formatReplyAuthorLabel(params: {
+  authorType: string;
+  authorId: string | null;
+  coworkerNameById: Map<string, string>;
+}): string {
+  if (params.authorType === "user") return "You";
+  if (params.authorType === "system") return "System";
+  if (params.authorType === "coworker" && params.authorId) {
+    return params.coworkerNameById.get(params.authorId) ?? "Co-worker";
+  }
+  return "Unknown";
+}
+
+function truncateReplyContent(content: string): string {
+  const trimmed = content.trim();
+  if (trimmed.length <= 1200) return trimmed;
+  return `${trimmed.slice(0, 1200).trim()}\n…`;
+}
+
+async function buildReplyContext(params: {
+  threadId: string;
+  replyToMessageId?: string;
+  coworkerNameById: Map<string, string>;
+}): Promise<ChatReplyContext | undefined> {
+  if (!params.replyToMessageId) return undefined;
+
+  const replyTarget = await getMessageById(params.replyToMessageId);
+  if (!replyTarget) {
+    throw new Error("Reply target message was not found.");
+  }
+  if (replyTarget.threadId !== params.threadId) {
+    throw new Error("Reply target must belong to this conversation.");
+  }
+
+  const rawContent = (replyTarget.contentShort ?? "").trim();
+  if (!rawContent) {
+    throw new Error("Reply target has no usable text content.");
+  }
+
+  const authorType =
+    replyTarget.authorType === "user" ||
+    replyTarget.authorType === "coworker" ||
+    replyTarget.authorType === "system"
+      ? replyTarget.authorType
+      : "system";
+
+  return {
+    replyToMessageId: replyTarget.id,
+    replyToAuthorType: authorType,
+    replyToAuthorLabel: formatReplyAuthorLabel({
+      authorType: replyTarget.authorType,
+      authorId: replyTarget.authorId,
+      coworkerNameById: params.coworkerNameById,
+    }),
+    replyToContent: truncateReplyContent(normalizeMentionsForLlm(rawContent)),
+    replyToCreatedAt: new Date(replyTarget.createdAt).toISOString(),
+  };
+}
+
 async function streamChatResponse(
   sender: WebContents,
   threadId: string,
   content: string,
   responseId: string,
+  replyToMessageId: string | undefined,
   shouldAutoTitle: boolean,
 ): Promise<void> {
   if (!getSdk) {
@@ -730,6 +801,11 @@ async function streamChatResponse(
     const coworkerNameById = new Map(
       channelCoworkers.map((coworker) => [coworker.id, coworker.name]),
     );
+    const replyContext = await buildReplyContext({
+      threadId,
+      replyToMessageId,
+      coworkerNameById,
+    });
     const mentionedDocumentIds = extractMentionedDocumentIds(content);
     const mentionedSourceIds = extractMentionedSourceIds(content);
     const approvedDocumentIds = await listApprovedDocumentIds(threadId);
@@ -798,6 +874,7 @@ async function streamChatResponse(
       workspaceDocuments,
       documentContents,
       threadContext,
+      replyContext,
       channelCoworkers: channelCoworkers.map(mapCoworkerToContext),
       mentionedCoworkerIds,
       maxCoworkerResponses,
@@ -2158,7 +2235,13 @@ async function streamChatResponse(
     if (shouldRetry) {
       streamRetryCounts.set(retryKey, retryCount + 1);
       emitStatus("Retrying...", "streaming");
-      enqueueStreamRetry({ sender, threadId, content, responseId });
+      enqueueStreamRetry({
+        sender,
+        threadId,
+        content,
+        responseId,
+        replyToMessageId,
+      });
       return;
     }
 
@@ -2203,6 +2286,7 @@ export function registerChatIpcHandlers(): void {
       event,
       threadId: string,
       content: string,
+      options?: ChatSendOptions,
     ): Promise<SendMessageResult> => {
       const threadContext = await getThreadContext(threadId);
       const messageCount = await getThreadMessageCount(threadId);
@@ -2210,10 +2294,16 @@ export function registerChatIpcHandlers(): void {
       const isDefaultTitle =
         normalizedTitle.length === 0 || normalizedTitle === "New conversation";
       const shouldAutoTitle = messageCount === 0 && isDefaultTitle;
+      const replyToMessageId =
+        typeof options?.replyToMessageId === "string" &&
+        options.replyToMessageId.trim().length > 0
+          ? options.replyToMessageId.trim()
+          : undefined;
 
       const userMessage = await createMessage({
         threadId,
         authorType: "user",
+        replyToMessageId,
         contentShort: content,
         status: "complete",
       });
@@ -2222,6 +2312,7 @@ export function registerChatIpcHandlers(): void {
         threadId,
         content,
         responseId: userMessage.id,
+        replyToMessageId,
         shouldAutoTitle,
       });
 
@@ -2256,6 +2347,7 @@ export function registerChatIpcHandlers(): void {
         threadId,
         content,
         responseId: message.id,
+        replyToMessageId: message.replyToMessageId ?? undefined,
         shouldAutoTitle: false,
       });
     },

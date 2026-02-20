@@ -259,6 +259,25 @@ All spacing derives from an **8px base unit**. Use Tailwind's spacing scale:
 - Cards: `p-6` minimum
 - Sections: `py-8` to `py-12`
 
+## Reply Focus Pattern
+
+For thread-level "reply to message" interactions, use a focused composition that
+mirrors iMessage behavior while preserving Coworker visual language:
+
+- Apply a translucent blur layer over the message viewport:
+  - `bg-background/45 backdrop-blur-sm`
+- De-emphasize non-target messages with reduced prominence:
+  - slight blur + lower opacity + subtle scale-down
+- Elevate the target message above the blur plane:
+  - higher z-index, accent ring, stronger shadow
+- Show an explicit composer reply bar with:
+  - author label (`Replying to ...`)
+  - short message excerpt
+  - clear cancel control
+
+This pattern should feel intentional and cinematic, but still lightweight enough
+for repeated daily use.
+
 ---
 
 ## Components

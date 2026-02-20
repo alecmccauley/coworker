@@ -26,4 +26,11 @@ export function registerClipboardIpcHandlers(): void {
       text: input.text,
     });
   });
+
+  ipcMain.handle("clipboard:writeText", async (_event, text: unknown) => {
+    if (typeof text !== "string") {
+      throw new Error("Clipboard text payload must be a string.");
+    }
+    clipboard.writeText(text);
+  });
 }

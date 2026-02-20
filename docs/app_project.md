@@ -180,6 +180,40 @@ Example:
   blocked with a clear error asking the user to remove one or more `@source`
   mentions.
 
+## Message Replies and Context Menu
+
+Threads support iMessage-style replying to a specific prior message.
+
+### Right-click context menu (message bubbles)
+
+- Available on standard text bubbles (user + coworker messages).
+- Items:
+  - `Reply...` - enters reply focus mode targeting that message.
+  - `Copy` - copies rich HTML + plain text fallback.
+  - `Copy as Markdown` - copies the raw markdown source text.
+
+### Reply focus mode UX
+
+- Entered by choosing `Reply...` from a message context menu.
+- The thread message area adds a blur/dim overlay.
+- Non-target messages are blurred and de-emphasized.
+- The target message is foregrounded with elevated visual treatment.
+- Composer shows a reply bar (`Replying to ...`) with excerpt + cancel control.
+- Exit methods:
+  - `Esc`
+  - click outside the focused message area
+  - click cancel in the composer reply bar
+
+### Persistence and orchestration context
+
+- User replies persist a message-level link via `replyToMessageId` (stored as
+  `reply_to_message_id` in SQLite).
+- This linkage survives reload and is rendered in message bubbles as a reply
+  reference preview (author + excerpt).
+- When sending a reply, the main process builds a typed `replyContext` object
+  and includes it in `ChatCompletionRequest` so the orchestrator can prioritize
+  the specific replied-to message when coordinating coworker responses.
+
 ## Document Editing Tools
 
 Document artifacts are edited via tool calls from the orchestrator. For large

@@ -20,6 +20,7 @@ export interface Message {
   id: string;
   workspaceId: string;
   threadId: string;
+  replyToMessageId: string | null;
   authorType: string;
   authorId: string | null;
   contentRef: string | null;
@@ -36,6 +37,7 @@ export interface CreateMessageInput {
   threadId: string;
   authorType: AuthorType;
   authorId?: string;
+  replyToMessageId?: string;
   contentShort?: string;
   contentRef?: string;
   status?: MessageStatus;

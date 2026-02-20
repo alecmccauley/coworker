@@ -57,6 +57,7 @@
   let lastMarkedAt = $state<number | null>(null)
   let queuedMessageIds = $state<string[]>([])
   let retryingMessageIds = $state<string[]>([])
+  let replyTargetMessageId = $state<string | null>(null)
 
   function addStreamingMessage(id: string): void {
     if (!streamingMessageIds.includes(id)) {
@@ -194,6 +195,7 @@
     threadActivityLabel = null
     activityByMessageId = {}
     queuedMessageIds = []
+    replyTargetMessageId = null
     try {
       messages = await window.api.message.list(thread.id)
     } catch (err) {
@@ -279,10 +281,69 @@
     )
   }
 
-  async function handleSend(input: { content: string }): Promise<void> {
+  function handleRequestReply(messageId: string): void {
+    const target = messages.find((message) => message.id === messageId)
+    if (!target) return
+    if (target.authorType !== 'user' && target.authorType !== 'coworker') return
+    replyTargetMessageId = messageId
+  }
+
+  function handleCancelReply(): void {
+    replyTargetMessageId = null
+  }
+
+  const replyTarget = $derived(
+    replyTargetMessageId
+      ? messages.find((message) => message.id === replyTargetMessageId) ?? null
+      : null
+  )
+
+  const replyTargetAuthorLabel = $derived(
+    replyTarget
+      ? replyTarget.authorType === 'user'
+        ? 'You'
+        : replyTarget.authorType === 'coworker'
+          ? coworkers.find((item) => item.id === replyTarget.authorId)?.name ?? 'Co-worker'
+          : 'System'
+      : ''
+  )
+
+  const replyTargetPreview = $derived(
+    (() => {
+      if (!replyTarget?.contentShort) return 'No message content'
+      const trimmed = replyTarget.contentShort.trim()
+      if (!trimmed) return 'No message content'
+      return trimmed.length > 200 ? `${trimmed.slice(0, 200).trim()}…` : trimmed
+    })()
+  )
+
+  $effect(() => {
+    if (!replyTargetMessageId) return
+    if (!messages.some((message) => message.id === replyTargetMessageId)) {
+      replyTargetMessageId = null
+    }
+  })
+
+  $effect(() => {
+    if (!replyTargetMessageId) return
+
+    const onEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        replyTargetMessageId = null
+      }
+    }
+
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  })
+
+  async function handleSend(input: { content: string; replyToMessageId?: string }): Promise<void> {
     try {
-      const result = await window.api.chat.sendMessage(thread.id, input.content)
+      const result = await window.api.chat.sendMessage(thread.id, input.content, {
+        replyToMessageId: input.replyToMessageId
+      })
       messages = [...messages, result.userMessage]
+      replyTargetMessageId = null
     } catch (err) {
       console.error('Failed to send message:', err)
       error = err instanceof Error ? err.message : 'Something went wrong while sending. Please try again.'
@@ -403,11 +464,14 @@
       {coworkers}
       channelCoworkers={channelCoworkers}
       channelId={thread.channelId}
+      {replyTargetMessageId}
       {activityByMessageId}
       {queuedMessageIds}
       {retryingMessageIds}
       scrollKey={thread?.id ?? null}
       isLoading={isLoading}
+      onRequestReply={handleRequestReply}
+      onCancelReply={handleCancelReply}
       onInterviewAnswered={handleInterviewAnswered}
       onDocumentRenamed={handleDocumentRenamed}
       onRetryMessage={handleRetryMessage}
@@ -417,6 +481,14 @@
       coworkers={channelCoworkers}
       channelId={thread.channelId}
       threadId={thread.id}
+      replyTarget={replyTarget
+        ? {
+            messageId: replyTarget.id,
+            authorLabel: replyTargetAuthorLabel,
+            contentPreview: replyTargetPreview
+          }
+        : null}
+      onClearReply={handleCancelReply}
       disabled={channelCoworkers.length === 0 || hasUnansweredInterview}
       showActivity={isCoworkerWorking}
     />

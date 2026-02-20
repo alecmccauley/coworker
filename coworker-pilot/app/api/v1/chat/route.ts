@@ -56,9 +56,21 @@ function buildContextBlock(request: ChatCompletionRequest): string {
     "Keep labels concise and conversational.",
   ].join("\n");
 
-  const systemPrompt = [request.systemPrompt.trim(), "", activityInstruction].join(
-    "\n",
-  );
+  const promptSections = [request.systemPrompt.trim(), "", activityInstruction];
+
+  if (request.replyContext) {
+    promptSections.push(
+      "",
+      "Reply Context:",
+      `- The latest user message is a direct reply to message ${request.replyContext.replyToMessageId}.`,
+      `- Replied-to author: ${request.replyContext.replyToAuthorLabel} (${request.replyContext.replyToAuthorType}).`,
+      `- Replied-to message timestamp: ${request.replyContext.replyToCreatedAt}.`,
+      "- Prioritize resolving or addressing this specific replied-to content before broadening scope.",
+      `- Replied-to content: ${request.replyContext.replyToContent}`,
+    );
+  }
+
+  const systemPrompt = promptSections.join("\n");
 
   if (!request.ragContext || request.ragContext.length === 0) {
     return systemPrompt;

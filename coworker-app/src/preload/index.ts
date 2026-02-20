@@ -140,6 +140,7 @@ export interface Message {
   id: string;
   workspaceId: string;
   threadId: string;
+  replyToMessageId: string | null;
   authorType: string;
   authorId: string | null;
   contentRef: string | null;
@@ -153,6 +154,7 @@ export interface CreateMessageInput {
   threadId: string;
   authorType: AuthorType;
   authorId?: string;
+  replyToMessageId?: string;
   contentShort?: string;
   contentRef?: string;
   status?: MessageStatus;
@@ -360,6 +362,10 @@ export interface ChatQueuePayload {
   state: "queued" | "processing";
 }
 
+export interface ChatSendOptions {
+  replyToMessageId?: string;
+}
+
 // Blob types
 export interface Blob {
   id: string;
@@ -461,6 +467,8 @@ const api = {
   clipboard: {
     writeRich: (input: { html: string; text: string }) =>
       ipcRenderer.invoke("clipboard:writeRich", input) as Promise<void>,
+    writeText: (text: string) =>
+      ipcRenderer.invoke("clipboard:writeText", text) as Promise<void>,
   },
   users: {
     list: async () => ipcRenderer.invoke("api:users:list"),
@@ -826,8 +834,8 @@ const api = {
     focus: () => ipcRenderer.invoke("window:focus") as Promise<void>,
   },
   chat: {
-    sendMessage: (threadId: string, content: string) =>
-      ipcRenderer.invoke("chat:sendMessage", threadId, content) as Promise<{
+    sendMessage: (threadId: string, content: string, options?: ChatSendOptions) =>
+      ipcRenderer.invoke("chat:sendMessage", threadId, content, options) as Promise<{
         userMessage: Message;
         responseId: string;
       }>,
